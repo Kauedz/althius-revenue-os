@@ -5,3 +5,4 @@ buzz-reference
 .env
 .env.local
 *.log
+supabase/.branches

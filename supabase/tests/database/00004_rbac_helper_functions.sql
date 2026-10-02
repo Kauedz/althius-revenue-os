@@ -4,7 +4,7 @@
 -- ==============================================================================
 
 BEGIN;
-
+SELECT * FROM no_plan();
 -- 1. Check function existence
 SELECT has_function('public', 'current_workspace_member', 'Função current_workspace_member deve existir');
 SELECT has_function('public', 'has_workspace_role', ARRAY['uuid', 'text[]'], 'Função has_workspace_role deve existir');
@@ -16,7 +16,7 @@ INSERT INTO public.workspaces (id, name, slug) VALUES
 
 INSERT INTO public.workspace_members (workspace_id, user_id, role, status) VALUES 
   ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'bdr', 'active'),
-  ('11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'client_admin', 'suspended');
+  ('11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'clevel', 'suspended');
 
 -- 3. Test has_workspace_role behavior with mock JWT session
 SET LOCAL "request.jwt.claims" = '{"sub": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}';
@@ -34,7 +34,7 @@ SELECT is(
 );
 
 SELECT is(
-  public.has_workspace_role('11111111-1111-1111-1111-111111111111', ARRAY['client_admin', 'strategist']),
+  public.has_workspace_role('11111111-1111-1111-1111-111111111111', ARRAY['clevel', 'strategist']),
   false,
   'Usuário com papel bdr NÃO pode ter acesso validado para client_admin ou strategist'
 );
@@ -48,4 +48,5 @@ SELECT is(
   'Membro suspenso não deve ser reconhecido como membro ativo'
 );
 
+SELECT * FROM finish();
 ROLLBACK;

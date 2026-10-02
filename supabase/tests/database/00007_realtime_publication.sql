@@ -4,7 +4,7 @@
 -- ==============================================================================
 
 BEGIN;
-
+SELECT * FROM no_plan();
 -- 1. Check publication existence
 SELECT is(
   (SELECT COUNT(*)::int FROM pg_publication WHERE pubname = 'supabase_realtime'),
@@ -32,4 +32,5 @@ SELECT is_empty(
   'Tabela audit_logs NÃO deve estar na publicação supabase_realtime'
 );
 
+SELECT * FROM finish();
 ROLLBACK;

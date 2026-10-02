@@ -4,7 +4,7 @@
 -- ==============================================================================
 
 BEGIN;
-
+SELECT * FROM no_plan();
 -- 1. Setup mock data
 INSERT INTO public.workspaces (id, name, slug) VALUES 
   ('11111111-1111-1111-1111-111111111111', 'Workspace Alfa', 'ws-alfa'),
@@ -12,7 +12,7 @@ INSERT INTO public.workspaces (id, name, slug) VALUES
 
 INSERT INTO public.workspace_members (workspace_id, user_id, role, status) VALUES 
   ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'bdr', 'active'),
-  ('22222222-2222-2222-2222-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'client_admin', 'active');
+  ('22222222-2222-2222-2222-222222222222', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'clevel', 'active');
 
 -- 2. Test user aaaaaaaa querying workspaces under RLS
 SET LOCAL "request.jwt.claims" = '{"sub": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}';
@@ -44,4 +44,5 @@ SELECT is(
   'Workspace Beta deve permanecer inalterado após tentativa de update cruzado'
 );
 
+SELECT * FROM finish();
 ROLLBACK;

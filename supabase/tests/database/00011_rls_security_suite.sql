@@ -5,11 +5,11 @@
 
 BEGIN;
 
-SELECT plan(10);
+SELECT plan(11);
 
 -- 1. Verify RLS is enabled on all critical public tables
-SELECT table_has_rls('public', 'workspaces', 'Tabela public.workspaces DEVE ter RLS ativado');
-SELECT table_has_rls('public', 'workspace_members', 'Tabela public.workspace_members DEVE ter RLS ativado');
+SELECT ok((SELECT c.relrowsecurity FROM pg_class c WHERE c.oid = 'public.workspaces'::regclass), 'Tabela public.workspaces DEVE ter RLS ativado');
+SELECT ok((SELECT c.relrowsecurity FROM pg_class c WHERE c.oid = 'public.workspace_members'::regclass), 'Tabela public.workspace_members DEVE ter RLS ativado');
 
 -- 2. Verify helper function security definer property
 SELECT is_definer('public', 'current_workspace_member', 'Função current_workspace_member deve ser SECURITY DEFINER');
@@ -33,7 +33,7 @@ SELECT throws_ok(
 
 -- 5. Authenticated BDR user tests (User Alfa BDR)
 SET LOCAL ROLE authenticated;
-SET LOCAL "request.jwt.claims" = '{"sub": "u0000000-0000-0000-0000-000000000004"}';
+SET LOCAL "request.jwt.claims" = '{"sub": "e0000000-0000-0000-0000-000000000004"}';
 
 SELECT results_eq(
   $$ SELECT id FROM public.workspaces $$,
@@ -49,24 +49,29 @@ SELECT throws_ok(
 );
 
 -- BDR attempting to insert member into Alfa (must fail RLS check)
-INSERT INTO public.workspace_members (id, workspace_id, user_id, role, status)
-VALUES ('m9999999-9999-9999-9999-999999999999', 'a0000000-0000-0000-0000-000000000001', 'u9999999-9999-9999-9999-999999999999', 'bdr', 'active');
+SELECT throws_ok(
+  $$ INSERT INTO public.workspace_members (id, workspace_id, user_id, role, status)
+     VALUES ('2e55ab44-9999-9999-9999-999999999999', 'a0000000-0000-0000-0000-000000000001', '81e1259a-9999-9999-9999-999999999999', 'bdr', 'active') $$,
+  '42501',
+  NULL,
+  'BDR é barrado pela RLS ao tentar cadastrar membro'
+);
 
 SELECT is_empty(
-  $$ SELECT id FROM public.workspace_members WHERE id = 'm9999999-9999-9999-9999-999999999999' $$,
+  $$ SELECT id FROM public.workspace_members WHERE id = '2e55ab44-9999-9999-9999-999999999999' $$,
   'BDR NÃO pode cadastrar novos membros no workspace (RLS withhold)'
 );
 
 -- 6. Authenticated Client Admin user tests (User Alfa Admin)
 SET LOCAL ROLE authenticated;
-SET LOCAL "request.jwt.claims" = '{"sub": "u0000000-0000-0000-0000-000000000003"}';
+SET LOCAL "request.jwt.claims" = '{"sub": "e0000000-0000-0000-0000-000000000003"}';
 
 -- Admin inserting new BDR into Alfa (allowed by RLS)
 INSERT INTO public.workspace_members (id, workspace_id, user_id, role, status)
-VALUES ('m0000000-0000-0000-0000-000000000099', 'a0000000-0000-0000-0000-000000000001', 'u0000000-0000-0000-0000-000000000099', 'bdr', 'active');
+VALUES ('87eb998f-0000-0000-0000-000000000099', 'a0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000099', 'bdr', 'active');
 
 SELECT isnt_empty(
-  $$ SELECT id FROM public.workspace_members WHERE id = 'm0000000-0000-0000-0000-000000000099' $$,
+  $$ SELECT id FROM public.workspace_members WHERE id = '87eb998f-0000-0000-0000-000000000099' $$,
   'Client Admin DEVE conseguir cadastrar novos membros no seu próprio workspace'
 );
 

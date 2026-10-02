@@ -4,7 +4,7 @@
 -- ==============================================================================
 
 BEGIN;
-
+SELECT * FROM no_plan();
 -- 1. Verify extensions
 SELECT has_extension('uuid-ossp', 'Extensão uuid-ossp deve estar instalada');
 SELECT has_extension('pgcrypto', 'Extensão pgcrypto deve estar instalada');
@@ -38,4 +38,5 @@ SELECT isnt(
   'updated_at deve avançar automaticamente após UPDATE'
 );
 
+SELECT * FROM finish();
 ROLLBACK;
