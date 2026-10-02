@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'parse5';
+import { PATCHES } from './patches.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SRC = path.join(ROOT, 'althius-frontend-v18', 'fonte');
@@ -250,10 +251,10 @@ ${jsx}
   );
 }
 `;
-fs.writeFileSync(path.join(OUT, 'template.generated.tsx'), tsx);
+const outputs = { 'template.generated.tsx': tsx };
 
 const css = `/* GERADO por scripts/v18/convert.mjs: estilos do protótipo v18 (helmet) + regras de hover. */\n` + styles.join('\n') + '\n/* Hover (style-hover do template) */\n' + hoverRules.join('\n') + '\n';
-fs.writeFileSync(path.join(OUT, 'althius.css'), css);
+outputs['althius.css'] = css;
 
 // ---------------------------------------------------------------------------
 // Lógica: class Component extends DCLogic -> AlthiusLogic extends React.Component
@@ -271,10 +272,21 @@ AlthiusLogic.prototype.render = function () {
   return renderTemplate({ ...this.props, ...(this.renderVals() || {}) });
 };
 `;
-fs.writeFileSync(path.join(OUT, 'logic.generated.js'), logic);
+outputs['logic.generated.js'] = logic;
 
-for (const f of ['data.js', 'module.js']) fs.copyFileSync(path.join(SRC, f), path.join(OUT, f));
+for (const f of ['data.js', 'module.js']) outputs[f] = fs.readFileSync(path.join(SRC, f), 'utf8');
 
-console.log('template.generated.tsx:', tsx.split('\n').length, 'linhas');
+// Regras de produto (scripts/v18/patches.mjs): cada uma precisa encontrar o trecho exato.
+for (const p of PATCHES) {
+  const atual = outputs[p.arquivo];
+  if (atual === undefined) throw new Error('Patch aponta para arquivo desconhecido: ' + p.arquivo);
+  const n = atual.split(p.trocar).length - 1;
+  if (n !== 1) throw new Error('Regra "' + p.regra + '": esperava 1 ocorrência em ' + p.arquivo + ', achei ' + n + '. Revise scripts/v18/patches.mjs.');
+  outputs[p.arquivo] = atual.replace(p.trocar, () => p.por);
+}
+for (const [nome, conteudo] of Object.entries(outputs)) fs.writeFileSync(path.join(OUT, nome), conteudo);
+console.log('regras de produto aplicadas:', PATCHES.length);
+
+console.log('template.generated.tsx:', outputs['template.generated.tsx'].split('\n').length, 'linhas');
 console.log('althius.css:', css.length, 'bytes; hover:', hoverRules.length);
 console.log('logic.generated.js:', logic.split('\n').length, 'linhas');

@@ -33,6 +33,13 @@ describe('front v18 em React', () => {
     expect(nav.getByRole('link', { name: /Aprovações/ })).toBeInTheDocument();
   });
 
+  it.each(['cliente', 'estrategista'] as const)('tela de Créditos não mostra dólar para %s', async papel => {
+    abrir('#/app/evolut/credits', papel);
+    await screen.findByText('Saldo do workspace');
+    expect(document.body.textContent).not.toMatch(/US\$|dólar/i);
+    expect(screen.getByText('R$ 529,00')).toBeInTheDocument();
+  });
+
   it('BDR não vê Estratégia nem Aprovações no menu', async () => {
     abrir('#/app/evolut/home', 'bdr');
     const nav = within(navPrincipal());

@@ -4761,7 +4761,7 @@ export function renderTemplate($v: Record<string, any>) {
                             {"Saldo do workspace"}
                           </span>
                           <span style={{"fontWeight":"400","color":"var(--graphite)"}}>
-                            {"1 crédito = US$ 0,005"}
+                            {"Franquia mensal + recargas"}
                           </span>
                         </div>
                         {"\n                    "}
@@ -4772,7 +4772,7 @@ export function renderTemplate($v: Record<string, any>) {
                               {__t($v.cr?.saldo)}
                             </span>
                             <span style={{"fontSize":"14px","color":"var(--graphite)"}}>
-                              {"créditos · "}{__t($v.cr?.saldoUsd)}
+                              {"créditos"}
                             </span>
                           </div>
                           {"\n                      "}
@@ -4790,7 +4790,7 @@ export function renderTemplate($v: Record<string, any>) {
                           </div>
                           {"\n                      "}
                           <span style={{"fontSize":"13px","lineHeight":"1.5","color":"var(--text-2)"}}>
-                            {"Todo workspace começa com 10.000 créditos (US$ 50). Cada ação de agente consome créditos: conversar, trazer dados, enriquecer, enviar e gerar relatórios."}
+                            {"Todo workspace começa com 10.000 créditos por mês. Cada ação de agente consome créditos: conversar, trazer dados, enriquecer, enviar e gerar relatórios."}
                           </span>
                           {"\n                    "}
                         </div>
@@ -4907,7 +4907,7 @@ export function renderTemplate($v: Record<string, any>) {
                               {"Recarga automática"}
                             </span>
                             <span style={{"fontSize":"12px","color":"var(--graphite)"}}>
-                              {"Abaixo de 1.000, compra 10.000 créditos (US$ 50)."}
+                              {"Abaixo de 1.000, compra 10.000 créditos."}
                             </span>
                           </span>
                         </span>
@@ -5002,7 +5002,7 @@ export function renderTemplate($v: Record<string, any>) {
                                     {__t(a?.nome)}
                                   </span>
                                   <span style={{"fontVariantNumeric":"tabular-nums"}}>
-                                    {__t(a?.creditos)}{" · "}{__t(a?.usd)}
+                                    {__t(a?.creditos)}
                                   </span>
                                 </span>
                                 <span className={"cr-barra"} style={{"height":"4px"}}>

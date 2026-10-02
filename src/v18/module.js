@@ -210,9 +210,9 @@ window.ALTHIUS_MOD = {
     acoesLinha: [['Testar conexão', 'Teste concluído sem erros.'], ['Reconectar', 'Conexão renovada.', { status: 'Conectada' }]]
   },
   credits: {
-    titulo: 'Créditos e uso', sub: '1 crédito = US$ 0,005 · tudo que entra e sai',
+    titulo: 'Créditos e uso', sub: 'Tudo que entra e sai, em créditos',
     kpis: [['Disponíveis', '7.950', 'de 10.000'], ['Reservados', '1.800', '1 execução'], ['Consumidos', '2.050', 'no ciclo'], ['Renovação', '01 out', 'plano Growth']],
-    colunas: [['agente', 'Agente', '1.6fr'], ['execucoes', 'Execuções', '1fr'], ['creditos', 'Créditos', '1fr'], ['custo', 'Em dólar', '1fr'], ['parte', 'Parte do uso', '1fr']],
+    colunas: [['agente', 'Agente', '1.6fr'], ['execucoes', 'Execuções', '1fr'], ['creditos', 'Créditos', '1fr'], ['parte', 'Parte do uso', '1fr']],
     linhas: [
       { id: 'u1', agente: 'Agente Comercial', execucoes: 280, creditos: 1540, custo: 'US$ 7,70', parte: '75%' },
       { id: 'u3', agente: 'Agente de Copy', execucoes: 61, creditos: 310, custo: 'US$ 1,55', parte: '15%' },
