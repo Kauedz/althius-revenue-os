@@ -13,8 +13,16 @@ A specific human user associated with a workspace under a designated role.
 _Avoid_: User, participant, operator
 
 **Role**:
-A discrete set of operational permissions and access boundaries assigned to a workspace member.
-_Avoid_: Profile, level, clearance
+One of the four canonical seats within a workspace: `superadmin`, `estrategista`, `clevel`, or `bdr`.
+_Avoid_: Profile, level, clearance, tier
+
+**Capability**:
+An atomic business operation identified by a technical key in the 33-capability matrix across 5 functional areas.
+_Avoid_: Permission, feature, action
+
+**Scope**:
+The access boundary modifier attached to a role for a capability: `all`, `assigned`, `own`, `read`, `request`, or `none`.
+_Avoid_: Granularity, filter, constraint
 
 ## Estratégia de Receita
 
@@ -31,8 +39,16 @@ The complete collection of influence roles involved in purchasing decisions with
 _Avoid_: Decision makers, stakeholders
 
 **Playbook**:
-The approved strategic framework governing message narratives, value propositions, and response rules for outreach.
+The approved strategic markdown framework governing agent mission, rules, approach, and boundaries.
 _Avoid_: Script, prompt, guideline
+
+**Skill**:
+A step-by-step procedural instruction file in markdown format equipping an agent with a specialized operational routine.
+_Avoid_: Tool, plugin, function
+
+**Signal**:
+A monitored market event or intent indicator associated with accounts, mapped to platform capabilities via Apify or internal triggers.
+_Avoid_: Alert, trigger, crawler event
 
 ## Dados & Prospecção
 
@@ -48,6 +64,10 @@ _Avoid_: Company, client, organization, target
 A verified individual associated with an account.
 _Avoid_: Person, lead, prospect
 
+**Contact Channel**:
+A verified communication endpoint (email, phone, whatsapp, linkedin, instagram) belonging to a contact, used by the CRM-only inbox privacy filter.
+_Avoid_: Address, handle, phone number
+
 **Lead**:
 A contact evaluated against an active ICP and selected for commercial outreach within a specific campaign motion.
 _Avoid_: Contact, prospect, opportunity, candidate
@@ -58,16 +78,28 @@ _Avoid_: Blacklist, unsubscribe, opt-out flag
 
 ## Cadência & Trabalho Comercial
 
+**Motion**:
+A commercial go-to-market model adopted by pipeline boards: `slg`, `mlg`, or `plg`.
+_Avoid_: Sales model, funnel type
+
+**Board (Quadro)**:
+An active pipeline instance under a specific motion, with a maximum of 5 boards per motion per workspace.
+_Avoid_: Pipeline, board, funnel
+
+**Stage (Etapa)**:
+One of the 6 canonical milestones of a deal: `entrada`, `qualificacao`, `descoberta`, `proposta`, `negociacao`, or `ganho`.
+_Avoid_: Column, phase, step
+
 **Cadence**:
 A structured, multi-step, multi-channel sequence of scheduled outreach activities and agent tasks.
 _Avoid_: Campaign, sequence, drip, workflow
 
 **Cadence Step**:
-A single scheduled action within a cadence, defined by channel, delay window, and execution mode.
+A single scheduled action within a cadence, marked as automatic (`email`, `whatsapp`) or manual (`linkedin`, `instagram`, `call`).
 _Avoid_: Touchpoint, event, stage
 
 **Task**:
-An actionable, scheduled work item assigned to a specific human member or automated agent step.
+An actionable, scheduled work item assigned to a specific human member or automated agent step, executable via "Send now".
 _Avoid_: Todo, job, action item
 
 **Sales Workbench**:
@@ -75,44 +107,40 @@ The dedicated, distraction-free execution interface where commercial operators r
 _Avoid_: BDR dashboard, queue, inbox
 
 **Opportunity**:
-A commercial deal pipeline stage created when a qualified account or lead confirms purchase intent or schedules a strategic discovery meeting.
+A commercial deal tracked on a pipeline board with a stage key, amount, close date, health indicator, and win probability.
 _Avoid_: Deal, pipeline, win
 
 ## Agentes & Execuções
 
 **Agent**:
-A persistent, specialized digital worker configured with dedicated tools, autonomy boundaries, and strategic mission guidelines.
+One of the 4 canonical digital workers: `comercial`, `marketing`, `copy`, or `revops`.
 _Avoid_: Bot, chatbot, prompt, assistant
 
 **Copilot**:
-The conversational router interface through which workspace members query intelligence, draft work, and initiate operational missions.
+The conversational router interface through which workspace members interact with the 4 specialized agents.
 _Avoid_: Chat, Hermes, assistant, bot
 
 **Execution**:
 An asynchronous, trackable run of an automated capability, agent workflow, or data pipeline.
 _Avoid_: Job, run, batch, task
 
-**Execution Step**:
-A discrete, verifiable unit of work within an execution with defined inputs, tool calls, and outputs.
-_Avoid_: Subjob, stage, attempt
-
 **Approval**:
-A binding, single-use authorization requested by an agent for a high-risk operational or financial action.
+A single-use authorization with a cryptographic `payload_hash`, categorized as either `operacao` or `gasto`.
 _Avoid_: Gate, permission, checkpoint
 
 ## Integrações & Infraestrutura
 
+**Messaging Account**:
+A member-authenticated personal communication channel connected via Unipile (`linkedin`, `whatsapp`, `instagram`, `google`, `microsoft`, `imap`).
+_Avoid_: Corporate inbox, shared connection
+
 **Integration**:
-A supported external platform or third-party service provider cataloged by the system.
+A supported external platform or third-party service provider cataloged by the system (HubSpot, Google, Microsoft, Apify, Unipile).
 _Avoid_: App, plugin, connector
 
 **Connection**:
 An authenticated, authorized instance of an integration linked to a workspace or member.
 _Avoid_: Account, credential, key, auth
-
-**Mailbox**:
-An authorized email sending address connected to a member or workspace for legitimate outbound communication.
-_Avoid_: Email, inbox, sender, alias
 
 ## Economia & Finanças
 
@@ -121,9 +149,13 @@ The balance ledger containing available, reserved, and consumed commercial units
 _Avoid_: Balance, account, bank
 
 **Credit**:
-The internal platform currency consumed by data scraping, enrichment, and variable infrastructure capabilities.
+The internal platform currency (1 credit = US$ 0.005 sales price; 200 credits = US$ 1.00) consumed by operations.
 _Avoid_: Token, compute unit, dollar, cost
 
+**Credit Reservation**:
+A provisional pre-authorization hold placed on available credits (+25% buffer) prior to executing variable tasks.
+_Avoid_: Hold, escrow, retainer
+
 **Provider Cost**:
-The confidential, internal expenses incurred by the platform with upstream suppliers.
+The confidential, internal expenses incurred by the platform with upstream suppliers, isolated in schema `internal`.
 _Avoid_: Wholesale price, real cost, credit cost
