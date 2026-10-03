@@ -171,4 +171,8 @@ export const PATCHES = [
     trocar: "cliente: ['cliente', 'bdr'], bdr: [] }[papel];",
     por: "cliente: ['cliente', 'bdr'], bdr: [] }[papelCfg];"
   }
+
+  // ---- Relatórios, Sinais e Prospecção (Grok)
+  // Relatórios, no modo real, troca os números na própria tela (AlthiusApp).
+  // Sem patch no arquivo gerado. Sinais e Prospecção entram nesta seção depois.
 ];
