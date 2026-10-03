@@ -55,6 +55,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   componentWillUnmount() {
     this.vivo = false;
     this.cargaWorkspace++;
+    this.publicarContas([]);
     super.componentWillUnmount?.();
   }
 
@@ -84,6 +85,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   async recarregarWorkspace() {
     const carga = ++this.cargaWorkspace;
+    this.publicarContas([]);
     this.setState({ aprov: [], execs: [], contas: [], decisoes: {}, apSel: null, falhaCarga: false, carregandoRota: true });
     try {
       const [aprov, execs, creditos, contas] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos(), this.carregarContas()]);
@@ -264,12 +266,14 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
         ['Quentes', String(quentes), 'temperatura alta']
       ];
     }
-    const comites = ((window as any).ALTHIUS_COMITES = (window as any).ALTHIUS_COMITES || {});
+    // Substitui (não mistura): contatos do workspace anterior e do protótipo não ficam na memória do navegador.
+    const comites: Record<string, ContaTela['comite']> = {};
     for (const c of contas) {
       if (c.comite) {
         comites[c.id] = c.comite;
       }
     }
+    (window as any).ALTHIUS_COMITES = comites;
   }
 
   private avisarFalha(titulo: string, falha: unknown) {

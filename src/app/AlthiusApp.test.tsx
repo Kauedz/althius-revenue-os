@@ -1,6 +1,6 @@
 // Seam: o app no modo real montado com um contexto do banco (sem rede).
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '../v18/data.js';
 import '../v18/module.js';
 import { AlthiusApp } from './AlthiusApp';
@@ -149,5 +149,29 @@ describe('contas no AlthiusApp', () => {
     await waitFor(() => expect(spy).toHaveBeenCalledWith(expect.anything(), 'id-alfa'));
     await waitFor(() => expect((window as any).ALTHIUS_MOD.accounts.linhas).toContainEqual(contaMock));
     expect((window as any).ALTHIUS_COMITES['c-teste']).toEqual(contaMock.comite);
+  });
+
+  const contaDe = (ws: string): contasServico.ContaTela => ({
+    id: 'c-' + ws, nome: 'Conta ' + ws, segmento: 'Varejo', fit: 80, temperatura: 2, sinal: '—', dono: 'Pessoa Teste', cidade: '—', decisor: 'Contato ' + ws,
+    comite: [{ id: 'p-' + ws, nome: 'Contato ' + ws, cargo: 'Diretor', papel: 'decisor', foto: '', linkedin: '', emails: [ws + '@cliente.com.br'], fones: [] }]
+  });
+
+  it('trocar de workspace não deixa contatos do anterior nem do protótipo na memória do navegador', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockImplementation((_c, ws) => Promise.resolve([contaDe(ws === 'id-alfa' ? 'alfa' : 'beta')]));
+    abrir(contexto([['alfa', 'estrategista'], ['beta', 'estrategista']]), '#/app/alfa/accounts');
+    await waitFor(() => expect((window as any).ALTHIUS_COMITES['c-alfa']).toBeDefined());
+    await act(async () => { window.location.hash = '#/app/beta/accounts'; });
+    await waitFor(() => expect((window as any).ALTHIUS_COMITES['c-beta']).toBeDefined());
+    expect(Object.keys((window as any).ALTHIUS_COMITES)).toEqual(['c-beta']);
+    expect((window as any).ALTHIUS_MOD.accounts.linhas.map((c: { id: string }) => c.id)).toEqual(['c-beta']);
+  });
+
+  it('ao sair, as contas e os contatos do cliente somem da memória do navegador', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue([contaDe('alfa')]);
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/accounts');
+    await waitFor(() => expect((window as any).ALTHIUS_COMITES['c-alfa']).toBeDefined());
+    cleanup();
+    expect((window as any).ALTHIUS_MOD.accounts.linhas).toEqual([]);
+    expect((window as any).ALTHIUS_COMITES).toEqual({});
   });
 });

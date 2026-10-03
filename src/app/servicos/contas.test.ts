@@ -178,6 +178,20 @@ describe('listarContas (unitário / mapeamento)', () => {
     });
     await expect(listarContas(cliente, 'ws-1')).rejects.toThrow('Não foi possível carregar os canais dos contatos.');
   });
+
+  it('falha ao buscar o responsável vira erro, não "Alguém do time"', async () => {
+    const semMembros = mockSupabase({
+      accounts: { data: [{ id: 'c1', owner_member_id: 'm1' }], error: null },
+      workspace_members: { data: null, error: { message: 'falha membros' } }
+    });
+    await expect(listarContas(semMembros, 'ws-1')).rejects.toThrow('Não foi possível carregar os responsáveis pelas contas.');
+    const semPerfis = mockSupabase({
+      accounts: { data: [{ id: 'c1', owner_member_id: 'm1' }], error: null },
+      workspace_members: { data: [{ id: 'm1', user_id: 'u1' }], error: null },
+      profiles: { data: null, error: { message: 'falha perfis' } }
+    });
+    await expect(listarContas(semPerfis, 'ws-1')).rejects.toThrow('Não foi possível carregar os responsáveis pelas contas.');
+  });
 });
 
 describe.skipIf(!bancoLocalNoAr)('Contas e leads (banco local)', () => {
