@@ -370,4 +370,8 @@ export const PATCHES = [
   // ---- Estratégia (Grok)
   // A tela de Estratégia, no modo real, publica em ALTHIUS_MOD.strategy (AlthiusApp).
   // Sem patch no arquivo gerado.
+
+  // ---- Campanhas (Grok)
+  // A tela de Campanhas, no modo real, publica em ALTHIUS_MOD.campaigns (AlthiusApp).
+  // Sem patch no arquivo gerado.
 ];

@@ -33,6 +33,7 @@ import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './serv
 import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
 import { listarProspeccao, prospeccaoSemDados, type ProspeccaoTela } from './servicos/prospeccao';
 import { definirSituacaoEstrategia, estrategiaSemDados, listarEstrategia, salvarEstrategia, type EstrategiaTela } from './servicos/estrategia';
+import { ativarCampanha, campanhasSemDados, listarCampanhas, pausarCampanha, salvarCampanha, type CampanhasTela } from './servicos/campanhas';
 
 export interface AlthiusAppProps {
   dados: DadosAlthius;
@@ -51,6 +52,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarSinais(sinaisReais);
     this.publicarProspeccao(prospeccaoReais);
     this.publicarEstrategia(null);
+    this.publicarCampanhas(null);
   }
 
   // Fora da demonstração não existe troca de papel: o papel vem do banco.
@@ -121,6 +123,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarAprendizados({}, {});
     this.publicarCaixa(null);
     this.publicarEstrategia(null);
+    this.publicarCampanhas(null);
     super.componentWillUnmount?.();
   }
 
@@ -244,6 +247,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.valoresEquipe(v);
     this.formularioNovoCliente(v);
     this.formularioEstrategia(v);
+    this.formularioCampanha(v);
     return v;
   }
 
@@ -859,6 +863,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (!entrou || !this.state.pronto) return;
     if (rota.page === 'inbox') void this.carregarCaixa();
     if (rota.page === 'strategy') void this.carregarEstrategia();
+    if (rota.page === 'campaigns') void this.carregarCampanhas();
     if (String(rota.page || '').startsWith('admin/')) void this.carregarAdmin(rota.page);
     if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) { void this.carregarConexoes(); void this.carregarCanais(); }
     if (rota.page === 'channels' && (rota.id !== antes.id || rota.page !== antes.page || rota.ws !== antes.ws || (this.state.pronto && !prev.pronto))) void this.carregarMensagens();
@@ -889,6 +894,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   acaoDeLinhaReal(page: string, acao: string, linha: { id: string }): boolean {
     if (page === 'strategy') return this.acaoNaEstrategia(acao, linha.id);
+    if (page === 'campaigns') return this.acaoNaCampanha(acao, linha.id);
     if (page === 'admin/workspaces') {
       void this.acaoNoCliente(acao, linha as { id: string; nome: string });
       return true;
@@ -1011,6 +1017,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   acaoDaPaginaReal(page: string): boolean {
     if (page === 'strategy') return this.abrirNovaHipotese();
+    if (page === 'campaigns') return this.abrirNovaCampanha();
     if (page !== 'admin/workspaces') return false;
     this.setState({ formNovoWs: { nome: '', slug: '', email: '', estrategista: '', erro: '' } });
     return true;
@@ -1281,5 +1288,108 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (!r.ok) return this.confirmar('Situação não alterada', r.mensagem, 'Entendi', () => {});
     this.avisar('mod', aviso);
     await this.carregarEstrategia();
+  }
+
+  // ---- Campanhas (Grok)
+
+  private cargaCampanhas = 0;
+
+  private publicarCampanhas(tela: CampanhasTela | null) {
+    if (typeof window === 'undefined') return;
+    const mod = (window as any).ALTHIUS_MOD;
+    if (!mod?.campaigns) return;
+    const dados = tela || campanhasSemDados();
+    mod.campaigns.kpis = dados.kpis;
+    mod.campaigns.linhas = tela ? dados.linhas : [];
+    mod.campaigns.acoesLinha = tela && dados.podeEditar ? [
+      ['Pausar', 'Campanha pausada.'],
+      ['Ativar', '']
+    ] : [];
+  }
+
+  async carregarCampanhas() {
+    const ws = this.workspaceAtual();
+    const carga = ++this.cargaCampanhas;
+    this.publicarCampanhas(null);
+    if (this.vivo) this.setState({ campanhasPodeEditar: false, campanhasVersao: carga });
+    if (!ws?.membroId) return;
+    try {
+      const tela = await listarCampanhas(this.props.supabase, ws.uuid, ws.membroId);
+      if (!this.vivo || carga !== this.cargaCampanhas || this.workspaceAtual()?.uuid !== ws.uuid) return;
+      this.publicarCampanhas(tela);
+      this.setState({ campanhasPodeEditar: tela.podeEditar, campanhasVersao: carga });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaCampanhas) this.avisarFalha('Não foi possível carregar as campanhas', falha);
+    }
+  }
+
+  private abrirNovaCampanha(): boolean {
+    if (!this.state.campanhasPodeEditar) {
+      this.confirmar('Sem permissão para criar', 'Seu papel não cria campanha.', 'Entendi', () => {});
+      return true;
+    }
+    this.setState({ formCampanha: { nome: '', canal: 'Orgânico', erro: '' } });
+    return true;
+  }
+
+  private formularioCampanha(v: Record<string, any>) {
+    const f = this.state.formCampanha as { nome: string; canal: string; erro: string } | undefined;
+    if (!f || !v.md || (this.state.rota || {}).page !== 'campaigns') return;
+    const muda = (campo: string) => (e: { target: { value: string } }) =>
+      this.setState({ formCampanha: Object.assign({}, this.state.formCampanha, { [campo]: e.target.value, erro: '' }) });
+    v.md.form = {
+      titulo: 'Nova campanha',
+      campos: [
+        { label: 'Nome', valor: f.nome, mudar: muda('nome'), placeholder: 'Nome da campanha' },
+        { label: 'Canal', valor: f.canal, mudar: muda('canal'), placeholder: 'Orgânico, LinkedIn Ads, Meta Ads, Google Ads, Evento ou SEO/GEO' }
+      ],
+      erro: f.erro,
+      salvarLabel: 'Salvar rascunho',
+      salvar: () => { void this.salvarCampanhaReal(); },
+      cancelar: () => this.setState({ formCampanha: undefined })
+    };
+  }
+
+  private async salvarCampanhaReal() {
+    const ws = this.workspaceAtual();
+    const f = this.state.formCampanha;
+    if (!ws?.membroId || !f) return;
+    const r = await salvarCampanha(this.props.supabase, ws.uuid, ws.membroId, f);
+    if (!this.vivo) return;
+    if (!r.ok) return this.setState({ formCampanha: Object.assign({}, f, { erro: r.mensagem }) });
+    this.setState({ formCampanha: undefined });
+    this.avisar('mod', 'Campanha salva como rascunho.');
+    await this.carregarCampanhas();
+  }
+
+  private acaoNaCampanha(acao: string, id: string): boolean {
+    if (!this.state.campanhasPodeEditar) {
+      this.confirmar('Sem permissão para criar', 'Seu papel não cria campanha.', 'Entendi', () => {});
+      return true;
+    }
+    if (acao === 'Ativar') { void this.ativarCampanhaReal(id); return true; }
+    if (acao === 'Pausar') { void this.pausarCampanhaReal(id); return true; }
+    return false;
+  }
+
+  private async ativarCampanhaReal(id: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await ativarCampanha(this.props.supabase, ws.uuid, ws.membroId, id);
+    if (!this.vivo) return;
+    if (!r.ok) return this.confirmar('Campanha não ativada', r.mensagem, 'Entendi', () => {});
+    if (r.destino === 'ativa') this.avisar('mod', r.mensagem || 'Campanha ativada.');
+    else this.confirmar('Campanha não foi ligada', r.mensagem, 'Entendi', () => {});
+    await this.carregarCampanhas();
+  }
+
+  private async pausarCampanhaReal(id: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await pausarCampanha(this.props.supabase, ws.uuid, ws.membroId, id);
+    if (!this.vivo) return;
+    if (!r.ok) return this.confirmar('Campanha não pausada', r.mensagem, 'Entendi', () => {});
+    this.avisar('mod', r.mensagem);
+    await this.carregarCampanhas();
   }
 }
