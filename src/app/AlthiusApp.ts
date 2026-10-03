@@ -35,6 +35,7 @@ import { listarProspeccao, prospeccaoSemDados, type ProspeccaoTela } from './ser
 import { definirSituacaoEstrategia, estrategiaSemDados, listarEstrategia, salvarEstrategia, type EstrategiaTela } from './servicos/estrategia';
 import { ativarCampanha, campanhasSemDados, listarCampanhas, pausarCampanha, salvarCampanha, type CampanhasTela } from './servicos/campanhas';
 import { listarConteudos, publicarConteudo, salvarConteudo, type ConteudoTela, type ConteudosTela } from './servicos/conteudos';
+import { listarIntegracoes, type IntegracoesTela } from './servicos/integracoes';
 
 export interface AlthiusAppProps {
   dados: DadosAlthius;
@@ -55,6 +56,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarEstrategia(null);
     this.publicarCampanhas(null);
     this.publicarConteudos(null);
+    this.publicarIntegracoes(null);
   }
 
   // Fora da demonstração não existe troca de papel: o papel vem do banco.
@@ -127,6 +129,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarEstrategia(null);
     this.publicarCampanhas(null);
     this.publicarConteudos(null);
+    this.publicarIntegracoes(null);
     super.componentWillUnmount?.();
   }
 
@@ -869,6 +872,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (rota.page === 'strategy') void this.carregarEstrategia();
     if (rota.page === 'campaigns') void this.carregarCampanhas();
     if (rota.page === 'contents') void this.carregarConteudos();
+    if (rota.page === 'integrations') void this.carregarIntegracoes();
     if (String(rota.page || '').startsWith('admin/')) void this.carregarAdmin(rota.page);
     if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) { void this.carregarConexoes(); void this.carregarCanais(); }
     if (rota.page === 'channels' && (rota.id !== antes.id || rota.page !== antes.page || rota.ws !== antes.ws || (this.state.pronto && !prev.pronto))) void this.carregarMensagens();
@@ -902,6 +906,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (page === 'strategy') return this.acaoNaEstrategia(acao, linha.id);
     if (page === 'campaigns') return this.acaoNaCampanha(acao, linha.id);
     if (page === 'contents') return this.acaoNoConteudo(acao, linha.id);
+    if (page === 'integrations') return true;
     if (page === 'admin/workspaces') {
       void this.acaoNoCliente(acao, linha as { id: string; nome: string });
       return true;
@@ -1026,6 +1031,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (page === 'strategy') return this.abrirNovaHipotese();
     if (page === 'campaigns') return this.abrirNovaCampanha();
     if (page === 'contents') return this.abrirNovoConteudo();
+    if (page === 'integrations') return true;
     if (page !== 'admin/workspaces') return false;
     this.setState({ formNovoWs: { nome: '', slug: '', email: '', estrategista: '', erro: '' } });
     return true;
@@ -1502,5 +1508,33 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (r.destino === 'aprovacao') this.confirmar('Conteúdo não publicado', r.mensagem, 'Entendi', () => {});
     else this.avisar('mod', r.mensagem);
     await this.carregarConteudos();
+  }
+
+  // ---- Integrações (Grok)
+
+  private cargaIntegracoes = 0;
+
+  private publicarIntegracoes(tela: IntegracoesTela | null) {
+    if (typeof window === 'undefined') return;
+    const mod = (window as any).ALTHIUS_MOD;
+    if (!mod?.integrations) return;
+    mod.integrations.linhas = tela ? tela.linhas : [];
+    mod.integrations.acoesLinha = [];
+  }
+
+  async carregarIntegracoes() {
+    const ws = this.workspaceAtual();
+    const carga = ++this.cargaIntegracoes;
+    this.publicarIntegracoes(null);
+    if (this.vivo) this.setState({ integracoesVersao: carga });
+    if (!ws) return;
+    try {
+      const tela = await listarIntegracoes(this.props.supabase, ws.uuid);
+      if (!this.vivo || carga !== this.cargaIntegracoes || this.workspaceAtual()?.uuid !== ws.uuid) return;
+      this.publicarIntegracoes(tela);
+      this.setState({ integracoesVersao: carga });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaIntegracoes) this.avisarFalha('Não foi possível carregar as integrações', falha);
+    }
   }
 }

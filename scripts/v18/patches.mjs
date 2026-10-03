@@ -361,7 +361,7 @@ export const PATCHES = [
       if (inicio < 0 || fimBotao < 0 || fim < fimBotao) throw new Error('Regra "duas etapas": estrutura do bloco mudou.');
       return texto.slice(0, inicio) + '{$v.modoDemo !== false ? (<>' + texto.slice(inicio, fim) + '</>) : null}' + texto.slice(fim);
     }
-  }
+  },
 
   // ---- Relatórios, Sinais e Prospecção (Grok)
   // Relatórios, no modo real, troca os números na própria tela (AlthiusApp).
@@ -378,4 +378,25 @@ export const PATCHES = [
   // ---- Conteúdos (Grok)
   // A tela de Conteúdos, no modo real, publica em ALTHIUS_MOD.contents (AlthiusApp).
   // Sem patch no arquivo gerado.
+
+  // ---- Integrações (Grok)
+  // No modo real a tela só lê. Conectar, testar e reconectar ainda não existem, então somem.
+  {
+    regra: 'integrações: no modo real Conectar ferramenta fica escondido',
+    arquivo: 'logic.generated.js',
+    trocar: "md.temAcao = !!M.acao && podeAgir; md.acaoLabel = M.acao ? M.acao.label : '';",
+    por: "md.temAcao = !!M.acao && podeAgir && !(this.modoDemo === false && page === 'integrations'); md.acaoLabel = M.acao ? M.acao.label : '';"
+  },
+  {
+    regra: 'integrações: no modo real Testar conexão e Reconectar ficam escondidos',
+    arquivo: 'logic.generated.js',
+    trocar: "const acoes = (podeAgir ? (M.acoesLinha || []) : []).map((a, ai) => ({ label: a[0], bg:",
+    por: "const acoes = (podeAgir && !(this.modoDemo === false && page === 'integrations') ? (M.acoesLinha || []) : []).map((a, ai) => ({ label: a[0], bg:",
+  },
+  {
+    regra: 'integrações: no modo real o catálogo de conectar some',
+    arquivo: 'logic.generated.js',
+    trocar: "v.cat = { ativo: page === 'integrations' && vista === 'modulo', grupos: [], filtros: [] };",
+    por: "v.cat = { ativo: page === 'integrations' && vista === 'modulo' && this.modoDemo !== false, grupos: [], filtros: [] };"
+  },
 ];

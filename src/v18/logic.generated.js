@@ -470,7 +470,7 @@ export class AlthiusLogic extends React.Component {
       md.temBusca = !!M.busca; md.busca = ms.busca || ''; md.mudarBusca = ev => setMs({ busca: ev.target.value });
       md.filtros = M.filtro ? ['Todos'].concat(rows0.map(l => l[M.filtro]).filter((x, i2, a) => a.indexOf(x) === i2).sort((x, y) => M.filtro === 'temperatura' ? y - x : 0)).map(f => { const at = fv === f; const ff = M.filtro === 'temperatura' && /^[123]$/.test(String(f)); return { temFogo: ff, semFogo: !ff, chamas: ff ? this.chamas(+f) : [], label: ff ? this.fogoRotulo(+f) : f, n: f === 'Todos' ? rows0.length : rows0.filter(l => l[M.filtro] === f).length, ativo: at ? 'true' : 'false', bg: at ? 'var(--ink)' : 'var(--paper)', cor: at ? 'var(--paper)' : 'var(--ink)', borda: at ? 'var(--ink)' : 'var(--rule)', ir: () => setMs({ filtro: f }) }; }) : [];
       const podeAgir = papel !== 'bdr' || ['tasks', 'inbox', 'accounts', 'prospecting', 'cadences', 'pipeline'].indexOf(page) >= 0;
-      md.temAcao = !!M.acao && podeAgir; md.acaoLabel = M.acao ? M.acao.label : '';
+      md.temAcao = !!M.acao && podeAgir && !(this.modoDemo === false && page === 'integrations'); md.acaoLabel = M.acao ? M.acao.label : '';
       md.acao = () => { if (this.modoDemo === false && this.acaoDaPaginaReal && this.acaoDaPaginaReal(page)) return; if (page === 'tasks') { this.setState({ tarefa: { canal: 'Ligação', status: 'Pendente', resp: U.usuario, data: new Date().toISOString().slice(0, 10), hora: '10:00' } }); return; } if (!M.acao) return; if (M.acao.copiloto && can('copilot')) this.abrirCop(M.acao.copiloto); else this.avisar('mod', M.acao.toast || 'Pedido registrado.'); };
       md.limpar = () => setMs({ busca: '', filtro: 'Todos', uf: null });
       md.temUf = page === 'accounts' && !!ms.uf; md.ufNome = ms.uf ? ((MAPA_UFS.find(u => u.uf === ms.uf) || {}).nome || ms.uf) : ''; md.limparUf = () => setMs({ uf: null });
@@ -493,7 +493,7 @@ export class AlthiusLogic extends React.Component {
         const campos = cols.map(c => ({ label: c[1], v: sel[c[0]] == null ? '—' : String(sel[c[0]]) }));
         Object.keys(rot).forEach(k => { if (sel[k] != null && !cols.some(c => c[0] === k)) campos.push({ label: rot[k], v: String(sel[k]) }); });
         const aplicar = patch => this.setState({ modOv: Object.assign({}, this.state.modOv, { [page]: Object.assign({}, ov, { [sel.id]: Object.assign({}, ov[sel.id] || {}, patch) }) }) });
-        const acoes = (podeAgir ? (M.acoesLinha || []) : []).map((a, ai) => ({ label: a[0], bg: ai === 0 ? 'var(--ink)' : 'var(--paper)', cor: a[3] ? 'var(--err)' : ai === 0 ? 'var(--paper)' : 'var(--ink)', borda: a[3] ? 'var(--err)' : 'var(--ink)',
+        const acoes = (podeAgir && !(this.modoDemo === false && page === 'integrations') ? (M.acoesLinha || []) : []).map((a, ai) => ({ label: a[0], bg: ai === 0 ? 'var(--ink)' : 'var(--paper)', cor: a[3] ? 'var(--err)' : ai === 0 ? 'var(--paper)' : 'var(--ink)', borda: a[3] ? 'var(--err)' : 'var(--ink)',
           fn: () => { const run = () => { if (this.modoDemo === false && this.acaoDeLinhaReal && this.acaoDeLinhaReal(page, a[0], sel)) { setMs({ aberto: null }); return; } if (a[2] === 'avancar' && M.grupos) { const ix = M.grupos.indexOf(sel[M.grupo]); aplicar({ [M.grupo]: M.grupos[Math.min(ix + 1, M.grupos.length - 1)] }); } else if (a[2] && typeof a[2] === 'object') aplicar(a[2]); setMs({ aberto: null }); this.avisar('mod', a[1]); };
             if (a[3]) this.confirmar(a[0] + '?', a[4] ? a[4].replace('{x}', sel.de || sel.nome || sel.titulo || '') : 'Esta ação afeta "' + (sel.nome || sel.titulo || sel.de || sel.id) + '". Pode ser revertida por um administrador.', a[0], run); else run(); } }));
         md.det = { titulo: sel.nome || sel.titulo || sel.conta || sel.cap || sel.de || sel.servico || sel.agente || sel.ws || sel.acao, campos, acoes, temAcoes: acoes.length > 0 };
@@ -817,7 +817,7 @@ export class AlthiusLogic extends React.Component {
     const KC = window.ALTHIUS_CONECTORES || { cats: [], lista: [], escopos: {} }, LG = window.ALTHIUS_LOGOS || {}, cons = this.conexoes();
     const nomeAg = id => (st.agents.find(a => a.id === id) || {}).nome || id;
     const usoTexto = c => { const n = (c.agentes || []).length; return n ? n + (n > 1 ? ' agentes' : ' agente') : 'nenhum agente'; };
-    v.cat = { ativo: page === 'integrations' && vista === 'modulo', grupos: [], filtros: [] };
+    v.cat = { ativo: page === 'integrations' && vista === 'modulo' && this.modoDemo !== false, grupos: [], filtros: [] };
     if (v.cat.ativo) {
       const q = (st.catBusca || '').trim().toLowerCase(), fc = st.catFiltro || 'todos';
       const lista = KC.lista.filter(c => !q || (c.nome + ' ' + c.empresa).toLowerCase().indexOf(q) >= 0);
