@@ -1,10 +1,11 @@
 // Seam: a tela de Aprovações no modo real, de ponta a ponta com o Supabase local.
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '../v18/data.js';
 import '../v18/module.js';
 import { Raiz } from './Raiz';
 import { adminLocal, bancoLocalNoAr, novoClienteLocal } from '../test/supabaseLocal';
+import { isolarAprovacoes } from '../test/isolarAprovacoes';
 
 const COPY_SERRA_AZUL = 'ac000000-0000-0000-0000-000000000001';
 
@@ -16,14 +17,12 @@ async function entrarEIrPara(email: string, rota: string) {
   const nav = await screen.findByRole('navigation', { name: 'Navegação principal' }, { timeout: 8000 });
   await within(nav).findByRole('link', { name: /Início/ }, { timeout: 8000 });
   window.location.hash = rota;
+  // O título da primeira aprovação também aparece na Home; só siga após navegar.
+  await screen.findByRole('heading', { name: 'Aprovações' }, { timeout: 8000 });
 }
 
 describe.skipIf(!bancoLocalNoAr)('tela de Aprovações (banco local)', () => {
-  afterEach(async () => {
-    await adminLocal().from('approvals')
-      .update({ status: 'pendente', decided_by_member_id: null, decided_at: null, decision_notes: null })
-      .eq('id', COPY_SERRA_AZUL);
-  });
+  isolarAprovacoes([COPY_SERRA_AZUL]);
 
   it('C-level vê a fila do banco e aprova: a decisão fica gravada', async () => {
     await entrarEIrPara('aline@evolut.com.br', '#/app/evolut/approvals');

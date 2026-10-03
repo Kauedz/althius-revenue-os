@@ -1,8 +1,9 @@
 // @vitest-environment node
 // Seam: serviço de Aprovações (lista no formato do v18 e decisão pelo banco).
-import { afterEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { decidirAprovacao, formatarPrazo, listarAprovacoes } from './aprovacoes';
 import { adminLocal, bancoLocalNoAr, entrarComoLocal } from '../../test/supabaseLocal';
+import { isolarAprovacoes } from '../../test/isolarAprovacoes';
 
 const EVOLUT = 'a0000000-0000-0000-0000-000000000001';
 const ALINE_EVOLUT = 'd0000000-0000-0000-0000-000000000003';
@@ -21,12 +22,7 @@ describe('formatarPrazo', () => {
 });
 
 describe.skipIf(!bancoLocalNoAr)('Aprovações (banco local)', () => {
-  afterEach(async () => {
-    // Devolve a fila ao estado do seed para os outros testes.
-    await adminLocal().from('approvals')
-      .update({ status: 'pendente', decided_by_member_id: null, decided_at: null, decision_notes: null })
-      .in('id', [COPY_SERRA_AZUL, VERBA_LINKEDIN]);
-  });
+  isolarAprovacoes([COPY_SERRA_AZUL, VERBA_LINKEDIN]);
 
   it('C-level vê a fila no formato da tela do v18', async () => {
     const fila = await listarAprovacoes(await entrarComoLocal('aline@evolut.com.br'), EVOLUT);
