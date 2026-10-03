@@ -1,11 +1,19 @@
 // @vitest-environment node
-// Seam: serviço de Contas e leads (lista de contas no formato da tela v18, com responsáveis e comitê).
+// Seam: src/app/servicos/contas.ts (listarContas, criarConta, editarConta, importarContas)
 import { describe, expect, it } from 'vitest';
-import { listarContas } from './contas';
+import {
+  listarContas,
+  criarConta,
+  editarConta,
+  importarContas
+} from './contas';
 import { bancoLocalNoAr, entrarComoLocal } from '../../test/supabaseLocal';
+import { isolarContas } from '../../test/isolarContas';
 
 const EVOLUT = 'a0000000-0000-0000-0000-000000000001';
 const GRAO_NORTE = 'b0000000-0000-0000-0000-000000000001';
+const MEMBRO_ALINE = 'd0000000-0000-0000-0000-000000000003';
+const MEMBRO_LUCAS = 'd0000000-0000-0000-0000-000000000004';
 
 describe('listarContas (unitário / mapeamento)', () => {
   function mockSupabase(tabelas: Record<string, { data?: any; error?: any }>) {
@@ -195,6 +203,8 @@ describe('listarContas (unitário / mapeamento)', () => {
 });
 
 describe.skipIf(!bancoLocalNoAr)('Contas e leads (banco local)', () => {
+  isolarContas();
+
   it('C-level lista as contas no formato exato da tela do v18', async () => {
     const contas = await listarContas(await entrarComoLocal('aline@evolut.com.br'), EVOLUT);
     expect(contas.length).toBeGreaterThanOrEqual(8);
@@ -239,7 +249,6 @@ describe.skipIf(!bancoLocalNoAr)('Contas e leads (banco local)', () => {
   it('isolamento de workspace: outro workspace não vê as contas da Evolut', async () => {
     const eduardo = await entrarComoLocal('eduardo@graonorte.com.br');
     const contasGrao = await listarContas(eduardo, GRAO_NORTE);
-    // As contas da Evolut (ex: Serra Azul Têxtil) não podem estar no workspace Grão Norte
     expect(contasGrao.map(c => c.nome)).not.toContain('Serra Azul Têxtil');
   });
 
@@ -248,5 +257,66 @@ describe.skipIf(!bancoLocalNoAr)('Contas e leads (banco local)', () => {
     expect(contas.length).toBeGreaterThanOrEqual(8);
     expect(contas.map(c => c.nome)).toContain('Serra Azul Têxtil');
   });
-});
 
+  it('Aline (C-level) cria nova conta com sucesso', async () => {
+    const cliente = await entrarComoLocal('aline@evolut.com.br');
+    const conta = await criarConta(cliente, EVOLUT, MEMBRO_ALINE, {
+      nome: 'Empresa Teste Vitest',
+      dominio: 'empresatestevitest.com.br',
+      uf: 'MG',
+      cidade: 'Uberlândia',
+      temperatura: 2,
+      donoMembroId: MEMBRO_LUCAS
+    });
+
+    expect(conta).toBeDefined();
+    expect(conta.nome).toBe('Empresa Teste Vitest');
+    expect(conta.dominio).toBe('empresatestevitest.com.br');
+  });
+
+  it('Lucas (BDR) edita conta em que é o responsável', async () => {
+    const cliente = await entrarComoLocal('lucas@evolut.com.br');
+    // Serra Azul c...01 tem Lucas como dono
+    const conta = await editarConta(cliente, MEMBRO_LUCAS, {
+      id: 'c0000000-0000-0000-0000-000000000001',
+      nome: 'Serra Azul Têxtil Atualizada',
+      dominio: 'serraazul.com.br',
+      uf: 'MG',
+      cidade: 'Belo Horizonte',
+      temperatura: 3
+    });
+
+    expect(conta.nome).toBe('Serra Azul Têxtil Atualizada');
+  });
+
+  it('Lucas (BDR) é recusado ao tentar editar conta alheia (Metalúrgica Ipê)', async () => {
+    const cliente = await entrarComoLocal('lucas@evolut.com.br');
+    await expect(
+      editarConta(cliente, MEMBRO_LUCAS, {
+        id: 'c0000000-0000-0000-0000-000000000003',
+        nome: 'Tentativa Invalida BDR'
+      })
+    ).rejects.toThrow('Não foi possível atualizar a conta.');
+  });
+
+  it('Lucas (BDR) é recusado ao tentar importar lista de contas', async () => {
+    const cliente = await entrarComoLocal('lucas@evolut.com.br');
+    await expect(
+      importarContas(cliente, EVOLUT, MEMBRO_LUCAS, [
+        { name: 'Conta Proibida', domain: 'proibida.com.br' }
+      ])
+    ).rejects.toThrow('Não foi possível importar as contas.');
+  });
+
+  it('Aline (C-level) importa lista de contas e marca duplicadas sem apagar originais', async () => {
+    const cliente = await entrarComoLocal('aline@evolut.com.br');
+    const resultado = await importarContas(cliente, EVOLUT, MEMBRO_ALINE, [
+      { name: 'Serra Azul Importação Duplicada', domain: 'serraazul.com.br', state_uf: 'MG', city: 'Belo Horizonte' },
+      { name: 'Nova Inovação Tech', domain: 'novainovacaotech.com.br', state_uf: 'PR', city: 'Curitiba' }
+    ]);
+
+    expect(resultado.total).toBe(2);
+    expect(resultado.duplicadas).toBeGreaterThanOrEqual(1);
+    expect(resultado.criadas).toBeGreaterThanOrEqual(1);
+  });
+});

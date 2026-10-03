@@ -128,3 +128,109 @@ async function nomesDosMembros(cliente: SupabaseClient, membroIds: string[]): Pr
   const nomePorUser = new Map((perfis || []).map(p => [p.id, p.name]));
   return new Map((membros || []).map(m => [m.id, nomePorUser.get(m.user_id) || '']));
 }
+
+export interface NovaContaInput {
+  nome: string;
+  dominio: string;
+  uf?: string;
+  cidade?: string;
+  temperatura?: number;
+  donoMembroId?: string;
+}
+
+export interface EditarContaInput {
+  id: string;
+  nome?: string;
+  dominio?: string;
+  uf?: string;
+  cidade?: string;
+  temperatura?: number;
+  donoMembroId?: string;
+}
+
+export interface ContaImportacaoItem {
+  name: string;
+  domain: string;
+  state_uf?: string;
+  city?: string;
+}
+
+export interface ResultadoImportacao {
+  total: number;
+  criadas: number;
+  duplicadas: number;
+}
+
+export async function criarConta(
+  cliente: SupabaseClient,
+  workspaceId: string,
+  membroId: string,
+  dados: NovaContaInput
+): Promise<{ id: string; nome: string; dominio: string }> {
+  const { data, error } = await cliente.rpc('create_account', {
+    p_workspace_id: workspaceId,
+    p_member_id: membroId,
+    p_name: dados.nome,
+    p_domain: dados.dominio,
+    p_state_uf: dados.uf ?? null,
+    p_city: dados.cidade ?? null,
+    p_temperature: dados.temperatura ?? 1,
+    p_owner_member_id: dados.donoMembroId ?? null
+  });
+
+  if (error || !data) {
+    throw new Error('Não foi possível criar a conta.', { cause: error });
+  }
+
+  return {
+    id: data.id,
+    nome: data.name,
+    dominio: data.domain
+  };
+}
+
+export async function editarConta(
+  cliente: SupabaseClient,
+  membroId: string,
+  dados: EditarContaInput
+): Promise<{ id: string; nome: string; dominio: string }> {
+  const { data, error } = await cliente.rpc('update_account', {
+    p_account_id: dados.id,
+    p_member_id: membroId,
+    p_name: dados.nome ?? null,
+    p_domain: dados.dominio ?? null,
+    p_state_uf: dados.uf ?? null,
+    p_city: dados.cidade ?? null,
+    p_temperature: dados.temperatura ?? null,
+    p_owner_member_id: dados.donoMembroId ?? null
+  });
+
+  if (error || !data) {
+    throw new Error('Não foi possível atualizar a conta.', { cause: error });
+  }
+
+  return {
+    id: data.id,
+    nome: data.name,
+    dominio: data.domain
+  };
+}
+
+export async function importarContas(
+  cliente: SupabaseClient,
+  workspaceId: string,
+  membroId: string,
+  contas: ContaImportacaoItem[]
+): Promise<ResultadoImportacao> {
+  const { data, error } = await cliente.rpc('import_accounts', {
+    p_workspace_id: workspaceId,
+    p_member_id: membroId,
+    p_contas: contas
+  });
+
+  if (error || !data) {
+    throw new Error('Não foi possível importar as contas.', { cause: error });
+  }
+
+  return data as ResultadoImportacao;
+}
