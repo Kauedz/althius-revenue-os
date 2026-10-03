@@ -8,7 +8,17 @@ import { controlarExecucao, listarExecucoes } from './servicos/execucoes';
 import { comprarCreditos, lerCreditos, salvarPoliticaCreditos as gravarPoliticaCreditos } from './servicos/creditos';
 import { precoEmReais } from './precos';
 import { decidirAprovacao, listarAprovacoes, type AprovacaoTela, type DecisaoTela } from './servicos/aprovacoes';
-import { listarContas, type ContaTela } from './servicos/contas';
+import {
+  listarContas,
+  criarConta,
+  editarConta,
+  importarContas,
+  type ContaTela,
+  type NovaContaInput,
+  type EditarContaInput,
+  type ContaImportacaoItem,
+  type ResultadoImportacao
+} from './servicos/contas';
 import { obterResumoHome, type HomeResumoTela } from './servicos/inicio';
 import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla } from './servicos/notificacoes';
 
@@ -38,7 +48,10 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       repeat: (id: string) => this.registrarControle(id, 'Repetir')
     };
     this.props.dados.accountService = {
-      list: () => this.carregarContas()
+      list: () => this.carregarContas(),
+      create: (dados: NovaContaInput) => this.criarNovaConta(dados),
+      update: (dados: EditarContaInput) => this.atualizarConta(dados),
+      import: (contas: ContaImportacaoItem[]) => this.importarListaContas(contas)
     };
     this.props.dados.homeService = {
       summary: () => this.carregarHome()
@@ -314,6 +327,36 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   }
 
   // ---- Início, Notificações e Contas (Antigravity)
+  async criarNovaConta(dados: NovaContaInput): Promise<{ id: string; nome: string; dominio: string }> {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) {
+      throw new Error('Workspace ou membro não identificado.');
+    }
+    const conta = await criarConta(this.props.supabase, ws.uuid, ws.membroId, dados);
+    await this.recarregarWorkspace();
+    return conta;
+  }
+
+  async atualizarConta(dados: EditarContaInput): Promise<{ id: string; nome: string; dominio: string }> {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) {
+      throw new Error('Workspace ou membro não identificado.');
+    }
+    const conta = await editarConta(this.props.supabase, ws.membroId, dados);
+    await this.recarregarWorkspace();
+    return conta;
+  }
+
+  async importarListaContas(contas: ContaImportacaoItem[]): Promise<ResultadoImportacao> {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) {
+      throw new Error('Workspace ou membro não identificado.');
+    }
+    const resultado = await importarContas(this.props.supabase, ws.uuid, ws.membroId, contas);
+    await this.recarregarWorkspace();
+    return resultado;
+  }
+
 
   carregarHome(): Promise<HomeResumoTela> {
     const ws = this.workspaceAtual();
