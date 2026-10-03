@@ -7112,7 +7112,7 @@ export function renderTemplate($v: Record<string, any>) {
                     <option value={__val("")}>
                       {"Sem conta"}
                     </option>
-                    <option value={__val("a1")}>
+{$v.modoDemo ? (<>                    <option value={__val("a1")}>
                       {"Serra Azul Têxtil"}
                     </option>
                     <option value={__val("a2")}>
@@ -7136,6 +7136,7 @@ export function renderTemplate($v: Record<string, any>) {
                     <option value={__val("a8")}>
                       {"Vértice Indústria"}
                     </option>
+</>) : (<>{__arr($v.tf?.contas).map((conta, indice) => (<option key={indice} value={conta.id}>{__t(conta.nome)}</option>))}</>)}
                   </select>
                 </label>
                 {"\n            "}

@@ -453,3 +453,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.confirmar(titulo, falha instanceof Error ? falha.message : 'Verifique a conexão e tente de novo em instantes.', 'Entendi', () => {});
   }
 }
+
+// ---- Cadências e Tarefas (Codex)
+import { ligarCadenciasETarefas } from './cadenciasTarefas';
+ligarCadenciasETarefas(AlthiusApp);
