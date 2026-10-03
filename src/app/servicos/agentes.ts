@@ -51,8 +51,8 @@ export async function listarAgentes(cliente: SupabaseClient, workspaceId: string
     .from('agent_playbooks')
     .select('agent_id, version, created_at, author_member_id')
     .eq('workspace_id', workspaceId)
-    .eq('is_published', true)
-    .order('created_at', { ascending: false });
+    .order('created_at', { ascending: false })
+    .order('version', { ascending: false });
   if (erroPlaybooks) throw new Error('Não foi possível carregar os playbooks dos agentes.', { cause: erroPlaybooks });
 
   const autores = await nomesDosMembros(cliente, (playbooks || []).map(p => p.author_member_id as string), 'Não foi possível carregar os autores dos playbooks.');

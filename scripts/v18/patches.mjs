@@ -196,6 +196,26 @@ export const PATCHES = [
     por: '{__t($v.ag?.sucesso)}{typeof $v.ag?.sucesso === "number" ? "%" : ""}'
   },
 
+  // ---- Playbook do agente (Claude): sugestões dos agentes e publicação gravam no banco (ADR 0024)
+  {
+    regra: 'playbook: aplicar sugestão registra a decisão no banco (o texto entra no rascunho)',
+    arquivo: 'logic.generated.js',
+    trocar: 'aplicar: () => { const linha = s.mudanca',
+    por: "aplicar: () => { if (this.modoDemo === false) this.decidirSugestaoReal(s.id, 'aplicada'); const linha = s.mudanca"
+  },
+  {
+    regra: 'playbook: descartar sugestão registra a decisão no banco',
+    arquivo: 'logic.generated.js',
+    trocar: 'descartar: () => gravar({ descartadas: descartadas.concat([s.id]) }) }))',
+    por: "descartar: () => this.modoDemo === false ? this.decidirSugestaoReal(s.id, 'descartada') : gravar({ descartadas: descartadas.concat([s.id]) }) }))"
+  },
+  {
+    regra: 'playbook: publicar cria a versão nova no banco',
+    arquivo: 'logic.generated.js',
+    trocar: 'salvar: () => { const t = (((this.state.pb || {})[a.id] || {}).rascunho);',
+    por: 'salvar: () => { const t = (((this.state.pb || {})[a.id] || {}).rascunho); if (this.modoDemo === false) return this.publicarPlaybookReal(a, t !== undefined ? t : publicado);'
+  },
+
   // ---- Configurações (Claude): Minha conta e Notificações gravam no banco
   {
     regra: 'configurações: salvar nome, cargo e telefone grava no perfil',

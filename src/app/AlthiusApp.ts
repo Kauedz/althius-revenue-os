@@ -23,6 +23,7 @@ import {
 import { obterResumoHome, type HomeResumoTela } from './servicos/inicio';
 import { listarAgentes, pausarAgente, salvarCapacidades, type AgenteBase, type AgenteTela } from './servicos/agentes';
 import { alterarSenha, lerMinhaConta, removerFoto, sairDosOutrosDispositivos, salvarMinhaConta, salvarPreferencias, trocarFoto } from './servicos/conta';
+import { decidirAprendizado, lerPlaybooks, listarSugestoes, publicarPlaybook } from './servicos/aprendizados';
 import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla } from './servicos/notificacoes';
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
@@ -108,6 +109,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarRelatorios(relatorioSemDados());
     this.publicarSinais(sinaisSemDados());
     this.publicarProspeccao(prospeccaoSemDados());
+    this.publicarAprendizados({}, {});
     super.componentWillUnmount?.();
   }
 
@@ -703,9 +705,43 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   // ---- Agentes (Claude)
 
-  carregarAgentes(): Promise<AgenteTela[]> {
+  /** Agentes + sugestões e playbook publicado de cada um (a aba Playbook lê ALTHIUS_SUGESTOES e ALTHIUS_PLAYBOOK). */
+  async carregarAgentes(): Promise<AgenteTela[]> {
     const ws = this.workspaceAtual();
-    return ws ? listarAgentes(this.props.supabase, ws.uuid, (this.props.dados.AGENTS || []) as AgenteBase[]) : Promise.resolve([]);
+    if (!ws) return [];
+    const [agentes, sugestoes, playbooks] = await Promise.all([
+      listarAgentes(this.props.supabase, ws.uuid, (this.props.dados.AGENTS || []) as AgenteBase[]),
+      listarSugestoes(this.props.supabase, ws.uuid),
+      lerPlaybooks(this.props.supabase, ws.uuid)
+    ]);
+    this.publicarAprendizados(sugestoes, playbooks);
+    return agentes;
+  }
+
+  /** Troca os exemplos do protótipo pelo que é deste workspace (vazio quando não há). */
+  private publicarAprendizados(sugestoes: Record<string, unknown[]>, playbooks: Record<string, string>) {
+    if (typeof window === 'undefined') return;
+    (window as any).ALTHIUS_SUGESTOES = sugestoes;
+    (window as any).ALTHIUS_PLAYBOOK = playbooks;
+  }
+
+  async decidirSugestaoReal(id: string, decisao: 'aplicada' | 'descartada') {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await decidirAprendizado(this.props.supabase, ws.uuid, ws.membroId, id, decisao);
+    if (!r.ok) return this.confirmar('Sugestão não registrada', r.mensagem, 'Entendi', () => {});
+    if (decisao === 'descartada') await this.atualizarAgentes();
+  }
+
+  async publicarPlaybookReal(a: { id: string; nome: string }, texto: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await publicarPlaybook(this.props.supabase, ws.uuid, ws.membroId, a.id, texto);
+    if (!r.ok) return this.confirmar('Playbook não publicado', r.mensagem, 'Entendi', () => {});
+    // O rascunho vira a versão publicada no banco; o histórico vem de lá.
+    this.setState({ pb: Object.assign({}, this.state.pb, { [a.id]: {} }) });
+    await this.atualizarAgentes();
+    this.avisar('agente', 'Playbook v' + r.versao + ' publicado. O ' + a.nome + ' já usa a nova versão.');
   }
 
   /** Botão de emergência: grava no banco; o Hermes Agent deixa de agir enquanto estiver pausado. */

@@ -1197,11 +1197,11 @@ export class AlthiusLogic extends React.Component {
         v.pb = { texto, versao: vAtual, proxima: prox, editavel, somenteLeitura: !editavel, status: texto !== publicado ? 'Rascunho não publicado' : 'Publicado · em uso',
           contagem: palavras + ' palavras · o agente lê o playbook inteiro antes de cada tarefa',
           mudar: e => gravar({ rascunho: e.target.value }), descartar: () => gravar({ rascunho: undefined }),
-          salvar: () => { const t = (((this.state.pb || {})[a.id] || {}).rascunho); gravar({ publicado: t !== undefined ? t : publicado, rascunho: undefined, versoes: [{ v: prox, quem: U.usuario, quando: 'agora' }].concat(pbs.versoes || []) }); this.avisar('agente', 'Playbook ' + prox + ' publicado. O ' + a.nome + ' já usa a nova versão.'); },
+          salvar: () => { const t = (((this.state.pb || {})[a.id] || {}).rascunho); if (this.modoDemo === false) return this.publicarPlaybookReal(a, t !== undefined ? t : publicado); gravar({ publicado: t !== undefined ? t : publicado, rascunho: undefined, versoes: [{ v: prox, quem: U.usuario, quando: 'agora' }].concat(pbs.versoes || []) }); this.avisar('agente', 'Playbook ' + prox + ' publicado. O ' + a.nome + ' já usa a nova versão.'); },
           versoes: versoes.slice(0, 5), nSug: sugs.length ? sugs.length + (sugs.length > 1 ? ' novas' : ' nova') : '', semSug: sugs.length === 0,
           sugestoes: sugs.map(s => ({ aprendizado: s.aprendizado, mudanca: s.mudanca, origem: s.origem,
-            aplicar: () => { const linha = s.mudanca.replace(/^Adicionar em [^:]+:\s*/, ''); gravar({ rascunho: texto.replace(/\n*$/, '') + '\n- ' + linha.charAt(0).toUpperCase() + linha.slice(1), aplicadas: aplicadas.concat([s.id]) }); this.avisar('agente', 'Aprendizado adicionado ao rascunho. Publique para o agente passar a usar.'); },
-            descartar: () => gravar({ descartadas: descartadas.concat([s.id]) }) })) };
+            aplicar: () => { if (this.modoDemo === false) this.decidirSugestaoReal(s.id, 'aplicada'); const linha = s.mudanca.replace(/^Adicionar em [^:]+:\s*/, ''); gravar({ rascunho: texto.replace(/\n*$/, '') + '\n- ' + linha.charAt(0).toUpperCase() + linha.slice(1), aplicadas: aplicadas.concat([s.id]) }); this.avisar('agente', 'Aprendizado adicionado ao rascunho. Publique para o agente passar a usar.'); },
+            descartar: () => this.modoDemo === false ? this.decidirSugestaoReal(s.id, 'descartada') : gravar({ descartadas: descartadas.concat([s.id]) }) })) };
       }
       { // Skills
         const editavel = can('agents.configure'), f = st.skForm || null, setF = o => this.setState({ skForm: Object.assign({}, this.state.skForm, o) });

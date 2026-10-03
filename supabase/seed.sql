@@ -219,3 +219,75 @@ INSERT INTO public.notifications (id, workspace_id, recipient_member_id, type, t
   ('fa000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000004', 'lead', 'Novo lead atribuído', 'Conta Serra Azul atribuída ao seu pipeline.', NULL, now() - interval '1 hour'),
   ('fa000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000009', 'welcome', 'Boas-vindas ao Althius', 'Workspace Grão Norte configurado com sucesso.', NULL, now() - interval '1 day')
 ON CONFLICT (id) DO NOTHING;
+
+-- ---- Aprendizados e playbooks de exemplo da Evolut (Claude) — gerados do protótipo v18 (ADR 0024)
+INSERT INTO public.learning_entries (id, workspace_id, agent_id, suggestion_text, proposed_change, evidence, status) VALUES
+  ('1e000000-0000-0000-0000-0000000000a1', 'a0000000-0000-0000-0000-000000000001', 'comercial', 'Contas com menos de 20 funcionários não converteram em 3 ciclos.', 'Adicionar em Regras: excluir contas com menos de 20 funcionários.', 'Aprendido com 41 aprovações e 12 descartes', 'sugerida'),
+  ('1e000000-0000-0000-0000-0000000000a2', 'a0000000-0000-0000-0000-000000000001', 'marketing', 'LinkedIn teve CPL 38% menor que Meta para Supply Chain.', 'Adicionar em Regras: priorizar LinkedIn Ads para a persona Supply Chain.', 'Aprendido com 4 semanas de campanha', 'sugerida'),
+  ('1e000000-0000-0000-0000-0000000000a3', 'a0000000-0000-0000-0000-000000000001', 'copy', 'Abrir pela vaga aberta dobrou a taxa de resposta.', 'Adicionar em Regras: quando houver vaga aberta, citar o cargo na primeira linha.', 'Aprendido com 312 envios', 'sugerida'),
+  ('1e000000-0000-0000-0000-0000000000a4', 'a0000000-0000-0000-0000-000000000001', 'copy', 'A objeção "já trabalho com trading" aparece em saúde.', 'Adicionar em Processo: em contas de saúde, responder com o comparativo de custo de trading.', 'Aprendido com 9 respostas', 'sugerida'),
+  ('1e000000-0000-0000-0000-0000000000a5', 'a0000000-0000-0000-0000-000000000001', 'revops', 'Ligações entre 8h e 9h passaram mais pelo gatekeeper.', 'Adicionar em Regras: agendar tarefas de ligação entre 8h e 9h.', 'Aprendido com 140 ligações', 'sugerida')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.agent_playbooks (id, workspace_id, agent_id, version, author_member_id, content_markdown, is_published) VALUES
+  ('1f000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'comercial', '3.2', 'd0000000-0000-0000-0000-000000000002', '# Missão
+Encontrar as contas com mais chance de compra dentro do ICP v4 e entregar o comitê mapeado para o time.
+
+# Regras
+- Priorize importadores de médio porte do Sudeste e Sul.
+- Exclua tradings concorrentes e empresas com menos de 20 funcionários.
+- Todo decisor precisa de e-mail corporativo validado.
+
+# Processo
+1. Ler o CRM para evitar duplicidade.
+2. Cruzar CNPJ com a Receita e com a importação por NCM.
+3. Calcular o fit e anotar o sinal mais recente.
+4. Mapear decisor, influenciador e campeão.
+
+# Nunca
+- Escrever no CRM sem aprovação.
+- Usar dados pessoais que não sejam públicos e profissionais.', true),
+  ('1f000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'marketing', '1.3', 'd0000000-0000-0000-0000-000000000002', '# Missão
+Gerar demanda qualificada para as contas do ICP com o menor custo por reunião.
+
+# Regras
+- Meta de CPL abaixo de R$ 150.
+- Mudanças de orçamento acima de R$ 1.000 pedem aprovação.
+- SEO/GEO: priorize páginas de produto e comparativos.
+
+# Processo
+1. Ler métricas de mídia toda segunda.
+2. Cruzar leads com contas do ICP.
+3. Sugerir realocação com o motivo.
+
+# Nunca
+- Publicar anúncio sem aprovação.', true),
+  ('1f000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'copy', '2.1', 'd0000000-0000-0000-0000-000000000002', '# Missão
+Escrever mensagens consultivas que abrem conversa, no tom da Evolut.
+
+# Tom
+Direto, sem jargão, sem promessas que a operação não cumpre.
+
+# Regras
+- Abra pelo sinal da conta (vaga, expansão, post).
+- Uma pergunta por mensagem.
+- E-mails com até 90 palavras.
+
+# Nunca
+- Inventar números ou casos.
+- Enviar sem aprovação nos passos manuais.', true),
+  ('1f000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'revops', '1.4', 'd0000000-0000-0000-0000-000000000002', '# Missão
+Manter o CRM confiável e o pipeline previsível.
+
+# Regras
+- Não sobrescrever o proprietário do negócio.
+- Negócio parado há mais de 14 dias gera tarefa para o dono.
+- Relatório semanal toda segunda às 8h.
+
+# Processo
+1. Rodar higiene de CRM toda noite.
+2. Recalcular previsão por etapa.
+3. Publicar o relatório no canal #geral.
+
+# Nunca
+- Apagar registros. Só marcar para revisão.', true)
+ON CONFLICT (id) DO NOTHING;
