@@ -3,12 +3,13 @@
 // sem apagar esta camada (ADR 0020).
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AlthiusLogic } from '../v18/logic.generated.js';
-import type { DadosAlthius } from './dados';
+import { PAPEL_FRONT, sigla, type DadosAlthius, type PapelBanco, type PapelFront } from './dados';
 import { controlarExecucao, listarExecucoes } from './servicos/execucoes';
 import { comprarCreditos, lerCreditos, salvarPoliticaCreditos as gravarPoliticaCreditos } from './servicos/creditos';
 import { precoEmReais } from './precos';
 import { decidirAprovacao, listarAprovacoes, type AprovacaoTela, type DecisaoTela } from './servicos/aprovacoes';
 import { listarContas, type ContaTela } from './servicos/contas';
+import { listarEquipe, convidarEquipe, mudarPapelEquipe, suspenderMembroEquipe, cancelarConviteEquipe, type Equipe } from './servicos/equipe';
 
 export interface AlthiusAppProps {
   dados: DadosAlthius;
@@ -21,6 +22,8 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   modoDemo = false;
   // Métodos herdados do protótipo, usados só pela camada real.
   declare avisar: (contexto: string, texto: string) => void;
+  declare avisarCfg: (texto: string) => void;
+  declare PAPEL_INFO: Record<PapelFront, { nome: string; cor: string }>;
   declare ir: (caminho: string) => void;
   declare confirmar: (titulo: string, texto: string, botao: string, fn: () => void) => void;
 
@@ -50,10 +53,14 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       this.cargaWorkspace++;
       if (this.state.pronto) void this.recarregarWorkspace();
     }
+    if (this.equipeAberta() && (!this.equipeAberta(prevState) || prevState.cfgWs !== this.state.cfgWs || prevState.rota?.ws !== this.state.rota?.ws)) {
+      void this.carregarEquipeWs(this.workspaceEquipeSelecionado());
+    } else if (!this.equipeAberta() && this.equipeAberta(prevState)) this.cargaEquipe++;
   }
 
   componentWillUnmount() {
     this.vivo = false;
+    this.cargaEquipe++;
     this.cargaWorkspace++;
     this.publicarContas([]);
     super.componentWillUnmount?.();
@@ -124,6 +131,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   }
 
   membros(ws: string) {
+    if (Object.hasOwn(this.state.equipes || {}, ws)) return (this.equipeAtual(ws)?.membros || []).filter(m => m.status !== 'suspended').map(m => this.membroNaTela(m, ws));
     return (this.state.membros || {})[ws] || this.props.dados.membros[ws] || [];
   }
 
@@ -136,7 +144,9 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   renderVals() {
     // O template lê modoDemo (regra de produto) para esconder a troca de papel.
-    return { ...super.renderVals(), modoDemo: this.modoDemo, sair: () => this.props.aoSair(), recarregar: () => this.recarregarWorkspace() };
+    const v = { ...super.renderVals(), modoDemo: this.modoDemo, sair: () => this.props.aoSair(), recarregar: () => this.recarregarWorkspace() };
+    this.valoresEquipe(v);
+    return v;
   }
 
 
@@ -241,6 +251,168 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const { [id]: _desfeita, ...decisoes } = this.state.decisoes || {};
     this.setState({ decisoes });
     this.confirmar('Decisão não registrada', resultado.mensagem, 'Entendi', () => {});
+  }
+
+  // ---------------------------------------------------------------- Equipe e convites
+
+  private cargaEquipe = 0;
+  private gravandoEquipe = false;
+  private pedidoConvite?: { slug: string; email: string; papel: PapelBanco; chave: string };
+
+  private equipeAberta(estado = this.state) {
+    return estado.pronto && estado.rota?.page === 'settings' && estado.cfgSecao === 'Workspace e membros';
+  }
+
+  private workspaceEquipeSelecionado() {
+    return this.wsPermitidos().some(w => w.id === this.state.cfgWs) ? this.state.cfgWs : this.wsId();
+  }
+
+  private podeGerirEquipe(slug: string) {
+    return (this.props.dados.PERMS[this.papelEm(slug)] || []).includes('team.invite');
+  }
+
+  private equipeAtual(slug: string): Equipe | null {
+    return this.state.equipes?.[slug] || null;
+  }
+
+  private membroNaTela(m: Equipe['membros'][number], slug: string) {
+    const nomeWorkspace = this.props.dados.WORKSPACES.find(w => w.id === slug)?.nome || '';
+    return {
+      id: m.id, nome: m.nome, email: m.email, papel: PAPEL_FRONT[m.papel],
+      origem: /@althius\.com\.br$/i.test(m.email) ? 'Althius' : nomeWorkspace,
+      ...(m.status === 'invited' ? { pendente: true as const } : {})
+    };
+  }
+
+  private async carregarEquipeWs(slug: string) {
+    if (!this.vivo || !this.equipeAberta() || this.workspaceEquipeSelecionado() !== slug) return false;
+    const carga = ++this.cargaEquipe;
+    this.setState({ equipes: { ...this.state.equipes, [slug]: null }, equipeCarregando: slug });
+    try {
+      const ws = this.props.dados.workspaceNoBanco(slug);
+      if (!ws?.membroId) throw new Error('Você não participa deste workspace. Tentar de novo.');
+      const equipe = await listarEquipe(this.props.supabase, ws.uuid);
+      if (!this.vivo || carga !== this.cargaEquipe || this.workspaceEquipeSelecionado() !== slug) return false;
+      this.setState({ equipes: { ...this.state.equipes, [slug]: equipe }, equipeCarregando: null });
+      return true;
+    } catch (falha) {
+      if (!this.vivo || carga !== this.cargaEquipe || this.workspaceEquipeSelecionado() !== slug) return false;
+      this.setState({ equipeCarregando: null });
+      this.erroEquipe('Equipe não carregada', falha, () => { void this.carregarEquipeWs(slug); });
+      return false;
+    }
+  }
+
+  private erroEquipe(titulo: string, falha: unknown, repetir: () => void) {
+    console.error(falha);
+    this.confirmar(titulo, falha instanceof Error ? falha.message : 'Não foi possível acessar a equipe. Tentar de novo.', 'Tentar de novo', repetir);
+  }
+
+  private async gravarEquipe(
+    slug: string, acao: (ws: { uuid: string; membroId: string }) => Promise<unknown>, aviso: string
+  ) {
+    if (this.gravandoEquipe || !this.vivo || this.workspaceEquipeSelecionado() !== slug) return;
+    const carga = this.cargaEquipe;
+    this.gravandoEquipe = true;
+    this.setState({ equipeGravando: true });
+    try {
+      const ws = this.props.dados.workspaceNoBanco(slug);
+      if (!ws?.membroId || !this.podeGerirEquipe(slug)) throw new Error('Você não tem permissão para alterar a equipe deste workspace.');
+      await acao({ uuid: ws.uuid, membroId: ws.membroId });
+      if (!this.vivo || !this.equipeAberta() || carga !== this.cargaEquipe || this.workspaceEquipeSelecionado() !== slug) return;
+      if (await this.carregarEquipeWs(slug)) this.avisarCfg(aviso);
+    } catch (falha) {
+      if (this.vivo && this.equipeAberta() && carga === this.cargaEquipe && this.workspaceEquipeSelecionado() === slug) {
+        this.erroEquipe('Alteração da equipe não registrada', falha, () => { void this.gravarEquipe(slug, acao, aviso); });
+      }
+    } finally {
+      this.gravandoEquipe = false;
+      if (this.vivo) this.setState({ equipeGravando: false });
+    }
+  }
+
+  private convidarNaEquipe(slug: string) {
+    const email = String(this.state.convEmail || '').trim().toLowerCase();
+    const selecionado = this.papelBanco(this.state.convPapel || 'bdr');
+    const nivel = { superadmin: 4, estrategista: 3, clevel: 2, bdr: 1 };
+    const ator = this.papelBanco(this.papelEm(slug)) || 'bdr';
+    const papel = selecionado && nivel[selecionado] <= nivel[ator] ? selecionado : 'bdr';
+    if (!papel) return;
+    if (!this.pedidoConvite || this.pedidoConvite.slug !== slug || this.pedidoConvite.email !== email || this.pedidoConvite.papel !== papel) {
+      this.pedidoConvite = { slug, email, papel, chave: crypto.randomUUID() };
+    }
+    const pedido = this.pedidoConvite;
+    const carga = this.cargaEquipe;
+    void this.gravarEquipe(slug, async ws => {
+      await convidarEquipe(this.props.supabase, ws.uuid, ws.membroId, email, papel, pedido.chave);
+      if (this.vivo && this.equipeAberta() && carga === this.cargaEquipe && this.workspaceEquipeSelecionado() === slug && this.pedidoConvite === pedido) {
+        this.pedidoConvite = undefined;
+        this.setState({ convEmail: '', convErro: '' });
+      }
+    }, 'Convite registrado. O envio de e-mail ainda está pendente.');
+  }
+
+  private papelBanco(papel: string): PapelBanco | undefined {
+    return ({ superadmin: 'superadmin', estrategista: 'estrategista', cliente: 'clevel', bdr: 'bdr' } as const)[papel as PapelFront];
+  }
+
+  private valoresEquipe(v: Record<string, any>) {
+    if (!v.cfgWs) return;
+    const slug = this.workspaceEquipeSelecionado();
+    const ws = this.props.dados.workspaceNoBanco(slug);
+    const equipe = this.equipeAtual(slug);
+    const nivel = { superadmin: 4, estrategista: 3, clevel: 2, bdr: 1 };
+    const papelAtor = this.papelBanco(this.papelEm(slug)) || 'bdr';
+    const pode = this.podeGerirEquipe(slug);
+    const disponivel = !!equipe && !this.state.equipeGravando;
+    const membros = equipe?.membros || [];
+    const ativos = membros.filter(m => m.status === 'active').length;
+    const clevels = membros.filter(m => m.status === 'active' && m.papel === 'clevel').length;
+    const convites = equipe?.convites || [];
+    const resumo = equipe ? ativos + ' ativos · ' + convites.length + ' convites pendentes'
+      : this.state.equipeCarregando === slug ? 'Carregando equipe…' : 'Equipe indisponível';
+    v.wsMetaN = resumo;
+    v.ws2 = {
+      ...v.ws2, resumo, dono: membros.find(m => m.status === 'active' && m.papel === 'clevel')?.nome || 'Não disponível', donoFoto: undefined,
+      contagem: resumo, podeConvidar: pode && disponivel, semPermissao: !pode,
+      convidar: () => this.convidarNaEquipe(slug),
+      teclaConvite: (e: KeyboardEvent) => { if (e.key === 'Enter') this.convidarNaEquipe(slug); },
+      membros: [
+        ...membros.map(m => {
+          const voce = m.id === ws?.membroId;
+          const ultimoClevel = m.status === 'active' && m.papel === 'clevel' && clevels === 1;
+          const gerenciavel = pode && disponivel && !voce && !ultimoClevel && nivel[m.papel] <= nivel[papelAtor];
+          const front = this.membroNaTela(m, slug);
+          return {
+            ...front, sigla: sigla(m.nome), temFoto: false, foto: '', voce,
+            origem: front.origem + (m.status === 'suspended' ? ' · suspenso' : m.status === 'invited' ? ' · acesso pendente' : ''),
+            papelNome: this.props.dados.ROLES[front.papel]?.label || front.papel,
+            cor: this.PAPEL_INFO[front.papel].cor, pendente: false,
+            editavel: gerenciavel && m.status === 'active', fixo: !(gerenciavel && m.status === 'active'),
+            removivel: gerenciavel && m.status !== 'suspended', removerRotulo: 'Suspender ' + m.nome,
+            mudarPapel: (e: { target: { value: string } }) => {
+              const papel = this.papelBanco(e.target.value);
+              if (papel) void this.gravarEquipe(slug, w => mudarPapelEquipe(this.props.supabase, w.uuid, w.membroId, m.id, papel), 'Papel atualizado no banco.');
+            },
+            remover: () => this.confirmar('Suspender ' + m.nome + '?', 'O acesso a este workspace será suspenso. O registro do membro e seu histórico serão preservados.', 'Suspender',
+              () => { void this.gravarEquipe(slug, w => suspenderMembroEquipe(this.props.supabase, w.uuid, w.membroId, m.id), 'Acesso ao workspace suspenso.'); })
+          };
+        }),
+        ...convites.map(c => {
+          const papel = PAPEL_FRONT[c.papel];
+          return {
+            id: c.id, nome: c.email, email: c.email, sigla: sigla(c.email), temFoto: false, foto: '',
+            origem: c.envio === 'sent' ? 'Convite registrado · e-mail enviado' : c.envio === 'failed' ? 'Convite registrado · falha no envio de e-mail' : 'Convite registrado · envio de e-mail pendente',
+            papel, papelNome: this.props.dados.ROLES[papel]?.label || papel,
+            cor: this.PAPEL_INFO[papel].cor, voce: false, pendente: false, editavel: false, fixo: true,
+            removivel: pode && disponivel && nivel[c.papel] <= nivel[papelAtor],
+            removerRotulo: 'Cancelar convite para ' + c.email,
+            remover: () => this.confirmar('Cancelar convite?', 'O convite para ' + c.email + ' deixará de permitir a entrada neste workspace.', 'Cancelar convite',
+              () => { void this.gravarEquipe(slug, w => cancelarConviteEquipe(this.props.supabase, w.uuid, w.membroId, c.id), 'Convite cancelado no banco.'); })
+          };
+        })
+      ]
+    };
   }
 
   // ---------------------------------------------------------------- Contas e leads
