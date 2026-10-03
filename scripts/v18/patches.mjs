@@ -284,6 +284,14 @@ export const PATCHES = [
     por: 'const reagir = emoji => () => { if (this.modoDemo === false) return this.reagirReal(canal, m, emoji);'
   },
 
+  // ---- Copiloto (Claude): pedido vira execução na fila; o plano e o progresso simulados não aparecem
+  {
+    regra: 'copiloto: no modo real o pedido vai para a fila pela política Hermes (sem plano encenado)',
+    arquivo: 'logic.generated.js',
+    trocar: "const iniciar = t => { const tx = (t || '').trim(); if (!tx) return;",
+    por: "const iniciar = t => { const tx = (t || '').trim(); if (!tx) return; if (this.modoDemo === false) return this.pedirAoCopilotoReal(tx);"
+  },
+
   // ---- Playbook do agente (Claude): sugestões dos agentes e publicação gravam no banco (ADR 0024)
   {
     regra: 'playbook: aplicar sugestão registra a decisão no banco (o texto entra no rascunho)',

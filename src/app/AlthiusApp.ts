@@ -27,6 +27,7 @@ import { decidirAprendizado, lerPlaybooks, listarSugestoes, publicarPlaybook } f
 import { excluirContatoDoCrm, listarCaixa, marcarLida, minhasConexoes, pedirSugestaoDeResposta, type CaixaTela, type ConexoesTela } from './servicos/caixa';
 import * as admin from './servicos/admin';
 import { arquivarCanal, criarCanal, editarMensagem, enviarNoCanal, lerMensagens, listarCanais, mudarCanal, reagir, type CanalTela } from './servicos/canais';
+import { pedirAoCopiloto } from './servicos/copiloto';
 import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla } from './servicos/notificacoes';
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
@@ -1153,5 +1154,28 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const r = await reagir(this.props.supabase, ws.uuid, ws.membroId, mensagem.id, emoji);
     if (!r.ok) return this.confirmar('Reação não registrada', r.mensagem, 'Entendi', () => {});
     await this.carregarMensagens(canal.id);
+  }
+
+  // ---- Copiloto (Claude): o pedido vai para a fila de Execuções; nada é encenado
+
+  /** No modo real o histórico de pedidos fica em Execuções (com a situação verdadeira); sem conversas de exemplo. */
+  copHist() {
+    return this.modoDemo === false ? [] : (AlthiusLogic.prototype as any).copHist.call(this);
+  }
+
+  async pedirAoCopilotoReal(texto: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    this.setState({ copTexto: '' });
+    const r = await pedirAoCopiloto(this.props.supabase, ws.uuid, ws.membroId, texto);
+    if (!this.vivo) return;
+    if (!r.ok) {
+      this.setState({ copTexto: texto });
+      return this.confirmar('Pedido não enviado', r.mensagem, 'Entendi', () => {});
+    }
+    const slug = (this.state.rota || {}).ws;
+    this.confirmar('Pedido enviado ao Copiloto',
+      'O Hermes conferiu papel e créditos e colocou o pedido na fila. O plano e o resultado aparecem em Execuções.',
+      'Ver execuções', () => { this.setState({ cop: false }); this.ir('app/' + slug + '/executions'); });
   }
 }

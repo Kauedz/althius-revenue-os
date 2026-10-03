@@ -1336,7 +1336,7 @@ export class AlthiusLogic extends React.Component {
     }
     v.copInicio = et === 0; v.copAndamento = et > 0; v.copTexto = st.copTexto; v.copPct = st.copPct + '%';
     v.mudarCop = ev => this.setState({ copTexto: ev.target.value });
-    const iniciar = t => { const tx = (t || '').trim(); if (!tx) return; clearTimeout(this._tc); this.copGuardarAtual(); const id = 'c' + Date.now(), agora = this.hora();
+    const iniciar = t => { const tx = (t || '').trim(); if (!tx) return; if (this.modoDemo === false) return this.pedirAoCopilotoReal(tx); clearTimeout(this._tc); this.copGuardarAtual(); const id = 'c' + Date.now(), agora = this.hora();
       this.salvarHist([{ id, titulo: tx.length > 60 ? tx.slice(0, 58) + '…' : tx, pedido: tx, grupo: 'Hoje', quando: agora, etapa: 1 }].concat(this.copHist()));
       this.setState({ copSessao: id, copPedido: tx, copTexto: '', copEtapa: 1, copPct: 0 }); setTimeout(() => this.copAvancar(), 0); };
     v.copEnviar = () => iniciar(st.copTexto);
