@@ -108,7 +108,7 @@ export function Raiz({ supabase }: { supabase: SupabaseClient }) {
     case 'sem-workspace':
       return <Aviso titulo="Você ainda não está em nenhum workspace" texto={`A conta ${estado.email} existe, mas ainda não foi adicionada a um workspace. Peça ao seu estrategista Althius para enviar o convite.`} acao={{ rotulo: 'Sair', fazer: sair }} />;
     case 'app':
-      return <AlthiusApp dados={estado.dados} aoSair={sair} />;
+      return <AlthiusApp dados={estado.dados} supabase={supabase} aoSair={sair} />;
   }
 }
 

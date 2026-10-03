@@ -128,7 +128,13 @@ export function montarDados(ctx: ContextoReal, demo: Demo, capsDemo: CapsFront) 
     return PAPEL_FRONT[w.papel];
   };
 
-  const proprios = { WORKSPACES, ROLES, PERMS, CAPS, membros, papelNoWorkspace };
+  /** Id interno do workspace (pelo slug da URL) e o id de membro da pessoa logada nele. */
+  const workspaceNoBanco = (slug: string) => {
+    const w = ctx.workspaces.find(x => x.slug === slug);
+    return w ? { uuid: w.uuid, membroId: w.membroId } : null;
+  };
+
+  const proprios = { WORKSPACES, ROLES, PERMS, CAPS, membros, papelNoWorkspace, workspaceNoBanco };
   // Campos do protótipo ainda não ligados ao banco (AGENTS, EXECUTIONS...) passam direto.
   return { ...demo, ...proprios } as Demo & typeof proprios;
 }

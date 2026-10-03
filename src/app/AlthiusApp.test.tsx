@@ -5,6 +5,7 @@ import '../v18/data.js';
 import '../v18/module.js';
 import { AlthiusApp } from './AlthiusApp';
 import { montarDados, type ContextoReal, type PapelBanco } from './dados';
+import { clienteVazio } from '../test/supabaseLocal';
 
 const demo = { data: window.ALTHIUS_DATA!, caps: window.ALTHIUS_CAPS };
 const ESCOPOS: Record<string, [string, string, string, string]> = {
@@ -31,7 +32,7 @@ function abrir(ctx: ContextoReal, rota: string) {
   window.ALTHIUS_DATA = dados;
   window.ALTHIUS_CAPS = dados.CAPS;
   window.location.hash = rota;
-  render(<AlthiusApp dados={dados} aoSair={() => {}} />);
+  render(<AlthiusApp dados={dados} supabase={clienteVazio()} aoSair={() => {}} />);
 }
 
 describe('AlthiusApp (modo real)', () => {

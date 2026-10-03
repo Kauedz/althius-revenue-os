@@ -14,10 +14,29 @@ if (!bancoLocalNoAr) console.warn('[testes] Supabase local fora do ar: rode `npx
 export const novoClienteLocal = () =>
   createClient(URL_LOCAL, ANON_LOCAL, { auth: { persistSession: false, autoRefreshToken: false } });
 
+/** Chave service_role padrão do Supabase local: só para os testes arrumarem o estado do banco. */
+const SERVICE_LOCAL =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU';
+export const adminLocal = () =>
+  createClient(URL_LOCAL, SERVICE_LOCAL, { auth: { persistSession: false, autoRefreshToken: false } });
+
 /** Cliente já logado como um usuário do seed (senha de demonstração). */
 export async function entrarComoLocal(email: string) {
   const cliente = novoClienteLocal();
   const { error } = await cliente.auth.signInWithPassword({ email, password: 'althius-demo' });
   if (error) throw error;
   return cliente;
+}
+
+/**
+ * Cliente falso para testes de tela sem banco: toda consulta devolve lista vazia sem erro.
+ * Encadeia qualquer método (from, select, eq, order...) e pode ser aguardado com await.
+ */
+export function clienteVazio(): any {
+  const resposta = { data: [], error: null };
+  const cadeia: any = new Proxy(function () {}, {
+    get: (_alvo, prop) => (prop === 'then' ? (ok: (v: unknown) => unknown) => Promise.resolve(resposta).then(ok) : cadeia),
+    apply: () => cadeia
+  });
+  return cadeia;
 }

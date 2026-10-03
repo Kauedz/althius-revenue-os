@@ -68,3 +68,33 @@ INSERT INTO internal.pricing_multipliers (capability_code, base_credit_unit, mar
   ('email_discovery', 120, 40.00, 1.25, true),
   ('job_signal_monitor', 100, 40.00, 1.25, true)
 ON CONFLICT (capability_code) DO NOTHING;
+
+-- 5. Aprovações pendentes da Evolut (as mesmas do protótipo v18). O hash do conteúdo
+--    torna a aprovação de uso único: se o conteúdo mudar, a aprovação deixa de valer.
+WITH fila (id, categoria, tipo, titulo, solicitante, agente, motivo, impacto, previa, creditos, prazo, historico) AS (VALUES
+  ('ac000000-0000-0000-0000-000000000001'::uuid, 'operacao', 'copy', 'E-mails T1 — Serra Azul Têxtil', 'd0000000-0000-0000-0000-000000000005'::uuid, 'copy',
+   'Primeiro contato com a decisora mapeada.', '3 e-mails enviados para 1 contato',
+   'Aline, vi que a Serra Azul abriu vaga para Gerente de Importação. Como vocês estão lidando com prazo de desembaraço hoje?',
+   60, current_date + time '14:00', '["08:05 Criada pelo agente", "08:06 Enviada para Aline Xavier"]'::jsonb),
+  ('ac000000-0000-0000-0000-000000000002'::uuid, 'operacao', 'lista', 'Lista de 512 contas para cadência', 'd0000000-0000-0000-0000-000000000002'::uuid, 'comercial',
+   'Contas com fit acima de 70 no ICP v4.', '512 contas entram na cadência T1–T7',
+   '512 contas · 6 segmentos · Sudeste · fit médio 81', 0, current_date + 1 + time '18:00', '["09:31 Lista gerada"]'::jsonb),
+  ('ac000000-0000-0000-0000-000000000003'::uuid, 'gasto', 'orcamento', 'Realocar R$ 8.000 para LinkedIn Ads', 'd0000000-0000-0000-0000-000000000002'::uuid, 'marketing',
+   'CPL no LinkedIn 38% menor que no Meta no último ciclo.', 'R$ 8.000 movidos entre canais',
+   'Meta Ads: R$ 20.000 → R$ 12.000 · LinkedIn Ads: R$ 10.000 → R$ 18.000', 0, current_date + 3 + time '18:00',
+   '["Ontem Recomendação do agente", "Ontem Revisada por Camila Duarte"]'::jsonb),
+  ('ac000000-0000-0000-0000-000000000004'::uuid, 'operacao', 'crm', 'Atualizar etapa de 78 negócios', 'd0000000-0000-0000-0000-000000000001'::uuid, 'revops',
+   'Negócios sem atividade há 30 dias.', '78 negócios movidos para "Em risco"', '78 negócios · R$ 2,4 mi em pipeline', 0,
+   current_date + 4 + time '09:00', '["Ontem Criada"]'::jsonb),
+  ('ac000000-0000-0000-0000-000000000005'::uuid, 'gasto', 'execucao_limite', 'Qualificar 4.000 empresas do Nordeste', 'd0000000-0000-0000-0000-000000000002'::uuid, 'comercial',
+   'Expansão do ICP para nova região.', 'Reserva de 6.000 créditos', 'Estimativa 6.000 créditos · saldo após reserva 1.950', 6000,
+   current_date + 5 + time '09:00', '["Hoje Plano criado pelo copiloto"]'::jsonb)
+)
+INSERT INTO public.approvals (id, workspace_id, category, approval_type, title, requested_by_member_id, agent_code, reason, impact, preview,
+                              estimated_credits, deadline_at, history, status, payload_json, payload_hash)
+SELECT f.id, 'a0000000-0000-0000-0000-000000000001', f.categoria, f.tipo, f.titulo, f.solicitante, f.agente, f.motivo, f.impacto, f.previa,
+       f.creditos, f.prazo AT TIME ZONE 'America/Sao_Paulo', f.historico, 'pendente',
+       jsonb_build_object('titulo', f.titulo, 'previa', f.previa, 'creditos', f.creditos),
+       encode(extensions.digest(jsonb_build_object('titulo', f.titulo, 'previa', f.previa, 'creditos', f.creditos)::text, 'sha256'), 'hex')
+FROM fila f
+ON CONFLICT (id) DO NOTHING;
