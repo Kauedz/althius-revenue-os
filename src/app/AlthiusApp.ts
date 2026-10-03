@@ -10,6 +10,7 @@ import { precoEmReais } from './precos';
 import { decidirAprovacao, listarAprovacoes, type AprovacaoTela, type DecisaoTela } from './servicos/aprovacoes';
 import { listarContas, type ContaTela } from './servicos/contas';
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
+import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
 
 export interface AlthiusAppProps {
   dados: DadosAlthius;
@@ -21,8 +22,10 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   constructor(props: AlthiusAppProps) {
     super(props);
     const relatoriosReais = relatorioSemDados();
-    this.state = { ...this.state, relatoriosReais };
+    const sinaisReais = sinaisSemDados();
+    this.state = { ...this.state, relatoriosReais, sinaisReais };
     this.publicarRelatorios(relatoriosReais);
+    this.publicarSinais(sinaisReais);
   }
 
   // Fora da demonstração não existe troca de papel: o papel vem do banco.
@@ -65,6 +68,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.cargaWorkspace++;
     this.publicarContas([]);
     this.publicarRelatorios(relatorioSemDados());
+    this.publicarSinais(sinaisSemDados());
     super.componentWillUnmount?.();
   }
 
@@ -74,14 +78,15 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       const carga = ++this.cargaWorkspace;
       try {
         const D = this.props.dados;
-        const [home, agents, execs, aprov, notifs, creditos, contas, relatorios] = await Promise.all([
-          D.homeService.summary(), D.agentService.list(), this.carregarExecucoes(), this.carregarAprovacoes(), D.notificationService.list(), this.carregarCreditos(), this.carregarContas(), this.carregarRelatorios()
+        const [home, agents, execs, aprov, notifs, creditos, contas, relatorios, sinais] = await Promise.all([
+          D.homeService.summary(), D.agentService.list(), this.carregarExecucoes(), this.carregarAprovacoes(), D.notificationService.list(), this.carregarCreditos(), this.carregarContas(), this.carregarRelatorios(), this.carregarSinais()
         ]);
         if (!this.vivo) return;
         if (carga !== this.cargaWorkspace) continue;
         this.publicarContas(contas);
         this.publicarRelatorios(relatorios);
-        this.setState({ home, agents, execs, aprov, notifs, contas, relatoriosReais: relatorios, ...creditos, pronto: true, carregandoRota: false });
+        this.publicarSinais(sinais);
+        this.setState({ home, agents, execs, aprov, notifs, contas, relatoriosReais: relatorios, sinaisReais: sinais, ...creditos, pronto: true, carregandoRota: false });
         return;
       } catch (falha) {
         if (!this.vivo) return;
@@ -96,15 +101,18 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   async recarregarWorkspace() {
     const carga = ++this.cargaWorkspace;
     const relatoriosVazios = relatorioSemDados();
+    const sinaisVazios = sinaisSemDados();
     this.publicarContas([]);
     this.publicarRelatorios(relatoriosVazios);
-    this.setState({ aprov: [], execs: [], contas: [], relatoriosReais: relatoriosVazios, decisoes: {}, apSel: null, falhaCarga: false, carregandoRota: true });
+    this.publicarSinais(sinaisVazios);
+    this.setState({ aprov: [], execs: [], contas: [], relatoriosReais: relatoriosVazios, sinaisReais: sinaisVazios, decisoes: {}, apSel: null, falhaCarga: false, carregandoRota: true });
     try {
-      const [aprov, execs, creditos, contas, relatorios] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos(), this.carregarContas(), this.carregarRelatorios()]);
+      const [aprov, execs, creditos, contas, relatorios, sinais] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos(), this.carregarContas(), this.carregarRelatorios(), this.carregarSinais()]);
       if (this.vivo && carga === this.cargaWorkspace) {
         this.publicarContas(contas);
         this.publicarRelatorios(relatorios);
-        this.setState({ aprov, execs, contas, relatoriosReais: relatorios, ...creditos, carregandoRota: false });
+        this.publicarSinais(sinais);
+        this.setState({ aprov, execs, contas, relatoriosReais: relatorios, sinaisReais: sinais, ...creditos, carregandoRota: false });
         return carga;
       }
     } catch (falha) {
@@ -151,6 +159,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     // O template lê modoDemo (regra de produto) para esconder a troca de papel.
     const v = super.renderVals();
     if (v?.rl?.ativo && this.modoDemo === false) this.aplicarRelatoriosNaTela(v);
+    if (v?.sigCat?.ativo && this.modoDemo === false) this.aplicarSinaisNaTela(v);
     return { ...v, modoDemo: this.modoDemo, sair: () => this.props.aoSair(), recarregar: () => this.recarregarWorkspace() };
   }
 
@@ -338,5 +347,41 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     }));
     v.md.vazio = v.md.linhas.length === 0;
     v.md.tabela = v.md.linhas.length > 0;
+  }
+
+  carregarSinais(): Promise<SinaisTela> {
+    const ws = this.workspaceAtual();
+    return ws ? listarSinais(this.props.supabase, ws.uuid) : Promise.resolve(sinaisSemDados());
+  }
+
+  /** Substitui o catálogo e os eventos fictícios da página de Sinais pelos do banco. */
+  private publicarSinais(sinais: SinaisTela) {
+    if (typeof window === 'undefined') return;
+    const mod = (window as any).ALTHIUS_MOD;
+    if (!mod?.signals) return;
+    mod.signals.kpis = sinais.kpis.map(k => [k.label, k.valor, k.delta]);
+    mod.signals.linhas = sinais.eventos;
+    mod.signals.acoesLinha = [];
+  }
+
+  /** Troca o catálogo do protótipo pelo do banco, só na página de Sinais. */
+  private aplicarSinaisNaTela(v: Record<string, any>) {
+    const sinais: SinaisTela = this.state.sinaisReais || sinaisSemDados();
+    if (!v.sigCat) return;
+    const anteriores = Array.isArray(v.sigCat.grupos) ? v.sigCat.grupos : [];
+    v.sigCat.resumo = sinais.resumo;
+    v.sigCat.grupos = sinais.grupos.map((g, i) => {
+      const antigo = g.codigo
+        ? anteriores.find((a: { nome?: string; sigla?: string; href?: string }) => typeof a?.nome === 'string' && a.nome.toLowerCase().includes(g.codigo))
+        : undefined;
+      const href = (antigo || anteriores[i] || {}).href || '#';
+      return {
+        nome: antigo?.nome || g.nome,
+        sigla: antigo?.sigla || g.sigla,
+        href,
+        ativos: g.ativos,
+        itens: g.itens.map(s => ({ nome: s.nome, custo: s.custo, cor: s.ativo ? 'var(--signal)' : 'var(--steel)' }))
+      };
+    });
   }
 }
