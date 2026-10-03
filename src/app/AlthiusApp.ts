@@ -11,6 +11,7 @@ import { decidirAprovacao, listarAprovacoes, type AprovacaoTela, type DecisaoTel
 import { listarContas, type ContaTela } from './servicos/contas';
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
+import { listarProspeccao, prospeccaoSemDados, type ProspeccaoTela } from './servicos/prospeccao';
 
 export interface AlthiusAppProps {
   dados: DadosAlthius;
@@ -23,9 +24,11 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     super(props);
     const relatoriosReais = relatorioSemDados();
     const sinaisReais = sinaisSemDados();
-    this.state = { ...this.state, relatoriosReais, sinaisReais };
+    const prospeccaoReais = prospeccaoSemDados();
+    this.state = { ...this.state, relatoriosReais, sinaisReais, prospeccaoReais };
     this.publicarRelatorios(relatoriosReais);
     this.publicarSinais(sinaisReais);
+    this.publicarProspeccao(prospeccaoReais);
   }
 
   // Fora da demonstração não existe troca de papel: o papel vem do banco.
@@ -69,6 +72,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarContas([]);
     this.publicarRelatorios(relatorioSemDados());
     this.publicarSinais(sinaisSemDados());
+    this.publicarProspeccao(prospeccaoSemDados());
     super.componentWillUnmount?.();
   }
 
@@ -78,15 +82,16 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       const carga = ++this.cargaWorkspace;
       try {
         const D = this.props.dados;
-        const [home, agents, execs, aprov, notifs, creditos, contas, relatorios, sinais] = await Promise.all([
-          D.homeService.summary(), D.agentService.list(), this.carregarExecucoes(), this.carregarAprovacoes(), D.notificationService.list(), this.carregarCreditos(), this.carregarContas(), this.carregarRelatorios(), this.carregarSinais()
+        const [home, agents, execs, aprov, notifs, creditos, contas, relatorios, sinais, prospeccao] = await Promise.all([
+          D.homeService.summary(), D.agentService.list(), this.carregarExecucoes(), this.carregarAprovacoes(), D.notificationService.list(), this.carregarCreditos(), this.carregarContas(), this.carregarRelatorios(), this.carregarSinais(), this.carregarProspeccao()
         ]);
         if (!this.vivo) return;
         if (carga !== this.cargaWorkspace) continue;
         this.publicarContas(contas);
         this.publicarRelatorios(relatorios);
         this.publicarSinais(sinais);
-        this.setState({ home, agents, execs, aprov, notifs, contas, relatoriosReais: relatorios, sinaisReais: sinais, ...creditos, pronto: true, carregandoRota: false });
+        this.publicarProspeccao(prospeccao);
+        this.setState({ home, agents, execs, aprov, notifs, contas, relatoriosReais: relatorios, sinaisReais: sinais, prospeccaoReais: prospeccao, ...creditos, pronto: true, carregandoRota: false });
         return;
       } catch (falha) {
         if (!this.vivo) return;
@@ -102,17 +107,20 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const carga = ++this.cargaWorkspace;
     const relatoriosVazios = relatorioSemDados();
     const sinaisVazios = sinaisSemDados();
+    const prospeccaoVazios = prospeccaoSemDados();
     this.publicarContas([]);
     this.publicarRelatorios(relatoriosVazios);
     this.publicarSinais(sinaisVazios);
-    this.setState({ aprov: [], execs: [], contas: [], relatoriosReais: relatoriosVazios, sinaisReais: sinaisVazios, decisoes: {}, apSel: null, falhaCarga: false, carregandoRota: true });
+    this.publicarProspeccao(prospeccaoVazios);
+    this.setState({ aprov: [], execs: [], contas: [], relatoriosReais: relatoriosVazios, sinaisReais: sinaisVazios, prospeccaoReais: prospeccaoVazios, decisoes: {}, apSel: null, falhaCarga: false, carregandoRota: true });
     try {
-      const [aprov, execs, creditos, contas, relatorios, sinais] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos(), this.carregarContas(), this.carregarRelatorios(), this.carregarSinais()]);
+      const [aprov, execs, creditos, contas, relatorios, sinais, prospeccao] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos(), this.carregarContas(), this.carregarRelatorios(), this.carregarSinais(), this.carregarProspeccao()]);
       if (this.vivo && carga === this.cargaWorkspace) {
         this.publicarContas(contas);
         this.publicarRelatorios(relatorios);
         this.publicarSinais(sinais);
-        this.setState({ aprov, execs, contas, relatoriosReais: relatorios, sinaisReais: sinais, ...creditos, carregandoRota: false });
+        this.publicarProspeccao(prospeccao);
+        this.setState({ aprov, execs, contas, relatoriosReais: relatorios, sinaisReais: sinais, prospeccaoReais: prospeccao, ...creditos, carregandoRota: false });
         return carga;
       }
     } catch (falha) {
@@ -383,5 +391,21 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
         itens: g.itens.map(s => ({ nome: s.nome, custo: s.custo, cor: s.ativo ? 'var(--signal)' : 'var(--steel)' }))
       };
     });
+  }
+
+  carregarProspeccao(): Promise<ProspeccaoTela> {
+    const ws = this.workspaceAtual();
+    return ws ? listarProspeccao(this.props.supabase, ws.uuid) : Promise.resolve(prospeccaoSemDados());
+  }
+
+  /** Substitui as listas fictícias da página de Prospecção pelas do banco. Somente leitura. */
+  private publicarProspeccao(tela: ProspeccaoTela) {
+    if (typeof window === 'undefined') return;
+    const mod = (window as any).ALTHIUS_MOD;
+    if (!mod?.prospecting) return;
+    mod.prospecting.kpis = tela.kpis.map(k => [k.label, k.valor, k.delta]);
+    mod.prospecting.linhas = tela.listas;
+    mod.prospecting.acoesLinha = [];
+    mod.prospecting.acao = null;
   }
 }
