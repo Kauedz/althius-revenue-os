@@ -3,6 +3,7 @@
 -- Verifies Ticket 07 - Unipile Messaging Accounts, Webhook & Strict CRM-Only Privacy Filter
 -- ==============================================================================
 
+-- Contagens restritas ao workspace do próprio teste: o seed de demonstração também tem conversas.
 BEGIN;
 SELECT * FROM no_plan();
 -- 1. Setup mock workspace, members, account, contact and contact channel
@@ -47,13 +48,13 @@ SELECT is(
 
 -- Verify zero persistence in database (Absolute privacy!)
 SELECT is(
-  (SELECT count(*)::integer FROM public.conversations),
+  (SELECT count(*)::integer FROM public.conversations WHERE workspace_id = '11111111-1111-1111-1111-111111111111'),
   0,
   'Privacidade: Nenhuma conversa de remetente fora do CRM pode ser gravada'
 );
 
 SELECT is(
-  (SELECT count(*)::integer FROM public.messages),
+  (SELECT count(*)::integer FROM public.messages WHERE workspace_id = '11111111-1111-1111-1111-111111111111'),
   0,
   'Privacidade: Nenhuma mensagem de remetente fora do CRM pode ser gravada'
 );
@@ -75,7 +76,7 @@ SELECT is(
 );
 
 SELECT is(
-  (SELECT count(*)::integer FROM public.conversations),
+  (SELECT count(*)::integer FROM public.conversations WHERE workspace_id = '11111111-1111-1111-1111-111111111111'),
   0,
   'Privacidade: Nenhuma conversa de grupo pode ser gravada'
 );
@@ -98,19 +99,19 @@ SELECT is(
 
 -- Verify persistence and linkage
 SELECT is(
-  (SELECT count(*)::integer FROM public.conversations),
+  (SELECT count(*)::integer FROM public.conversations WHERE workspace_id = '11111111-1111-1111-1111-111111111111'),
   1,
   'Caixa de entrada: Conversa persistida com sucesso'
 );
 
 SELECT is(
-  (SELECT intent FROM public.conversations LIMIT 1),
+  (SELECT intent FROM public.conversations WHERE workspace_id = '11111111-1111-1111-1111-111111111111' LIMIT 1),
   'positiva',
   'Caixa de entrada: Intencao da mensagem classificada como positiva'
 );
 
 SELECT is(
-  (SELECT text FROM public.messages LIMIT 1),
+  (SELECT text FROM public.messages WHERE workspace_id = '11111111-1111-1111-1111-111111111111' LIMIT 1),
   'Ola Lucas, recebemos a proposta e gostariamos de agendar a demonstracao na terca.',
   'Caixa de entrada: Texto da mensagem persistido com integridade'
 );
@@ -119,13 +120,13 @@ SELECT is(
 DELETE FROM public.contacts WHERE id = '76485a2b-0000-0000-0000-000000000001';
 
 SELECT is(
-  (SELECT count(*)::integer FROM public.conversations),
+  (SELECT count(*)::integer FROM public.conversations WHERE workspace_id = '11111111-1111-1111-1111-111111111111'),
   0,
   'Cascade: Excluir o contato do CRM deve apagar automaticamente todas as conversas dele'
 );
 
 SELECT is(
-  (SELECT count(*)::integer FROM public.messages),
+  (SELECT count(*)::integer FROM public.messages WHERE workspace_id = '11111111-1111-1111-1111-111111111111'),
   0,
   'Cascade: Excluir o contato do CRM deve apagar automaticamente todas as mensagens dele'
 );

@@ -196,6 +196,27 @@ export const PATCHES = [
     por: '{__t($v.ag?.sucesso)}{typeof $v.ag?.sucesso === "number" ? "%" : ""}'
   },
 
+  // ---- Listas genéricas (Claude): ganchos para abrir linha e ações de linha gravarem no banco
+  {
+    regra: 'listas: abrir uma linha avisa a camada do banco (ex.: conversa vira lida)',
+    arquivo: 'logic.generated.js',
+    trocar: "const abrir = l => () => { if (page === 'accounts') { this.abrirConta(l.id, 'comite'); return; } setMs({ aberto: l.id }); };",
+    por: "const abrir = l => () => { if (page === 'accounts') { this.abrirConta(l.id, 'comite'); return; } if (this.modoDemo === false && this.aoAbrirLinhaReal) this.aoAbrirLinhaReal(page, l); setMs({ aberto: l.id }); };"
+  },
+  {
+    regra: 'listas: ação de linha passa pela camada do banco quando ela trata a página',
+    arquivo: 'logic.generated.js',
+    trocar: "fn: () => { const run = () => { if (a[2] === 'avancar' && M.grupos)",
+    por: "fn: () => { const run = () => { if (this.modoDemo === false && this.acaoDeLinhaReal && this.acaoDeLinhaReal(page, a[0], sel)) { setMs({ aberto: null }); return; } if (a[2] === 'avancar' && M.grupos)"
+  },
+
+  {
+    regra: 'caixa de entrada: no modo real quem vê cada conversa é o banco (RLS), não as conexões de quem olha',
+    arquivo: 'logic.generated.js',
+    trocar: "(page !== 'inbox' || !IXK[l.canal] || !!ixOn[IXK[l.canal]])",
+    por: "(page !== 'inbox' || this.modoDemo === false || !IXK[l.canal] || !!ixOn[IXK[l.canal]])"
+  },
+
   // ---- Playbook do agente (Claude): sugestões dos agentes e publicação gravam no banco (ADR 0024)
   {
     regra: 'playbook: aplicar sugestão registra a decisão no banco (o texto entra no rascunho)',

@@ -24,6 +24,7 @@ import { obterResumoHome, type HomeResumoTela } from './servicos/inicio';
 import { listarAgentes, pausarAgente, salvarCapacidades, type AgenteBase, type AgenteTela } from './servicos/agentes';
 import { alterarSenha, lerMinhaConta, removerFoto, sairDosOutrosDispositivos, salvarMinhaConta, salvarPreferencias, trocarFoto } from './servicos/conta';
 import { decidirAprendizado, lerPlaybooks, listarSugestoes, publicarPlaybook } from './servicos/aprendizados';
+import { excluirContatoDoCrm, listarCaixa, marcarLida, minhasConexoes, pedirSugestaoDeResposta, type CaixaTela, type ConexoesTela } from './servicos/caixa';
 import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla } from './servicos/notificacoes';
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
@@ -85,6 +86,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     };
     super.componentDidMount?.();
     void this.carregarMinhaConta();
+    this.publicarCaixa(null);
   }
 
   private cargaWorkspace = 0;
@@ -92,6 +94,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   componentDidUpdate(prevProps: Readonly<AlthiusAppProps>, prevState: Readonly<Record<string, any>>) {
     super.componentDidUpdate?.(prevProps, prevState);
+    this.carregarPaginaSobDemanda(prevState);
     if (prevState.rota?.ws !== this.state.rota?.ws) {
       this.cargaWorkspace++;
       if (this.state.pronto) void this.recarregarWorkspace();
@@ -110,6 +113,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarSinais(sinaisSemDados());
     this.publicarProspeccao(prospeccaoSemDados());
     this.publicarAprendizados({}, {});
+    this.publicarCaixa(null);
     super.componentWillUnmount?.();
   }
 
@@ -835,6 +839,104 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (!r.ok && this.vivo) {
       this.setState({ ops: Object.assign({}, ops, { [chave]: !ops[chave] }) });
       this.avisarCfg(r.mensagem);
+    }
+  }
+
+  // ---- Páginas carregadas sob demanda (Claude): só buscam no banco quando a pessoa abre a página
+
+  private carregarPaginaSobDemanda(prev: Readonly<Record<string, any>>) {
+    const rota = this.state.rota || {}, antes = prev.rota || {};
+    const entrou = rota.page !== antes.page || rota.ws !== antes.ws || (this.state.pronto && !prev.pronto);
+    if (!entrou || !this.state.pronto) return;
+    if (rota.page === 'inbox') void this.carregarCaixa();
+    if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) void this.carregarConexoes();
+  }
+
+  /** No modo real, as conexões pessoais são as da pessoa no banco (o protótipo trazia as da Camila). */
+  inboxCon(): ConexoesTela {
+    if (this.modoDemo !== false) return (AlthiusLogic.prototype as any).inboxCon.call(this);
+    return this.state.conexoesReais || { email: null, linkedin: null, whatsapp: null, instagram: null };
+  }
+
+  private async carregarConexoes() {
+    const ws = this.workspaceAtual();
+    this.setState({ conexoesReais: null });
+    if (!ws) return;
+    try {
+      const conexoesReais = await minhasConexoes(this.props.supabase, ws.uuid);
+      if (this.vivo && this.workspaceAtual()?.uuid === ws.uuid) this.setState({ conexoesReais });
+    } catch (falha) {
+      console.error(falha);
+    }
+  }
+
+  /** Ganchos das listas genéricas do v18 (scripts/v18/patches.mjs). Devolve true quando a camada do banco tratou. */
+  aoAbrirLinhaReal(page: string, linha: { id: string }) {
+    if (page === 'inbox') void this.abrirConversa(linha.id);
+  }
+
+  acaoDeLinhaReal(page: string, acao: string, linha: { id: string }): boolean {
+    if (page === 'inbox') {
+      void this.acaoNaConversa(acao, linha.id);
+      return true;
+    }
+    return false;
+  }
+
+  // ---- Caixa de entrada (Claude)
+
+  private cargaCaixa = 0;
+
+  private publicarCaixa(caixa: CaixaTela | null) {
+    if (typeof window === 'undefined') return;
+    const mod = (window as any).ALTHIUS_MOD;
+    if (!mod?.inbox) return;
+    mod.inbox.kpis = caixa ? caixa.kpis : [];
+    mod.inbox.linhas = caixa ? caixa.linhas : [];
+    // "Criar tarefa" volta quando Tarefas estiver ligada aqui; nada de botão que não faz nada.
+    mod.inbox.acoesLinha = caixa ? [
+      ['Sugerir resposta', 'Pedido enviado ao Agente de Copy. A sugestão aparece em Execuções.'],
+      ['Excluir contato do CRM', 'Contato excluído do CRM. A Althius parou de receber as mensagens dele.', null, true,
+        '{x} sai do CRM. As mensagens dele param de entrar na Caixa de entrada na hora, e as conversas que já tinham entrado saem junto.']
+    ] : [];
+  }
+
+  async carregarCaixa() {
+    const ws = this.workspaceAtual();
+    const carga = ++this.cargaCaixa;
+    this.publicarCaixa(null);
+    if (!ws) return;
+    try {
+      const caixa = await listarCaixa(this.props.supabase, ws.uuid);
+      if (!this.vivo || carga !== this.cargaCaixa) return;
+      this.publicarCaixa(caixa);
+      this.setState({ caixaVersao: carga });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaCaixa) this.avisarFalha('Não foi possível carregar a caixa de entrada', falha);
+    }
+  }
+
+  private async abrirConversa(id: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await marcarLida(this.props.supabase, ws.uuid, ws.membroId, id);
+    if (r.ok) void this.carregarCaixa();
+  }
+
+  private async acaoNaConversa(acao: string, id: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    if (acao === 'Sugerir resposta') {
+      const r = await pedirSugestaoDeResposta(this.props.supabase, ws.uuid, ws.membroId, id);
+      if (!r.ok) return this.confirmar('Pedido não enviado', r.mensagem, 'Entendi', () => {});
+      this.avisar('mod', 'Pedido enviado ao Agente de Copy. A sugestão aparece em Execuções.');
+      return;
+    }
+    if (acao === 'Excluir contato do CRM') {
+      const r = await excluirContatoDoCrm(this.props.supabase, ws.uuid, ws.membroId, id);
+      if (!r.ok) return this.confirmar('Contato não excluído', r.mensagem, 'Entendi', () => {});
+      this.avisar('mod', 'Contato excluído do CRM. A Althius parou de receber as mensagens dele.');
+      await this.carregarCaixa();
     }
   }
 }

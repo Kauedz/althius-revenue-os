@@ -444,13 +444,13 @@ export class AlthiusLogic extends React.Component {
       const setMs = o => this.setState({ modSt: Object.assign({}, this.state.modSt, { [page]: Object.assign({}, ms, o) }) });
       const cols = M.colunas.filter(c => !c[3] || can(c[3]));
       const IXK = { 'E-mail': 'email', 'LinkedIn': 'linkedin', 'WhatsApp': 'whatsapp', 'Instagram': 'instagram' }, ixOn = this.inboxCon();
-      const rows0 = (vazio ? [] : (((st.modExtra || {})[page]) || []).concat(M.linhas)).map(l => Object.assign({}, l, ov[l.id] || {})).filter(l => !l.removido && (page !== 'inbox' || !IXK[l.canal] || !!ixOn[IXK[l.canal]]));
+      const rows0 = (vazio ? [] : (((st.modExtra || {})[page]) || []).concat(M.linhas)).map(l => Object.assign({}, l, ov[l.id] || {})).filter(l => !l.removido && (page !== 'inbox' || this.modoDemo === false || !IXK[l.canal] || !!ixOn[IXK[l.canal]]));
       const dotCor = s => /falh|atras|erro|inativ|degrad|instáv/i.test(s) ? C.erro : /pausad|rascunho|aguard|revis|pendent|convite|hipót|teste|na fila|agend|adiar|neutra|morna|parcial/i.test(s) ? C.aviso : /ativ|conect|conclu|operac|ganho|aplicad|positiva|quente/i.test(s) ? C.ok : null;
       const q = (ms.busca || '').trim().toLowerCase();
       const fv = ms.filtro || 'Todos';
       const ufF = page === 'accounts' ? ms.uf : null; let rows = rows0.filter(l => !ufF || String(l.cidade || '').slice(-2) === ufF).filter(l => !q || cols.some(c => String(l[c[0]] == null ? '' : l[c[0]]).toLowerCase().indexOf(q) >= 0)).filter(l => !M.filtro || fv === 'Todos' || l[M.filtro] === fv);
       if (ms.ord) { const [k, dir] = ms.ord; rows = rows.slice().sort((a, b) => { const x = a[k], y = b[k]; const nx = parseFloat(String(x).replace(/[^0-9,-]/g, '').replace(',', '.')), ny = parseFloat(String(y).replace(/[^0-9,-]/g, '').replace(',', '.')); const r = !isNaN(nx) && !isNaN(ny) ? nx - ny : String(x).localeCompare(String(y), 'pt-BR'); return dir * r; }); }
-      const abrir = l => () => { if (page === 'accounts') { this.abrirConta(l.id, 'comite'); return; } setMs({ aberto: l.id }); };
+      const abrir = l => () => { if (page === 'accounts') { this.abrirConta(l.id, 'comite'); return; } if (this.modoDemo === false && this.aoAbrirLinhaReal) this.aoAbrirLinhaReal(page, l); setMs({ aberto: l.id }); };
       const tecla = l => ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrir(l)(); } };
       const md = v.md;
       md.titulo = M.titulo;
@@ -494,7 +494,7 @@ export class AlthiusLogic extends React.Component {
         Object.keys(rot).forEach(k => { if (sel[k] != null && !cols.some(c => c[0] === k)) campos.push({ label: rot[k], v: String(sel[k]) }); });
         const aplicar = patch => this.setState({ modOv: Object.assign({}, this.state.modOv, { [page]: Object.assign({}, ov, { [sel.id]: Object.assign({}, ov[sel.id] || {}, patch) }) }) });
         const acoes = (podeAgir ? (M.acoesLinha || []) : []).map((a, ai) => ({ label: a[0], bg: ai === 0 ? 'var(--ink)' : 'var(--paper)', cor: a[3] ? 'var(--err)' : ai === 0 ? 'var(--paper)' : 'var(--ink)', borda: a[3] ? 'var(--err)' : 'var(--ink)',
-          fn: () => { const run = () => { if (a[2] === 'avancar' && M.grupos) { const ix = M.grupos.indexOf(sel[M.grupo]); aplicar({ [M.grupo]: M.grupos[Math.min(ix + 1, M.grupos.length - 1)] }); } else if (a[2] && typeof a[2] === 'object') aplicar(a[2]); setMs({ aberto: null }); this.avisar('mod', a[1]); };
+          fn: () => { const run = () => { if (this.modoDemo === false && this.acaoDeLinhaReal && this.acaoDeLinhaReal(page, a[0], sel)) { setMs({ aberto: null }); return; } if (a[2] === 'avancar' && M.grupos) { const ix = M.grupos.indexOf(sel[M.grupo]); aplicar({ [M.grupo]: M.grupos[Math.min(ix + 1, M.grupos.length - 1)] }); } else if (a[2] && typeof a[2] === 'object') aplicar(a[2]); setMs({ aberto: null }); this.avisar('mod', a[1]); };
             if (a[3]) this.confirmar(a[0] + '?', a[4] ? a[4].replace('{x}', sel.de || sel.nome || sel.titulo || '') : 'Esta ação afeta "' + (sel.nome || sel.titulo || sel.de || sel.id) + '". Pode ser revertida por um administrador.', a[0], run); else run(); } }));
         md.det = { titulo: sel.nome || sel.titulo || sel.conta || sel.cap || sel.de || sel.servico || sel.agente || sel.ws || sel.acao, campos, acoes, temAcoes: acoes.length > 0 };
       }

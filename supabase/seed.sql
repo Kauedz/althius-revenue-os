@@ -291,3 +291,28 @@ Manter o CRM confiável e o pipeline previsível.
 # Nunca
 - Apagar registros. Só marcar para revisão.', true)
 ON CONFLICT (id) DO NOTHING;
+
+-- ---- Caixa de entrada de exemplo da Evolut (Claude): conexões dos BDRs e conversas só com contatos do CRM
+INSERT INTO public.messaging_accounts (id, workspace_id, member_id, provider, unipile_account_id, display_name) VALUES
+  ('ca500000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000004', 'google', 'demo-lucas-google', 'lucas@evolut.com.br'),
+  ('ca500000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000004', 'linkedin', 'demo-lucas-linkedin', 'Lucas Teixeira'),
+  ('ca500000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000004', 'whatsapp', 'demo-lucas-whatsapp', '+55 11 90000-0004'),
+  ('ca500000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000006', 'google', 'demo-bruna-google', 'bruna@evolut.com.br')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.conversations (id, workspace_id, contact_id, account_id, messaging_account_id, channel, external_chat_id, intent, unread, last_message_at) VALUES
+  ('c5000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'ca500000-0000-0000-0000-000000000002', 'linkedin', 'demo-chat-1', 'adiar', true, now() - interval '1 day'),
+  ('c5000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000008', 'c0000000-0000-0000-0000-000000000004', 'ca500000-0000-0000-0000-000000000004', 'email', 'demo-chat-2', 'objecao', true, now() - interval '1 day 2 hours'),
+  ('c5000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000001', 'ca500000-0000-0000-0000-000000000001', 'email', 'demo-chat-3', 'positiva', false, now() - interval '3 days'),
+  ('c5000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000007', 'c0000000-0000-0000-0000-000000000003', 'ca500000-0000-0000-0000-000000000001', 'email', 'demo-chat-4', 'neutra', false, now() - interval '3 days 1 hour'),
+  ('c5000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000004', 'c0000000-0000-0000-0000-000000000002', 'ca500000-0000-0000-0000-000000000003', 'whatsapp', 'demo-chat-5', 'positiva', true, now() - interval '2 hours')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.messages (workspace_id, conversation_id, direction, external_message_id, text, sent_by, created_at) VALUES
+  ('a0000000-0000-0000-0000-000000000001', 'c5000000-0000-0000-0000-000000000001', 'in', 'demo-msg-1', 'Tenho interesse, mas só no mês que vem.', 'member', now() - interval '1 day'),
+  ('a0000000-0000-0000-0000-000000000001', 'c5000000-0000-0000-0000-000000000002', 'in', 'demo-msg-2', 'Já trabalhamos com uma trading.', 'member', now() - interval '1 day 2 hours'),
+  ('a0000000-0000-0000-0000-000000000001', 'c5000000-0000-0000-0000-000000000003', 'in', 'demo-msg-3', 'Vamos marcar 20 minutos na quinta?', 'member', now() - interval '3 days 38 minutes'),
+  ('a0000000-0000-0000-0000-000000000001', 'c5000000-0000-0000-0000-000000000003', 'out', 'demo-msg-3r', 'Combinado, quinta às 10h. Envio o convite.', 'member', now() - interval '3 days'),
+  ('a0000000-0000-0000-0000-000000000001', 'c5000000-0000-0000-0000-000000000004', 'in', 'demo-msg-4', 'O responsável está de férias até dia 20.', 'automation', now() - interval '3 days 1 hour'),
+  ('a0000000-0000-0000-0000-000000000001', 'c5000000-0000-0000-0000-000000000005', 'in', 'demo-msg-5', 'Recebi. Me liga amanhã depois das 10h?', 'member', now() - interval '2 hours')
+ON CONFLICT (external_message_id) DO NOTHING;
