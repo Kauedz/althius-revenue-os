@@ -111,3 +111,31 @@ INSERT INTO internal.provider_cost_events(workspace_id,execution_id,provider_cod
 INSERT INTO public.executions(id,workspace_id,agent_code,capability_key,status,requested_by_member_id,title,execution_type,campaign_name,requester_label,display_time,progress,processed_count,valid_count,estimated_credits,reserved_credits,actual_credits,plan,current_step,logs,errors,integrations,approval_label) VALUES ('ec000000-0000-0000-0000-000000001037','a0000000-0000-0000-0000-000000000001','revops','analytics.view','completed','d0000000-0000-0000-0000-000000000001','Relatório semanal de pipeline','Relatório','—','Agendada','Seg, 08:00',100,312,312,0,0,0,'["Consolidar funil","Calcular pipeline influenciado","Publicar relatório"]'::jsonb,3,'["08:00 Iniciada","08:03 Publicado"]'::jsonb,'[]'::jsonb,'["CRM","Planilhas"]'::jsonb,'Não exigida') ON CONFLICT(id) DO NOTHING;
 INSERT INTO public.executions(id,workspace_id,agent_code,capability_key,status,requested_by_member_id,title,execution_type,campaign_name,requester_label,display_time,progress,processed_count,valid_count,estimated_credits,reserved_credits,actual_credits,plan,current_step,logs,errors,integrations,approval_label) VALUES ('ec000000-0000-0000-0000-000000001036','a0000000-0000-0000-0000-000000000001','comercial','accounts.import','scheduled','d0000000-0000-0000-0000-000000000002','Lista de 300 indústrias do Sul','Lista','Expansão Sul',NULL,'Amanhã, 09:00',0,0,0,450,0,0,'["Buscar indústrias por CNAE","Pontuar fit"]'::jsonb,0,'["Agendada para amanhã, 09:00"]'::jsonb,'[]'::jsonb,'["Dados de prospecção"]'::jsonb,'Aprovada por Aline Xavier') ON CONFLICT(id) DO NOTHING;
 INSERT INTO public.executions(id,workspace_id,agent_code,capability_key,status,requested_by_member_id,title,execution_type,campaign_name,requester_label,display_time,progress,processed_count,valid_count,estimated_credits,reserved_credits,actual_credits,plan,current_step,logs,errors,integrations,approval_label) VALUES ('ec000000-0000-0000-0000-000000001035','a0000000-0000-0000-0000-000000000001','comercial','accounts.edit','queued','d0000000-0000-0000-0000-000000000004','Enriquecer 80 contatos de feira','Enriquecimento','Evento Intermodal',NULL,'Hoje, 09:40',0,0,0,160,0,0,'["Validar contatos","Associar às contas"]'::jsonb,0,'["09:40 Na fila"]'::jsonb,'[]'::jsonb,'["Enriquecimento de contatos"]'::jsonb,'Não exigida') ON CONFLICT(id) DO NOTHING;
+
+-- 7. Creditos do prototipo: saldo, extrato e regras padrao (teto 500, limite 5.000).
+INSERT INTO public.workspace_settings (workspace_id, credit_mode, approval_threshold, monthly_credit_limit, auto_topup_enabled)
+VALUES
+  ('a0000000-0000-0000-0000-000000000001', 'auto', 500, 5000, false),
+  ('b0000000-0000-0000-0000-000000000001', 'auto', 500, 5000, false),
+  ('c0000000-0000-0000-0000-000000000001', 'auto', 500, 5000, false)
+ON CONFLICT (workspace_id) DO NOTHING;
+
+INSERT INTO public.credit_wallets (workspace_id, allowance_balance, topup_balance, reserved_balance, monthly_consumed)
+VALUES
+  ('a0000000-0000-0000-0000-000000000001', 7950, 0, 0, 2050),
+  ('b0000000-0000-0000-0000-000000000001', 10000, 0, 0, 0),
+  ('c0000000-0000-0000-0000-000000000001', 10000, 0, 0, 0)
+ON CONFLICT (workspace_id) DO NOTHING;
+
+INSERT INTO public.credit_transactions (id, workspace_id, type, amount, wallet_type, description, agent_code, created_at) VALUES
+  ('cc000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'grant', 10000, 'allowance', 'Créditos iniciais do workspace', NULL, '2026-09-01 09:00:00-03'),
+  ('cc000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'consume', 200, 'allowance', 'Mapeamento de comitê · 8 contas', 'comercial', '2026-09-05 09:00:00-03'),
+  ('cc000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'consume', 640, 'allowance', 'Enriquecimento · 64 contatos', 'comercial', '2026-09-08 09:00:00-03'),
+  ('cc000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'consume', 192, 'allowance', 'E-mails automáticos · 48 envios', 'copy', '2026-09-12 09:00:00-03'),
+  ('cc000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', 'consume', 700, 'allowance', 'Sinais monitorados · setembro', 'comercial', '2026-09-15 09:00:00-03'),
+  ('cc000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000001', 'consume', 120, 'allowance', 'Leitura semanal de mídia', 'marketing', '2026-09-22 09:00:00-03'),
+  ('cc000000-0000-0000-0000-000000000007', 'a0000000-0000-0000-0000-000000000001', 'consume', 118, 'allowance', 'Rascunhos e respostas · 59', 'copy', '2026-09-26 09:00:00-03'),
+  ('cc000000-0000-0000-0000-000000000008', 'a0000000-0000-0000-0000-000000000001', 'consume', 80, 'allowance', 'Relatórios e higiene do CRM', 'revops', '2026-09-29 09:00:00-03'),
+  ('cc000000-0000-0000-0000-000000000009', 'b0000000-0000-0000-0000-000000000001', 'grant', 10000, 'allowance', 'Créditos iniciais do workspace', NULL, '2026-09-01 09:00:00-03'),
+  ('cc000000-0000-0000-0000-000000000010', 'c0000000-0000-0000-0000-000000000001', 'grant', 10000, 'allowance', 'Créditos iniciais do workspace', NULL, '2026-09-01 09:00:00-03')
+ON CONFLICT (id) DO NOTHING;

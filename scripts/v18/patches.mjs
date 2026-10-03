@@ -4,6 +4,24 @@
 
 export const PATCHES = [
   {
+    regra: 'modo real: saldo de creditos vem da carteira',
+    arquivo: 'logic.generated.js',
+    trocar: 'saldo() { return this.extrato().reduce((s, e) => s + (e.tipo === \'entrada\' ? e.cr : -e.cr), 0); }',
+    por: 'saldo() { if (typeof this.state.saldoCreditos === \'number\') return this.state.saldoCreditos; return this.extrato().reduce((s, e) => s + (e.tipo === \'entrada\' ? e.cr : -e.cr), 0); }'
+  },
+  {
+    regra: 'modo real: regras de creditos gravam no banco',
+    arquivo: 'logic.generated.js',
+    trocar: 'setCfg = o => this.setState({ credCfg: Object.assign({}, this.credCfg(), o) })',
+    por: 'setCfg = o => this.modoDemo === false && this.salvarPoliticaCreditos ? this.salvarPoliticaCreditos(o) : this.setState({ credCfg: Object.assign({}, this.credCfg(), o) })'
+  },
+  {
+    regra: 'modo real: compra ou pedido de creditos passa pelo banco',
+    arquivo: 'logic.generated.js',
+    trocar: "const comprar = n => { const preco = 'US$ ' + (n * VAL).toLocaleString('pt-BR'); if (!podeComprar) {",
+    por: "const comprar = n => { if (this.modoDemo === false && this.comprarOuPedirCreditos) return this.comprarOuPedirCreditos(n); const preco = 'US$ ' + (n * VAL).toLocaleString('pt-BR'); if (!podeComprar) {"
+  },
+  {
     regra: 'modo real: carga inicial protegida contra troca de workspace',
     arquivo: 'logic.generated.js',
     trocar: 'return Promise.all([D.homeService.summary(), D.agentService.list(), D.executionService.list(), D.approvalService.list(), D.notificationService.list()]);',

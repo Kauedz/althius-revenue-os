@@ -5,6 +5,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { AlthiusLogic } from '../v18/logic.generated.js';
 import type { DadosAlthius } from './dados';
 import { controlarExecucao, listarExecucoes } from './servicos/execucoes';
+import { comprarCreditos, lerCreditos, salvarPoliticaCreditos as gravarPoliticaCreditos } from './servicos/creditos';
+import { precoEmReais } from './precos';
 import { decidirAprovacao, listarAprovacoes, type AprovacaoTela, type DecisaoTela } from './servicos/aprovacoes';
 
 export interface AlthiusAppProps {
@@ -19,6 +21,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   // Métodos herdados do protótipo, usados só pela camada real.
   declare avisar: (contexto: string, texto: string) => void;
   declare ir: (caminho: string) => void;
+  declare confirmar: (titulo: string, texto: string, botao: string, fn: () => void) => void;
 
   componentDidMount() {
     // Os "services" do protótipo são o ponto de troca: as telas chamam list/decide sem saber de onde vêm os dados.
@@ -57,12 +60,12 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       const carga = ++this.cargaWorkspace;
       try {
         const D = this.props.dados;
-        const [home, agents, execs, aprov, notifs] = await Promise.all([
-          D.homeService.summary(), D.agentService.list(), this.carregarExecucoes(), this.carregarAprovacoes(), D.notificationService.list()
+        const [home, agents, execs, aprov, notifs, creditos] = await Promise.all([
+          D.homeService.summary(), D.agentService.list(), this.carregarExecucoes(), this.carregarAprovacoes(), D.notificationService.list(), this.carregarCreditos()
         ]);
         if (!this.vivo) return;
         if (carga !== this.cargaWorkspace) continue;
-        this.setState({ home, agents, execs, aprov, notifs, pronto: true, carregandoRota: false });
+        this.setState({ home, agents, execs, aprov, notifs, ...creditos, pronto: true, carregandoRota: false });
         return;
       } catch (falha) {
         if (!this.vivo) return;
@@ -78,9 +81,9 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const carga = ++this.cargaWorkspace;
     this.setState({ aprov: [], execs: [], decisoes: {}, apSel: null, falhaCarga: false, carregandoRota: true });
     try {
-      const [aprov, execs] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes()]);
+      const [aprov, execs, creditos] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos()]);
       if (this.vivo && carga === this.cargaWorkspace) {
-        this.setState({ aprov, execs, carregandoRota: false });
+        this.setState({ aprov, execs, ...creditos, carregandoRota: false });
         return carga;
       }
     } catch (falha) {
@@ -126,6 +129,56 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   renderVals() {
     // O template lê modoDemo (regra de produto) para esconder a troca de papel.
     return { ...super.renderVals(), modoDemo: this.modoDemo, sair: () => this.props.aoSair(), recarregar: () => this.recarregarWorkspace() };
+  }
+
+
+  carregarCreditos() {
+    const ws = this.workspaceAtual();
+    if (!ws) return Promise.resolve({ extrato: [], saldoCreditos: 0, credCfg: { modo: 'auto' as const, teto: 500, limite: 5000, recarga: false } });
+    return lerCreditos(this.props.supabase, ws.uuid).then(c => ({ extrato: c.extrato, saldoCreditos: c.disponivel, credCfg: c.politica }));
+  }
+
+  comprarOuPedirCreditos(quantidade: number) {
+    const pode = (this.props.dados.PERMS[this.papel()] || []).includes('credits.buy');
+    const preco = precoEmReais(quantidade);
+    const nf = (n: number) => Math.round(n).toLocaleString('pt-BR');
+    const pessoas = this.membros(this.wsId()) as Array<{ papel: string; dono?: boolean; nome: string }>;
+    const decisor = (pessoas.find(m => m.papel === 'cliente' && m.dono) || pessoas.find(m => m.papel === 'cliente') || { nome: 'o C-level' }).nome;
+    this.confirmar(
+      pode ? 'Comprar ' + nf(quantidade) + ' créditos por ' + preco + '?' : 'Pedir ' + nf(quantidade) + ' créditos?',
+      pode ? 'A cobrança vai no método de pagamento do workspace e os créditos entram na hora.' : decisor + ' recebe o pedido em Aprovações e decide a compra de ' + preco + '.',
+      pode ? 'Comprar' : 'Enviar pedido',
+      () => { void this.registrarCompra(quantidade, pode, nf, decisor); }
+    );
+  }
+
+  async registrarCompra(quantidade: number, pode: boolean, nf: (n: number) => string, decisor: string) {
+    const ws = this.workspaceAtual();
+    const slug = this.wsId();
+    try {
+      if (!ws?.membroId) throw new Error('Você não participa deste workspace como membro.');
+      const r = await comprarCreditos(this.props.supabase, ws.uuid, ws.membroId, quantidade);
+      if (!this.vivo || this.wsId() !== slug) return;
+      await this.recarregarWorkspace();
+      if (!this.vivo || this.wsId() !== slug) return;
+      this.avisar('mod', r.status === 'requires_approval' ? 'Pedido enviado para ' + decisor + '.' : nf(quantidade) + ' créditos adicionados.');
+    } catch (falha) {
+      this.avisarFalha(pode ? 'Compra não registrada' : 'Pedido não registrado', falha);
+    }
+  }
+
+  async salvarPoliticaCreditos(parcial: { modo?: 'auto' | 'aprovacao'; teto?: number; limite?: number; recarga?: boolean }) {
+    const ws = this.workspaceAtual();
+    const atual = this.credCfg() as { modo: 'auto' | 'aprovacao'; teto: number; limite: number; recarga: boolean };
+    try {
+      if (!ws?.membroId) throw new Error('Você não participa deste workspace como membro.');
+      await gravarPoliticaCreditos(this.props.supabase, ws.uuid, ws.membroId, { ...atual, ...parcial });
+      if (!this.vivo) return;
+      await this.recarregarWorkspace();
+      this.avisar('mod', 'Regras de créditos atualizadas.');
+    } catch (falha) {
+      this.avisarFalha('Regras não atualizadas', falha);
+    }
   }
 
   carregarExecucoes() {

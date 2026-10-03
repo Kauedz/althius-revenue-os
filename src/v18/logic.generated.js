@@ -311,7 +311,7 @@ export class AlthiusLogic extends React.Component {
     { id: 'x7', data: '2026-09-26', tipo: 'saida', desc: 'Rascunhos e respostas · 59', quem: 'Agente de Copy', ag: 'copy', cr: 118 },
     { id: 'x8', data: '2026-09-29', tipo: 'saida', desc: 'Relatórios e higiene do CRM', quem: 'Agente de RevOps', ag: 'revops', cr: 80 }
   ]; }
-  saldo() { return this.extrato().reduce((s, e) => s + (e.tipo === 'entrada' ? e.cr : -e.cr), 0); }
+  saldo() { if (typeof this.state.saldoCreditos === 'number') return this.state.saldoCreditos; return this.extrato().reduce((s, e) => s + (e.tipo === 'entrada' ? e.cr : -e.cr), 0); }
   gastar(cr, desc, ag) { const a = (this.state.agents || []).find(x => x.id === ag); const hoje = new Date().toISOString().slice(0, 10);
     this.setState({ extrato: this.extrato().concat([{ id: 'x' + Date.now(), data: hoje, tipo: 'saida', desc, quem: a ? a.nome : 'Copiloto', ag, cr }]) }); }
   credCfg() { return Object.assign({ modo: 'auto', teto: 500, limite: 5000, recarga: false }, this.state.credCfg || {}); }
@@ -633,14 +633,14 @@ export class AlthiusLogic extends React.Component {
       const X = this.extrato(), saldo = this.saldo(), entrou = X.filter(e => e.tipo === 'entrada').reduce((s, e) => s + e.cr, 0), saiu = X.filter(e => e.tipo === 'saida').reduce((s, e) => s + e.cr, 0);
       const porAg = (st.agents || []).map(a => { const c = X.filter(e => e.tipo === 'saida' && e.ag === a.id).reduce((s, e) => s + e.cr, 0); return { nome: a.nome, sigla: a.sigla, cr: c }; });
       v.rlCred = porAg.map(a => ({ nome: a.nome, creditos: nf(a.cr), usd: usd(a.cr) }));
-      if (v.cr.ativo) { const cfg = this.credCfg(), setCfg = o => this.setState({ credCfg: Object.assign({}, this.credCfg(), o) }), leitura = !can('credits.policy'), podeComprar = can('credits.buy');
+      if (v.cr.ativo) { const cfg = this.credCfg(), setCfg = o => this.modoDemo === false && this.salvarPoliticaCreditos ? this.salvarPoliticaCreditos(o) : this.setState({ credCfg: Object.assign({}, this.credCfg(), o) }), leitura = !can('credits.policy'), podeComprar = can('credits.buy');
         const decisor = (this.membros(ws.id).find(m => m.papel === 'cliente' && m.dono) || this.membros(ws.id).find(m => m.papel === 'cliente') || { nome: 'o C-level' }).nome;
         const dias = Math.max(1, Math.round((new Date() - new Date('2026-09-01')) / 864e5)), porDia = saiu / dias;
         v.md.temAcao = false;
         v.md.kpis = [{ label: 'Saldo', valor: nf(saldo), delta: 'créditos disponíveis' }, { label: 'Entrou', valor: nf(entrou), delta: 'créditos no ciclo' }, { label: 'Saiu', valor: nf(saiu), delta: 'créditos usados' }, { label: 'Consumo por dia', valor: nf(porDia), delta: 'média do ciclo' }];
         let corre = 0; const linhas = X.map(e => { corre += e.tipo === 'entrada' ? e.cr : -e.cr; return Object.assign({}, e, { saldoApos: corre }); }).reverse();
         const fx = st.credFiltro || 'Tudo';
-        const comprar = n => { const preco = brl(n); if (!podeComprar) { this.confirmar('Pedir ' + nf(n) + ' créditos?', decisor + ' recebe o pedido em Aprovações e decide a compra de ' + preco + '.', 'Enviar pedido', () => { this.setState({ notifs: [['Pedido de créditos', U.usuario + ' pediu ' + nf(n) + ' créditos · ' + preco + ' · para ' + decisor, 'agora']].concat(this.state.notifs || []), notifLidas: false }); this.avisar('mod', 'Pedido enviado para ' + decisor + '.'); }); return; } this.confirmar('Comprar ' + nf(n) + ' créditos por ' + preco + '?', 'A cobrança vai no método de pagamento do workspace e os créditos entram na hora.', 'Comprar', () => {
+        const comprar = n => { if (this.modoDemo === false && this.comprarOuPedirCreditos) return this.comprarOuPedirCreditos(n); const preco = brl(n); if (!podeComprar) { this.confirmar('Pedir ' + nf(n) + ' créditos?', decisor + ' recebe o pedido em Aprovações e decide a compra de ' + preco + '.', 'Enviar pedido', () => { this.setState({ notifs: [['Pedido de créditos', U.usuario + ' pediu ' + nf(n) + ' créditos · ' + preco + ' · para ' + decisor, 'agora']].concat(this.state.notifs || []), notifLidas: false }); this.avisar('mod', 'Pedido enviado para ' + decisor + '.'); }); return; } this.confirmar('Comprar ' + nf(n) + ' créditos por ' + preco + '?', 'A cobrança vai no método de pagamento do workspace e os créditos entram na hora.', 'Comprar', () => {
           const hoje = new Date().toISOString().slice(0, 10); this.setState({ extrato: this.extrato().concat([{ id: 'x' + Date.now(), data: hoje, tipo: 'entrada', desc: 'Compra de ' + nf(n) + ' créditos', quem: U.usuario + ' · ' + preco, cr: n }]), notifs: [['Créditos comprados', nf(n) + ' créditos · ' + preco, 'agora']].concat(this.state.notifs || []), notifLidas: false });
           this.avisar('mod', nf(n) + ' créditos adicionados. Saldo: ' + nf(this.saldo() + n) + '.'); }); };
         Object.assign(v.cr, { saldo: nf(saldo), saldoUsd: usd(saldo), pctSaldo: Math.max(0, Math.min(100, saldo / entrou * 100)).toFixed(1) + '%', barraRotulo: nf(saldo) + ' de ' + nf(entrou) + ' créditos restantes',

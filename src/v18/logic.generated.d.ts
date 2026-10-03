@@ -23,6 +23,8 @@ export class AlthiusLogic<P = AlthiusLogicProps> extends Component<P, Record<str
   wsLogo(w: { id: string; nome: string }): { tem: boolean; src: string; erro: () => void; load: () => void };
   /** Membros de um workspace (pelo slug). */
   membros(ws: string): Array<Record<string, any>>;
+  /** Regras de crédito da tela (modo, teto, limite mensal, recarga). */
+  credCfg(): { modo: 'auto' | 'aprovacao'; teto: number; limite: number; recarga: boolean };
   /** Abre a janela de confirmação do protótipo (também usada para avisos). */
   confirmar(titulo: string, texto: string, rotulo: string, acao: () => void): void;
   /** Valores que o template renderiza. */
