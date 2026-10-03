@@ -21,6 +21,7 @@ import {
   type ResultadoImportacao
 } from './servicos/contas';
 import { obterResumoHome, type HomeResumoTela } from './servicos/inicio';
+import { listarAgentes, pausarAgente, salvarCapacidades, type AgenteBase, type AgenteTela } from './servicos/agentes';
 import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla } from './servicos/notificacoes';
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
@@ -69,6 +70,10 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       create: (dados: NovaContaInput) => this.criarNovaConta(dados),
       update: (dados: EditarContaInput) => this.atualizarConta(dados),
       import: (contas: ContaImportacaoItem[]) => this.importarListaContas(contas)
+    };
+    this.props.dados.agentService = {
+      list: () => this.carregarAgentes(),
+      get: (id: string) => this.carregarAgentes().then(lista => lista.find(a => a.id === id) || null)
     };
     this.props.dados.homeService = {
       summary: () => this.carregarHome()
@@ -142,13 +147,13 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarProspeccao(prospeccaoVazios);
     this.setState({ aprov: [], execs: [], contas: [], relatoriosReais: relatoriosVazios, sinaisReais: sinaisVazios, prospeccaoReais: prospeccaoVazios, decisoes: {}, apSel: null, falhaCarga: false, carregandoRota: true });
     try {
-      const [aprov, execs, creditos, contas, home, notifs, relatorios, sinais, prospeccao] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos(), this.carregarContas(), this.carregarHome(), this.carregarNotificacoes(), this.carregarRelatorios(), this.carregarSinais(), this.carregarProspeccao()]);
+      const [aprov, execs, creditos, contas, home, notifs, agents, relatorios, sinais, prospeccao] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos(), this.carregarContas(), this.carregarHome(), this.carregarNotificacoes(), this.carregarAgentes(), this.carregarRelatorios(), this.carregarSinais(), this.carregarProspeccao()]);
       if (this.vivo && carga === this.cargaWorkspace) {
         this.publicarContas(contas);
         this.publicarRelatorios(relatorios);
         this.publicarSinais(sinais);
         this.publicarProspeccao(prospeccao);
-        this.setState({ aprov, execs, contas, home, notifs, relatoriosReais: relatorios, sinaisReais: sinais, prospeccaoReais: prospeccao, ...creditos, carregandoRota: false });
+        this.setState({ aprov, execs, contas, home, notifs, agents, relatoriosReais: relatorios, sinaisReais: sinais, prospeccaoReais: prospeccao, ...creditos, carregandoRota: false });
         return carga;
       }
     } catch (falha) {
@@ -692,5 +697,41 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     mod.prospecting.linhas = tela.listas;
     mod.prospecting.acoesLinha = [];
     mod.prospecting.acao = null;
+  }
+
+  // ---- Agentes (Claude)
+
+  carregarAgentes(): Promise<AgenteTela[]> {
+    const ws = this.workspaceAtual();
+    return ws ? listarAgentes(this.props.supabase, ws.uuid, (this.props.dados.AGENTS || []) as AgenteBase[]) : Promise.resolve([]);
+  }
+
+  /** Botão de emergência: grava no banco; o Hermes Agent deixa de agir enquanto estiver pausado. */
+  async pausarAgenteReal(a: { id: string; nome: string; estado: string }) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const pausar = a.estado !== 'pausado';
+    const r = await pausarAgente(this.props.supabase, ws.uuid, ws.membroId, a.id, pausar);
+    if (!r.ok) return this.confirmar(pausar ? 'Agente não pausado' : 'Agente não retomado', r.mensagem, 'Entendi', () => {});
+    await this.atualizarAgentes();
+    this.avisar('agente', a.nome + (pausar ? ' pausado.' : ' retomado.'));
+  }
+
+  async salvarCapacidadeReal(a: { id: string; nome: string }, capacidade: string, ligada: boolean) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await salvarCapacidades(this.props.supabase, ws.uuid, ws.membroId, a.id, { [capacidade]: ligada });
+    if (!r.ok) return this.confirmar('Capacidade não alterada', r.mensagem, 'Entendi', () => {});
+    await this.atualizarAgentes();
+  }
+
+  private async atualizarAgentes() {
+    const carga = this.cargaWorkspace;
+    try {
+      const agents = await this.carregarAgentes();
+      if (this.vivo && carga === this.cargaWorkspace) this.setState({ agents });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaWorkspace) this.avisarFalha('Não foi possível atualizar os agentes', falha);
+    }
   }
 }

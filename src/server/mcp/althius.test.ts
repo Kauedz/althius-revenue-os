@@ -126,6 +126,17 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
     expect(contato?.job_title).toBe('Diretora Comercial');
   });
 
+  it('agente pausado pelo cliente recebe o aviso e nenhum dado', async () => {
+    await admin.from('workspace_agents').update({ estado: 'pausado' }).eq('workspace_id', EVOLUT).eq('agent_code', 'comercial');
+    try {
+      const r = await (await conectar(tokenEvolut)).callTool({ name: 'buscar_contatos', arguments: {} });
+      expect(r.isError).toBe(true);
+      expect(texto(r)).toBe('Agente pausado pelo cliente. Nada será feito até ele ser retomado.');
+    } finally {
+      await admin.from('workspace_agents').update({ estado: 'ativo' }).eq('workspace_id', EVOLUT).eq('agent_code', 'comercial');
+    }
+  });
+
   it('token inválido recebe erro claro e nenhum dado', async () => {
     const intruso = await conectar('alt_agente_inventado');
     const r = await intruso.callTool({ name: 'buscar_contatos', arguments: {} });

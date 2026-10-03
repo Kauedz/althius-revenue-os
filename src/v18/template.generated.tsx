@@ -1556,7 +1556,7 @@ export function renderTemplate($v: Record<string, any>) {
                           {"Taxa de sucesso"}
                         </span>
                         <div style={{"fontFamily":"var(--f-display)","fontSize":"30px"}}>
-                          {__t($v.ag?.sucesso)}{"%"}
+                          {__t($v.ag?.sucesso)}{typeof $v.ag?.sucesso === "number" ? "%" : ""}
                         </div>
                       </div>
                       {"\n                  "}

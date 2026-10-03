@@ -30,8 +30,11 @@ export interface FerramentasAgente {
 
 export const TOKEN_INVALIDO = 'Token do agente inválido ou revogado.';
 
-function erroDoBanco(error: { code?: string }, mensagem: string): Error {
-  return new Error(error.code === '28000' ? TOKEN_INVALIDO : mensagem, { cause: error });
+function erroDoBanco(error: { code?: string; message?: string }, mensagem: string): Error {
+  if (error.code === '28000') return new Error(TOKEN_INVALIDO, { cause: error });
+  // 55000: agente pausado pelo cliente (botão de emergência); a mensagem do banco é a que o agente deve ver.
+  if (error.code === '55000' && error.message) return new Error(error.message, { cause: error });
+  return new Error(mensagem, { cause: error });
 }
 
 export function ferramentasDoAgente(cliente: SupabaseClient, token: string): FerramentasAgente {

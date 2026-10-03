@@ -1,5 +1,5 @@
 // Seam: o app no modo real montado com um contexto do banco (sem rede).
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '../v18/data.js';
 import '../v18/module.js';
@@ -9,6 +9,7 @@ import { clienteVazio } from '../test/supabaseLocal';
 import * as execucoes from './servicos/execucoes';
 import * as contasServico from './servicos/contas';
 import * as relatoriosServico from './servicos/relatorios';
+import * as agentesServico from './servicos/agentes';
 
 const demo = { data: window.ALTHIUS_DATA!, caps: window.ALTHIUS_CAPS };
 const ESCOPOS: Record<string, [string, string, string, string]> = {
@@ -87,6 +88,12 @@ function pendente<T>() {
   const promise = new Promise<T>(ok => { resolver = ok; });
   return { promise, resolver };
 }
+// No banco real todo workspace tem os 4 agentes (migration 0082); aqui o cliente é vazio, então simulamos os 4,
+// com a mesma demora de rede que o protótipo usava (a carga do workspace não é instantânea na vida real).
+beforeEach(() => {
+  vi.spyOn(agentesServico, 'listarAgentes').mockImplementation((_c, _ws, base) =>
+    new Promise(ok => setTimeout(() => ok(base as agentesServico.AgenteTela[]), 380)));
+});
 afterEach(() => vi.restoreAllMocks());
 
 describe('execuções durante troca de workspace', () => {
@@ -185,7 +192,7 @@ describe('relatórios no AlthiusApp', () => {
     abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/analytics');
     await waitFor(() => expect(spy).toHaveBeenCalledWith(expect.anything(), 'id-alfa'));
     expect(await screen.findByRole('heading', { name: 'Relatórios' })).toBeInTheDocument();
-    expect(screen.getAllByText('Sem dados ainda').length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Sem dados ainda')).length).toBeGreaterThan(0);
     expect(screen.queryByText(/4,8/)).not.toBeInTheDocument();
     expect(screen.queryByText(/US\$/)).not.toBeInTheDocument();
     expect(screen.queryByText('512')).not.toBeInTheDocument();

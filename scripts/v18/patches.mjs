@@ -170,6 +170,30 @@ export const PATCHES = [
     arquivo: 'logic.generated.js',
     trocar: "cliente: ['cliente', 'bdr'], bdr: [] }[papel];",
     por: "cliente: ['cliente', 'bdr'], bdr: [] }[papelCfg];"
+  },
+
+  // ---- Agentes (Claude): pausar e capacidades gravam no banco
+  {
+    regra: 'agentes: pausar/retomar grava no banco (botão de quem configura e do C-level)',
+    arquivo: 'logic.generated.js',
+    aplicar: texto => {
+      const alvo = "'Pausar agente', () => {";
+      const n = texto.split(alvo).length - 1;
+      if (n !== 2) throw new Error('Regra "agentes: pausar": esperava 2 botões de pausa, achei ' + n + '.');
+      return texto.split(alvo).join(alvo + ' if (this.modoDemo === false) return this.pausarAgenteReal(a);');
+    }
+  },
+  {
+    regra: 'agentes: ligar/desligar capacidade grava no banco',
+    arquivo: 'logic.generated.js',
+    trocar: 'alternar: () => this.setState({ caps: Object.assign({}, st.caps, { [a.id]:',
+    por: 'alternar: () => this.modoDemo === false ? this.salvarCapacidadeReal(a, k, !capsAg[k]) : this.setState({ caps: Object.assign({}, st.caps, { [a.id]:'
+  },
+  {
+    regra: 'agentes: sem execuções a taxa de sucesso aparece como "—", sem "%" solto',
+    arquivo: 'template.generated.tsx',
+    trocar: '{__t($v.ag?.sucesso)}{"%"}',
+    por: '{__t($v.ag?.sucesso)}{typeof $v.ag?.sucesso === "number" ? "%" : ""}'
   }
 
   // ---- Relatórios, Sinais e Prospecção (Grok)
