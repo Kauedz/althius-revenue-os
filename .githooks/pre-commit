@@ -1,0 +1,4 @@
+#!/bin/sh
+# Travas do projeto Althius (leia AGENTS.md). Ativadas por `npm install` (script "prepare").
+node scripts/guardas.mjs || exit 1
+npx --no-install tsc --noEmit || { echo "Erro de tipos (tsc). Corrija antes do commit."; exit 1; }

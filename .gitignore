@@ -6,3 +6,4 @@ buzz-reference
 .env.local
 *.log
 supabase/.branches
+.scratch/desenvolvimento/

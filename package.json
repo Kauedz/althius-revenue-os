@@ -13,7 +13,11 @@
     "test:db": "supabase test db",
     "db:start": "supabase start",
     "db:reset": "supabase db reset",
-    "v18:sync": "node scripts/v18/convert.mjs"
+    "v18:sync": "node scripts/v18/convert.mjs",
+    "guardas": "node scripts/guardas.mjs",
+    "v18:verificar": "node scripts/v18/convert.mjs --verificar",
+    "verificar": "node scripts/v18/convert.mjs --verificar && tsc --noEmit && supabase db reset && supabase test db && vitest run && vite build",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "^1.1.15",

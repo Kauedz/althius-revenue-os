@@ -285,6 +285,22 @@ for (const p of PATCHES) {
   if (n !== 1) throw new Error('Regra "' + p.regra + '": esperava 1 ocorrência em ' + p.arquivo + ', achei ' + n + '. Revise scripts/v18/patches.mjs.');
   outputs[p.arquivo] = atual.replace(p.trocar, () => p.por);
 }
+// --verificar: não grava nada; só confere se os arquivos em src/v18 são exatamente a saída do conversor
+// (ou seja, ninguém editou os gerados à mão). Usado pelas travas de commit (scripts/guardas.mjs).
+if (process.argv.includes('--verificar')) {
+  const semCR = s => s.replace(/\r\n/g, '\n');
+  const diferentes = Object.entries(outputs).filter(([nome, conteudo]) => {
+    const atual = fs.existsSync(path.join(OUT, nome)) ? fs.readFileSync(path.join(OUT, nome), 'utf8') : null;
+    return atual === null || semCR(atual) !== semCR(conteudo);
+  }).map(([nome]) => 'src/v18/' + nome);
+  if (diferentes.length) {
+    console.error('Arquivos gerados diferentes da saída do conversor (edição à mão?):\n  ' + diferentes.join('\n  ') +
+      '\nMude o protótipo ou scripts/v18/patches.mjs e rode `npm run v18:sync`.');
+    process.exit(1);
+  }
+  console.log('src/v18 confere com o conversor (' + PATCHES.length + ' regras de produto).');
+  process.exit(0);
+}
 for (const [nome, conteudo] of Object.entries(outputs)) fs.writeFileSync(path.join(OUT, nome), conteudo);
 console.log('regras de produto aplicadas:', PATCHES.length);
 
