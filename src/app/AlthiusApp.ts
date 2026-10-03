@@ -9,6 +9,7 @@ import { comprarCreditos, lerCreditos, salvarPoliticaCreditos as gravarPoliticaC
 import { precoEmReais } from './precos';
 import { decidirAprovacao, listarAprovacoes, type AprovacaoTela, type DecisaoTela } from './servicos/aprovacoes';
 import { listarContas, type ContaTela } from './servicos/contas';
+import { obterResumoHome, type HomeResumoTela } from './servicos/inicio';
 
 export interface AlthiusAppProps {
   dados: DadosAlthius;
@@ -37,6 +38,9 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     };
     this.props.dados.accountService = {
       list: () => this.carregarContas()
+    };
+    this.props.dados.homeService = {
+      summary: () => this.carregarHome()
     };
     super.componentDidMount?.();
   }
@@ -88,10 +92,10 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarContas([]);
     this.setState({ aprov: [], execs: [], contas: [], decisoes: {}, apSel: null, falhaCarga: false, carregandoRota: true });
     try {
-      const [aprov, execs, creditos, contas] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos(), this.carregarContas()]);
+      const [aprov, execs, creditos, contas, home] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos(), this.carregarContas(), this.carregarHome()]);
       if (this.vivo && carga === this.cargaWorkspace) {
         this.publicarContas(contas);
-        this.setState({ aprov, execs, contas, ...creditos, carregandoRota: false });
+        this.setState({ aprov, execs, contas, home, ...creditos, carregandoRota: false });
         return carga;
       }
     } catch (falha) {
@@ -279,5 +283,15 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   private avisarFalha(titulo: string, falha: unknown) {
     console.error(falha);
     this.confirmar(titulo, falha instanceof Error ? falha.message : 'Verifique a conexão e tente de novo em instantes.', 'Entendi', () => {});
+  }
+
+  // ---- Início, Notificações e Contas (Antigravity)
+
+  carregarHome(): Promise<HomeResumoTela> {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) {
+      return Promise.resolve(this.props.dados.HOME || { kpis: [], operacao: [], acoes: [], timeline: [] });
+    }
+    return obterResumoHome(this.props.supabase, ws.uuid, ws.membroId);
   }
 }
