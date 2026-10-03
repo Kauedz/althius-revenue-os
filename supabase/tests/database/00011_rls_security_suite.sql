@@ -66,15 +66,14 @@ SELECT is_empty(
 SET LOCAL ROLE authenticated;
 SET LOCAL "request.jwt.claims" = '{"sub": "e0000000-0000-0000-0000-000000000003"}';
 
--- Admin inserting new BDR into Alfa (allowed by RLS)
-INSERT INTO public.workspace_members (id, workspace_id, user_id, role, status)
-VALUES ('87eb998f-0000-0000-0000-000000000099', 'a0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000099', 'bdr', 'active');
-
-SELECT isnt_empty(
-  $$ SELECT id FROM public.workspace_members WHERE id = '87eb998f-0000-0000-0000-000000000099' $$,
-  'Client Admin DEVE conseguir cadastrar novos membros no seu próprio workspace'
+-- C-level também usa RPC: escrita direta não pode contornar a hierarquia.
+SELECT throws_ok(
+  $$ INSERT INTO public.workspace_members (id, workspace_id, user_id, role, status)
+     VALUES ('87eb998f-0000-0000-0000-000000000099', 'a0000000-0000-0000-0000-000000000001', 'e0000000-0000-0000-0000-000000000099', 'bdr', 'active') $$,
+  '42501',
+  NULL,
+  'C-level não cadastra membro diretamente; convite passa por RPC'
 );
-
 -- Cross-tenant negative test: Alfa Admin attempting to view Beta members
 SELECT is_empty(
   $$ SELECT id FROM public.workspace_members WHERE workspace_id = 'b0000000-0000-0000-0000-000000000001' $$,
