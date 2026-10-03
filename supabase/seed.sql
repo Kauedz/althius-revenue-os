@@ -139,3 +139,74 @@ INSERT INTO public.credit_transactions (id, workspace_id, type, amount, wallet_t
   ('cc000000-0000-0000-0000-000000000009', 'b0000000-0000-0000-0000-000000000001', 'grant', 10000, 'allowance', 'Créditos iniciais do workspace', NULL, '2026-09-01 09:00:00-03'),
   ('cc000000-0000-0000-0000-000000000010', 'c0000000-0000-0000-0000-000000000001', 'grant', 10000, 'allowance', 'Créditos iniciais do workspace', NULL, '2026-09-01 09:00:00-03')
 ON CONFLICT (id) DO NOTHING;
+
+-- 8. Contas e comitês de compra do protótipo v18 (Evolut Trading).
+INSERT INTO public.accounts (id, workspace_id, name, domain, segment, fit, temperature, last_signal_text, owner_member_id, city, state_uf, status) VALUES
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'Serra Azul Têxtil', 'serraazul.com.br', 'Têxtil', 96, 3, 'Vaga aberta · Gerente de Importação', 'd0000000-0000-0000-0000-000000000004', 'São Paulo', 'SP', 'ativa'),
+  ('c0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'Campo Belo Agro', 'campobeloagro.com.br', 'Agronegócio', 91, 3, 'Anúncio de mídia paga', 'd0000000-0000-0000-0000-000000000004', 'Ribeirão Preto', 'SP', 'ativa'),
+  ('c0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'Metalúrgica Ipê', 'metalurgicaipe.com.br', 'Metalurgia', 84, 2, 'Novo empreendimento aberto', 'd0000000-0000-0000-0000-000000000006', 'Joinville', 'SC', 'ativa'),
+  ('c0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'Delta Saúde', 'deltasaude.com.br', 'Saúde', 79, 2, 'Vaga aberta · Comprador Sênior', 'd0000000-0000-0000-0000-000000000006', 'Belo Horizonte', 'MG', 'ativa'),
+  ('c0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', 'Rio Claro Cosméticos', 'rioclarocosmeticos.com.br', 'Cosméticos', 62, 1, 'Anúncio de mídia paga', 'd0000000-0000-0000-0000-000000000004', 'Rio Claro', 'SP', 'ativa'),
+  ('c0000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000001', 'Norte Log Transportes', 'nortelog.com.br', 'Logística', 55, 1, 'Novo empreendimento aberto', 'd0000000-0000-0000-0000-000000000006', 'Manaus', 'AM', 'ativa'),
+  ('c0000000-0000-0000-0000-000000000007', 'a0000000-0000-0000-0000-000000000001', 'Grão Norte Alimentos', 'graonorte.com.br', 'Alimentos', 88, 3, 'Oportunidade criada · R$ 35.000', 'd0000000-0000-0000-0000-000000000004', 'Cuiabá', 'MT', 'ativa'),
+  ('c0000000-0000-0000-0000-000000000008', 'a0000000-0000-0000-0000-000000000001', 'Vértice Indústria', 'verticeindustria.com.br', 'Indústria', 86, 2, 'Respondeu e-mail T2', 'd0000000-0000-0000-0000-000000000006', 'Curitiba', 'PR', 'ativa')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.contacts (id, workspace_id, account_id, name, job_title, buying_role, photo_url, linkedin_status) VALUES
+  -- Serra Azul Têxtil
+  ('cb000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'Aline Xavier', 'Diretora de Supply Chain', 'decisor', 'aline', 'conectado'),
+  ('cb000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'Jonas Ribeiro', 'Comprador Sênior', 'campeao', 'jonas', 'conectado'),
+  ('cb000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'Renata Couto', 'Gerente Financeira', 'influenciador', 'renata', 'sem_conexao'),
+  -- Campo Belo Agro
+  ('cb000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002', 'Marcelo Antunes', 'Diretor de Operações', 'decisor', 'marcelo', 'conectado'),
+  ('cb000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002', 'Ricardo Sá', 'CFO', 'influenciador', 'ricardo', 'sem_conexao'),
+  ('cb000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002', 'Fernanda Lopes', 'Coordenadora de Compras', 'campeao', 'fernanda', 'conectado'),
+  -- Metalúrgica Ipê
+  ('cb000000-0000-0000-0000-000000000007', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000003', 'Tiago Nunes', 'Gerente Industrial', 'influenciador', 'tiago', 'sem_conexao'),
+  -- Delta Saúde
+  ('cb000000-0000-0000-0000-000000000008', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000004', 'Paula Reis', 'Diretora Administrativa', 'decisor', 'paula', 'conectado'),
+  ('cb000000-0000-0000-0000-000000000009', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000004', 'Lívia Andrade', 'Gerente de Suprimentos', 'influenciador', 'livia', 'sem_conexao'),
+  ('cb000000-0000-0000-0000-000000000010', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000004', 'Gustavo Prado', 'Comprador Sênior', 'campeao', 'gustavo', 'conectado'),
+  -- Norte Log Transportes
+  ('cb000000-0000-0000-0000-000000000011', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000006', 'Rafael Moraes', 'Gerente de Logística', 'influenciador', 'rafael', 'sem_conexao'),
+  -- Grão Norte Alimentos
+  ('cb000000-0000-0000-0000-000000000012', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000007', 'Eduardo Lins', 'Diretor Comercial', 'decisor', 'eduardo', 'conectado'),
+  ('cb000000-0000-0000-0000-000000000013', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000007', 'Juliana Freitas', 'Analista de Importação', 'campeao', 'juliana', 'conectado'),
+  -- Vértice Indústria
+  ('cb000000-0000-0000-0000-000000000014', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000008', 'Patrícia Moura', 'Diretora de Compras', 'decisor', 'patricia', 'conectado'),
+  ('cb000000-0000-0000-0000-000000000015', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000008', 'André Vieira', 'Gerente de Engenharia', 'influenciador', 'andre', 'sem_conexao')
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.contact_channels (workspace_id, contact_id, type, value, value_normalized, position) VALUES
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000001', 'email', 'aline.xavier@serraazul.com.br', 'aline.xavier@serraazul.com.br', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000001', 'phone', '(11) 90000-0001', '11900000001', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000002', 'email', 'jonas.ribeiro@serraazul.com.br', 'jonas.ribeiro@serraazul.com.br', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000002', 'phone', '(11) 90000-0002', '11900000002', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000003', 'email', 'renata.couto@serraazul.com.br', 'renata.couto@serraazul.com.br', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000003', 'phone', '(11) 90000-0003', '11900000003', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000004', 'email', 'marcelo.antunes@campobeloagro.com.br', 'marcelo.antunes@campobeloagro.com.br', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000004', 'phone', '(11) 90000-0004', '11900000004', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000005', 'email', 'ricardo.sa@campobeloagro.com.br', 'ricardo.sa@campobeloagro.com.br', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000005', 'phone', '(11) 90000-0005', '11900000005', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000006', 'email', 'fernanda.lopes@campobeloagro.com.br', 'fernanda.lopes@campobeloagro.com.br', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000006', 'phone', '(11) 90000-0006', '11900000006', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000007', 'email', 'tiago.nunes@metalurgicaipe.com.br', 'tiago.nunes@metalurgicaipe.com.br', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000007', 'phone', '(11) 90000-0007', '11900000007', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000008', 'email', 'paula.reis@deltasaude.com.br', 'paula.reis@deltasaude.com.br', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000008', 'phone', '(11) 90000-0008', '11900000008', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000009', 'email', 'livia.andrade@deltasaude.com.br', 'livia.andrade@deltasaude.com.br', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000009', 'phone', '(11) 90000-0009', '11900000009', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000010', 'email', 'gustavo.prado@deltasaude.com.br', 'gustavo.prado@deltasaude.com.br', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000010', 'phone', '(11) 90000-0010', '11900000010', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000011', 'email', 'rafael.moraes@nortelog.com.br', 'rafael.moraes@nortelog.com.br', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000011', 'phone', '(11) 90000-0011', '11900000011', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000012', 'email', 'eduardo.lins@graonorte.com.br', 'eduardo.lins@graonorte.com.br', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000012', 'phone', '(11) 90000-0012', '11900000012', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000013', 'email', 'juliana.freitas@graonorte.com.br', 'juliana.freitas@graonorte.com.br', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000013', 'phone', '(11) 90000-0013', '11900000013', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000014', 'email', 'patricia.moura@verticeindustria.com.br', 'patricia.moura@verticeindustria.com.br', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000014', 'phone', '(11) 90000-0014', '11900000014', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000015', 'email', 'andre.vieira@verticeindustria.com.br', 'andre.vieira@verticeindustria.com.br', 1),
+  ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000015', 'phone', '(11) 90000-0015', '11900000015', 1)
+ON CONFLICT (workspace_id, type, value_normalized) DO NOTHING;
+
