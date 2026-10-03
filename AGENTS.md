@@ -31,6 +31,9 @@ Decisões já tomadas estão em `docs/adr/` (0001 a 0023). Não desfaça uma ADR
 - Janela de confirmação do protótipo (`confirmar`) é o jeito padrão de mostrar aviso/erro ao usuário.
 
 ## Como trabalhar
+0. **Uma IA por pasta.** Cada IA trabalha na própria cópia do projeto (git worktree), nunca na mesma pasta de outra:
+   `git worktree add ../A-<ia> -b ia/<ia>-<tarefa> master` e, no Windows, `mklink /J node_modules ..\A\node_modules`.
+   Branches diferentes na **mesma** pasta não isolam nada. O banco local (Docker) é um só: **apenas uma IA por vez** roda `npm run verificar` ou `supabase db reset`, porque ele apaga e recria os dados.
 1. `git log --oneline | head` e leia as ADRs da área antes de mexer.
 2. Comandos (Docker Desktop precisa estar aberto): `npx supabase start` · `npm run dev` (http://localhost:3000; superadmin `rafael@althius.com.br`, senha `althius-demo`, só no ambiente local).
 3. Antes de **todo commit**: `npm run verificar` (confere gerados, tipos, reseta o banco, testes de banco, testes do front, build). O commit é bloqueado por `.githooks/pre-commit` se as travas (`npm run guardas`) falharem: migration antiga alterada, arquivo gerado editado, segredo, dólar em tela. **Nunca use `--no-verify`.**
