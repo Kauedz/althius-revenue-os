@@ -55,8 +55,10 @@ export function Raiz({ supabase }: { supabase: SupabaseClient }) {
       window.ALTHIUS_DATA = dados;
       window.ALTHIUS_CAPS = dados.CAPS;
       // Abre num workspace que a pessoa pode ver (a URL pode ter vindo de outra sessão).
+      // Rotas do Superadmin (#/admin/...) ficam: a página só abre para quem tem a capacidade "admin".
       const slug = (location.hash.match(/^#\/app\/([^/]+)/) || [])[1];
-      if (!slug || !ctx.workspaces.some(w => w.slug === slug)) location.hash = '#/app/' + ctx.workspaces[0].slug + '/home';
+      const rotaAdmin = /^#\/admin(\/|$)/.test(location.hash) && ctx.usuario.superadmin;
+      if (!rotaAdmin && (!slug || !ctx.workspaces.some(w => w.slug === slug))) location.hash = '#/app/' + ctx.workspaces[0].slug + '/home';
       setEstado({ tela: 'app', dados });
     } catch (falha) {
       setEstado({ tela: 'erro', mensagem: falha instanceof Error ? falha.message : 'Erro ao carregar seus dados.' });

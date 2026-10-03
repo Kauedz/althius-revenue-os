@@ -25,6 +25,7 @@ import { listarAgentes, pausarAgente, salvarCapacidades, type AgenteBase, type A
 import { alterarSenha, lerMinhaConta, removerFoto, sairDosOutrosDispositivos, salvarMinhaConta, salvarPreferencias, trocarFoto } from './servicos/conta';
 import { decidirAprendizado, lerPlaybooks, listarSugestoes, publicarPlaybook } from './servicos/aprendizados';
 import { excluirContatoDoCrm, listarCaixa, marcarLida, minhasConexoes, pedirSugestaoDeResposta, type CaixaTela, type ConexoesTela } from './servicos/caixa';
+import * as admin from './servicos/admin';
 import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla } from './servicos/notificacoes';
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
@@ -87,6 +88,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     super.componentDidMount?.();
     void this.carregarMinhaConta();
     this.publicarCaixa(null);
+    this.registrarTelasAdmin();
   }
 
   private cargaWorkspace = 0;
@@ -235,6 +237,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       marcarLidas: () => this.marcarNotificacoesLidas()
     };
     this.valoresEquipe(v);
+    this.formularioNovoCliente(v);
     return v;
   }
 
@@ -849,6 +852,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const entrou = rota.page !== antes.page || rota.ws !== antes.ws || (this.state.pronto && !prev.pronto);
     if (!entrou || !this.state.pronto) return;
     if (rota.page === 'inbox') void this.carregarCaixa();
+    if (String(rota.page || '').startsWith('admin/')) void this.carregarAdmin(rota.page);
     if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) void this.carregarConexoes();
   }
 
@@ -876,6 +880,10 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   }
 
   acaoDeLinhaReal(page: string, acao: string, linha: { id: string }): boolean {
+    if (page === 'admin/workspaces') {
+      void this.acaoNoCliente(acao, linha as { id: string; nome: string });
+      return true;
+    }
     if (page === 'inbox') {
       void this.acaoNaConversa(acao, linha.id);
       return true;
@@ -937,6 +945,109 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       if (!r.ok) return this.confirmar('Contato não excluído', r.mensagem, 'Entendi', () => {});
       this.avisar('mod', 'Contato excluído do CRM. A Althius parou de receber as mensagens dele.');
       await this.carregarCaixa();
+    }
+  }
+
+  // ---- Superadmin (Claude): o v18 não desenhou estas telas; usam a lista genérica (ADR 0030)
+
+  private static TELAS_ADMIN: Record<string, { titulo: string; sub: string; colunas: string[][]; busca?: boolean; filtro?: string }> = {
+    'admin/workspaces': { titulo: 'Workspaces', sub: 'Clientes da Althius', busca: true, filtro: 'status',
+      colunas: [['nome', 'Cliente', '2fr'], ['slug', 'Endereço', '1fr'], ['clevel', 'C-level', '1.4fr'], ['membros', 'Membros', '90px'], ['saldo', 'Saldo', '1.2fr'], ['status', 'Status', '1fr']] },
+    'admin/usage': { titulo: 'Uso global', sub: 'Consumo de créditos por cliente no ciclo', busca: true,
+      colunas: [['nome', 'Cliente', '2fr'], ['consumido', 'Consumido no ciclo', '1.4fr'], ['saldo', 'Saldo', '1.2fr'], ['execucoes', 'Execuções no mês', '1fr'], ['ultimo', 'Último uso', '1fr']] },
+    'admin/providers': { titulo: 'Fornecedores', sub: 'Contas de coleta, mensagens e modelo de IA (sem chaves)', filtro: 'tipo',
+      colunas: [['nome', 'Fornecedor', '1.6fr'], ['tipo', 'Tipo', '1.4fr'], ['status', 'Status', '1fr'], ['uso', 'Custo real no mês', '1.2fr'], ['detalhe', 'Detalhe', '2fr']] },
+    'admin/margins': { titulo: 'Margens', sub: 'Preço em créditos de cada capacidade', busca: true,
+      colunas: [['capacidade', 'Capacidade', '2fr'], ['base', 'Base', '1fr'], ['margem', 'Margem', '1fr'], ['risco', 'Risco', '1fr'], ['status', 'Status', '1fr']] },
+    'admin/audit': { titulo: 'Auditoria', sub: 'O que aconteceu em todos os clientes, do mais recente', busca: true,
+      colunas: [['quando', 'Quando', '1.1fr'], ['cliente', 'Cliente', '1.4fr'], ['quem', 'Quem', '1.4fr'], ['acao', 'Ação', '1.6fr'], ['entidade', 'Item', '1.2fr']] },
+    'admin/health': { titulo: 'Saúde', sub: 'Verificações da plataforma agora', filtro: 'status',
+      colunas: [['nome', 'Verificação', '2fr'], ['status', 'Situação', '1fr'], ['detalhe', 'Detalhe', '2fr']] }
+  };
+
+  /** Cria as telas do Superadmin vazias (sem nada inventado) até o banco responder. */
+  private registrarTelasAdmin() {
+    if (typeof window === 'undefined' || this.modoDemo !== false) return;
+    const mod = ((window as any).ALTHIUS_MOD = (window as any).ALTHIUS_MOD || {});
+    for (const [pagina, def] of Object.entries(AlthiusApp.TELAS_ADMIN)) {
+      mod[pagina] = { ...def, kpis: [], linhas: [], acoesLinha: [],
+        acao: pagina === 'admin/workspaces' ? { label: 'Novo workspace' } : undefined };
+    }
+  }
+
+  private cargaAdmin = 0;
+
+  async carregarAdmin(pagina: string) {
+    const mod = (window as any).ALTHIUS_MOD?.[pagina];
+    if (!mod) return;
+    const carga = ++this.cargaAdmin;
+    const leitores: Record<string, (c: SupabaseClient) => Promise<{ kpis: unknown[]; linhas: unknown[] }>> = {
+      'admin/workspaces': admin.listarClientes, 'admin/usage': admin.usoGlobal, 'admin/providers': admin.fornecedores,
+      'admin/margins': admin.margens, 'admin/audit': c => admin.auditoriaGlobal(c), 'admin/health': admin.saude
+    };
+    try {
+      const tela = await leitores[pagina](this.props.supabase);
+      if (!this.vivo || carga !== this.cargaAdmin) return;
+      mod.kpis = tela.kpis;
+      mod.linhas = tela.linhas;
+      if (pagina === 'admin/workspaces') mod.acoesLinha = [
+        ['Gerar chaves dos agentes', ''],
+        ['Revogar chaves dos agentes', '', null, true, 'As chaves dos agentes de {x} param de funcionar na hora. O Hermes Agent desse cliente fica sem acesso até gerar novas.']
+      ];
+      this.setState({ adminVersao: carga });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaAdmin) this.avisarFalha('Não foi possível carregar esta tela', falha);
+    }
+  }
+
+  acaoDaPaginaReal(page: string): boolean {
+    if (page !== 'admin/workspaces') return false;
+    this.setState({ formNovoWs: { nome: '', slug: '', email: '', estrategista: '', erro: '' } });
+    return true;
+  }
+
+  private formularioNovoCliente(v: Record<string, any>) {
+    const f = this.state.formNovoWs as { nome: string; slug: string; email: string; estrategista: string; erro: string } | undefined;
+    if (!f || !v.md || (this.state.rota || {}).page !== 'admin/workspaces') return;
+    const muda = (campo: string) => (e: { target: { value: string } }) =>
+      this.setState({ formNovoWs: Object.assign({}, this.state.formNovoWs, { [campo]: e.target.value, erro: '' }) });
+    v.md.form = {
+      titulo: 'Novo cliente',
+      campos: [
+        { label: 'Nome do cliente', valor: f.nome, mudar: muda('nome'), placeholder: 'Ex.: Evolut Trading' },
+        { label: 'Endereço curto', valor: f.slug, mudar: muda('slug'), placeholder: 'ex.: evolut (vai na URL)' },
+        { label: 'E-mail do C-level', valor: f.email, mudar: muda('email'), placeholder: 'diretoria@cliente.com.br', tipo: 'email' },
+        { label: 'E-mail do estrategista (opcional)', valor: f.estrategista, mudar: muda('estrategista'), placeholder: 'quem cuida da conta na Althius', tipo: 'email' }
+      ],
+      erro: f.erro,
+      salvarLabel: 'Criar cliente',
+      salvar: () => this.criarClienteReal(),
+      cancelar: () => this.setState({ formNovoWs: undefined })
+    };
+  }
+
+  private async criarClienteReal() {
+    const f = this.state.formNovoWs;
+    const r = await admin.criarCliente(this.props.supabase, { nome: f.nome, slug: f.slug, emailClevel: f.email, emailEstrategista: f.estrategista });
+    if (!this.vivo) return;
+    if (!r.ok) return this.setState({ formNovoWs: Object.assign({}, f, { erro: r.mensagem }) });
+    this.setState({ formNovoWs: undefined });
+    this.avisar('mod', 'Cliente criado. O convite do C-level fica pendente até o conector de e-mail enviar.');
+    await this.carregarAdmin('admin/workspaces');
+  }
+
+  private async acaoNoCliente(acao: string, linha: { id: string; nome: string }) {
+    if (acao === 'Gerar chaves dos agentes') {
+      const r = await admin.gerarChavesDosAgentes(this.props.supabase, linha.id);
+      if (!r.ok) return this.confirmar('Chaves não geradas', r.mensagem, 'Entendi', () => {});
+      const texto = Object.entries(r.chaves).map(([agente, chave]) => agente + ': ' + chave).join('\n');
+      return this.confirmar('Chaves dos agentes de ' + linha.nome,
+        'Copie agora e guarde no perfil de cada agente do Hermes. Elas não aparecem de novo.\n\n' + texto, 'Já copiei', () => {});
+    }
+    if (acao === 'Revogar chaves dos agentes') {
+      const r = await admin.revogarChavesDosAgentes(this.props.supabase, linha.id);
+      if (!r.ok) return this.confirmar('Chaves não revogadas', r.mensagem, 'Entendi', () => {});
+      this.avisar('mod', r.revogadas + ' chaves revogadas.');
     }
   }
 }

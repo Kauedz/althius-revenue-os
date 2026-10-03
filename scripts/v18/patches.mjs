@@ -196,6 +196,35 @@ export const PATCHES = [
     por: '{__t($v.ag?.sucesso)}{typeof $v.ag?.sucesso === "number" ? "%" : ""}'
   },
 
+  // ---- Listas genéricas (Claude): botão principal da página e formulário simples (ADR 0030)
+  {
+    regra: 'listas: botão principal da página passa pela camada do banco quando ela trata a página',
+    arquivo: 'logic.generated.js',
+    trocar: "md.acao = () => { if (page === 'tasks') {",
+    por: "md.acao = () => { if (this.modoDemo === false && this.acaoDaPaginaReal && this.acaoDaPaginaReal(page)) return; if (page === 'tasks') {"
+  },
+  {
+    regra: 'listas: formulário simples dentro da lista (campos, erro, salvar e cancelar) quando md.form existe',
+    arquivo: 'template.generated.tsx',
+    aplicar: texto => {
+      const marca = '{$v.md?.temPorConta ? (<>';
+      if (texto.split(marca).length !== 2) throw new Error('Regra "formulário da lista": ponto de inserção não encontrado (ou repetido).');
+      const form = `{$v.md?.form ? (<section aria-label={$v.md.form.titulo} style={{"display":"flex","flexDirection":"column","gap":"12px","padding":"18px","border":"1px solid var(--steel)","borderRadius":"12px","background":"var(--paper)"}}>
+                  <h2 style={{"fontFamily":"var(--f-display)","margin":"0","fontWeight":"400","fontSize":"18px"}}>{__t($v.md.form.titulo)}</h2>
+                  <div className={"cfg-grid"}>
+                    {__arr($v.md.form.campos).map((c, $index) => (<label key={$index} className={"cfg-campo"}><span>{__t(c?.label)}</span><input value={__val(c?.valor)} onChange={c?.mudar} placeholder={c?.placeholder} type={c?.tipo || "text"} /></label>))}
+                  </div>
+                  {$v.md.form.erro ? (<p role="alert" style={{"margin":"0","color":"var(--err)","fontSize":"14px"}}>{__t($v.md.form.erro)}</p>) : null}
+                  <div className={"cfg-acoes"}>
+                    <button className={"b-pri cfg-salvar"} onClick={$v.md.form.salvar}>{__t($v.md.form.salvarLabel)}</button>
+                    <button className={"b-sec mini-btn"} onClick={$v.md.form.cancelar} style={{"height":"38px"}}>{"Cancelar"}</button>
+                  </div>
+                </section>) : null}
+                `;
+      return texto.replace(marca, () => form + marca);
+    }
+  },
+
   // ---- Listas genéricas (Claude): ganchos para abrir linha e ações de linha gravarem no banco
   {
     regra: 'listas: abrir uma linha avisa a camada do banco (ex.: conversa vira lida)',
