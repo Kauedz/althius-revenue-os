@@ -194,6 +194,57 @@ export const PATCHES = [
     arquivo: 'template.generated.tsx',
     trocar: '{__t($v.ag?.sucesso)}{"%"}',
     por: '{__t($v.ag?.sucesso)}{typeof $v.ag?.sucesso === "number" ? "%" : ""}'
+  },
+
+  // ---- Configurações (Claude): Minha conta e Notificações gravam no banco
+  {
+    regra: 'configurações: salvar nome, cargo e telefone grava no perfil',
+    arquivo: 'logic.generated.js',
+    trocar: "salvar: () => this.avisarCfg('Dados salvos.'),",
+    por: "salvar: () => this.modoDemo === false ? this.salvarMinhaContaReal() : this.avisarCfg('Dados salvos.'),"
+  },
+  {
+    regra: 'configurações: foto vai para o depósito de fotos',
+    arquivo: 'logic.generated.js',
+    trocar: 'trocarFoto: e => { const f = e.target.files && e.target.files[0]; if (!f) return;',
+    por: 'trocarFoto: e => { const f = e.target.files && e.target.files[0]; if (!f) return; if (this.modoDemo === false) return this.trocarFotoReal(f);'
+  },
+  {
+    regra: 'configurações: remover foto limpa o perfil',
+    arquivo: 'logic.generated.js',
+    trocar: "removerFoto: () => { this.setState({ minhaFoto: '' });",
+    por: "removerFoto: () => { if (this.modoDemo === false) return this.removerFotoReal(); this.setState({ minhaFoto: '' });"
+  },
+  {
+    regra: 'configurações: alterar senha confere a atual e troca no login',
+    arquivo: 'logic.generated.js',
+    trocar: "this.setState({ senha: {} }); this.avisarCfg('Senha alterada. Os outros dispositivos vão pedir login de novo.'); }",
+    por: "if (this.modoDemo === false) return this.alterarSenhaReal(s); this.setState({ senha: {} }); this.avisarCfg('Senha alterada. Os outros dispositivos vão pedir login de novo.'); }"
+  },
+  {
+    regra: 'configurações: sair dos outros dispositivos encerra as sessões de verdade',
+    arquivo: 'logic.generated.js',
+    trocar: "sairOutras: () => this.avisarCfg('Você saiu dos outros dispositivos.')",
+    por: "sairOutras: () => this.modoDemo === false ? this.sairOutrosReal() : this.avisarCfg('Você saiu dos outros dispositivos.')"
+  },
+  {
+    regra: 'configurações: preferências de notificação gravam no perfil',
+    arquivo: 'logic.generated.js',
+    trocar: 'alternar: () => this.setState({ ops: Object.assign({}, this.state.ops, { [k]: !this.state.ops[k] }) })',
+    por: 'alternar: () => this.modoDemo === false ? this.alternarPreferenciaReal(k) : this.setState({ ops: Object.assign({}, this.state.ops, { [k]: !this.state.ops[k] }) })'
+  },
+  {
+    regra: 'configurações: verificação em duas etapas some no modo real até existir de verdade',
+    arquivo: 'template.generated.tsx',
+    aplicar: texto => {
+      const rotulo = texto.indexOf('aria-label="Verificação em duas etapas"');
+      if (rotulo < 0 || texto.indexOf('aria-label="Verificação em duas etapas"', rotulo + 1) >= 0) throw new Error('Regra "duas etapas": botão não encontrado (ou repetido).');
+      const inicio = texto.lastIndexOf('<div className={"cfg-row cfg-row-line"}>', rotulo);
+      const fimBotao = texto.indexOf('</button>', rotulo);
+      const fim = texto.indexOf('</div>', fimBotao) + '</div>'.length;
+      if (inicio < 0 || fimBotao < 0 || fim < fimBotao) throw new Error('Regra "duas etapas": estrutura do bloco mudou.');
+      return texto.slice(0, inicio) + '{$v.modoDemo !== false ? (<>' + texto.slice(inicio, fim) + '</>) : null}' + texto.slice(fim);
+    }
   }
 
   // ---- Relatórios, Sinais e Prospecção (Grok)

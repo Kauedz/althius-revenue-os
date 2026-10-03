@@ -3732,7 +3732,7 @@ export function renderTemplate($v: Record<string, any>) {
                         </button>
                       </div>
                       {"\n                  "}
-                      <div className={"cfg-row cfg-row-line"}>
+                      {$v.modoDemo !== false ? (<><div className={"cfg-row cfg-row-line"}>
                         <span style={{"flex":"1 1 auto","display":"flex","flexDirection":"column","gap":"2px"}}>
                           <span style={{"fontSize":"14px","fontWeight":"500"}}>
                             {"Verificação em duas etapas"}
@@ -3744,7 +3744,7 @@ export function renderTemplate($v: Record<string, any>) {
                         <button className={"switch"} role="switch" aria-checked={$v.conta?.doisFatores} aria-label="Verificação em duas etapas" onClick={$v.conta?.alternar2fa}>
                           <span></span>
                         </button>
-                      </div>
+                      </div></>) : null}
                       {"\n                  "}
                       <div className={"cfg-row cfg-row-line"}>
                         <span style={{"flex":"1 1 auto","display":"flex","flexDirection":"column","gap":"2px"}}>

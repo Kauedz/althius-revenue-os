@@ -22,6 +22,7 @@ import {
 } from './servicos/contas';
 import { obterResumoHome, type HomeResumoTela } from './servicos/inicio';
 import { listarAgentes, pausarAgente, salvarCapacidades, type AgenteBase, type AgenteTela } from './servicos/agentes';
+import { alterarSenha, lerMinhaConta, removerFoto, sairDosOutrosDispositivos, salvarMinhaConta, salvarPreferencias, trocarFoto } from './servicos/conta';
 import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla } from './servicos/notificacoes';
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
@@ -82,6 +83,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       list: () => this.carregarNotificacoes()
     };
     super.componentDidMount?.();
+    void this.carregarMinhaConta();
   }
 
   private cargaWorkspace = 0;
@@ -732,6 +734,71 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       if (this.vivo && carga === this.cargaWorkspace) this.setState({ agents });
     } catch (falha) {
       if (this.vivo && carga === this.cargaWorkspace) this.avisarFalha('Não foi possível atualizar os agentes', falha);
+    }
+  }
+
+  // ---- Configurações (Claude): Minha conta e Notificações
+
+  /** Dados reais da pessoa nas Configurações (o protótipo mostrava o papel no lugar do cargo). */
+  private async carregarMinhaConta() {
+    try {
+      const conta = await lerMinhaConta(this.props.supabase);
+      if (!this.vivo) return;
+      this.setState({
+        perfil: { nome: conta.nome, cargo: conta.cargo, fone: conta.fone },
+        minhaFoto: conta.foto,
+        ops: Object.assign({}, this.state.ops, conta.preferencias)
+      });
+    } catch (falha) {
+      // Só a tela de Configurações usa estes dados: o aviso aparece lá, sem travar o resto do app.
+      console.error(falha);
+      if (this.vivo) this.avisarCfg('Não foi possível carregar seus dados. Recarregue a página para tentar de novo.');
+    }
+  }
+
+  private async resultadoConta(r: { ok: true } | { ok: false; mensagem: string }, sucesso: string) {
+    if (!this.vivo) return false;
+    this.avisarCfg(r.ok ? sucesso : r.mensagem);
+    return r.ok;
+  }
+
+  async salvarMinhaContaReal() {
+    const pf = (this.state.perfil || {}) as { nome?: string; cargo?: string; fone?: string };
+    const r = await salvarMinhaConta(this.props.supabase, { nome: pf.nome ?? '', cargo: pf.cargo ?? '', fone: pf.fone ?? '' });
+    await this.resultadoConta(r, 'Dados salvos.');
+  }
+
+  async trocarFotoReal(arquivo: File) {
+    const r = await trocarFoto(this.props.supabase, arquivo);
+    if (await this.resultadoConta(r, 'Foto atualizada.')) await this.carregarMinhaConta();
+  }
+
+  async removerFotoReal() {
+    const r = await removerFoto(this.props.supabase);
+    if (await this.resultadoConta(r, 'Foto removida.')) this.setState({ minhaFoto: '' });
+  }
+
+  async alterarSenhaReal(s: { atual?: string; nova?: string }) {
+    const { data } = await this.props.supabase.auth.getUser();
+    const r = await alterarSenha(this.props.supabase, data.user?.email || '', s.atual || '', s.nova || '');
+    if (!this.vivo) return;
+    if (r.ok) {
+      this.setState({ senha: {} });
+      this.avisarCfg('Senha alterada. Os outros dispositivos vão pedir login de novo.');
+    } else this.setState({ senha: Object.assign({}, this.state.senha, { erro: r.mensagem }) });
+  }
+
+  async sairOutrosReal() {
+    await this.resultadoConta(await sairDosOutrosDispositivos(this.props.supabase), 'Você saiu dos outros dispositivos.');
+  }
+
+  async alternarPreferenciaReal(chave: string) {
+    const ops = Object.assign({}, this.state.ops, { [chave]: !(this.state.ops || {})[chave] });
+    this.setState({ ops });
+    const r = await salvarPreferencias(this.props.supabase, ops);
+    if (!r.ok && this.vivo) {
+      this.setState({ ops: Object.assign({}, ops, { [chave]: !ops[chave] }) });
+      this.avisarCfg(r.mensagem);
     }
   }
 }

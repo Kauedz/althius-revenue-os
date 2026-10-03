@@ -960,7 +960,7 @@ export class AlthiusLogic extends React.Component {
     v.secaoAtual = secAtual; v.secaoDesc = DESC[secAtual];
     v.cfgConta = secAtual === 'Minha conta'; v.cfgWs = secAtual === 'Workspace e membros'; v.cfgAparencia = secAtual === 'Aparência'; v.cfgAgentes = secAtual === 'Agentes'; v.cfgToggles = secAtual === 'Notificações';
     v.cfgAviso = !!st.cfgAviso; v.cfgAvisoTexto = st.cfgAviso || '';
-    const op = (k, nome, desc) => ({ nome, desc, on: st.ops[k] ? 'true' : 'false', alternar: () => this.setState({ ops: Object.assign({}, this.state.ops, { [k]: !this.state.ops[k] }) }) });
+    const op = (k, nome, desc) => ({ nome, desc, on: st.ops[k] ? 'true' : 'false', alternar: () => this.modoDemo === false ? this.alternarPreferenciaReal(k) : this.setState({ ops: Object.assign({}, this.state.ops, { [k]: !this.state.ops[k] }) }) });
     v.opcoes = [op('notif', 'Notificações na área de trabalho', 'Avisar quando um agente pedir aprovação'), op('aprovacao', 'Aprovação antes do CRM', 'Agentes só gravam no CRM depois do seu ok'), op('som', 'Som de mensagem', 'Toque curto a cada nova menção')];
     // aparência
     v.densidade = st.densidade || 'confortavel';
@@ -973,10 +973,10 @@ export class AlthiusLogic extends React.Component {
     const setSn = o => this.setState({ senha: Object.assign({}, this.state.senha, o) }), setPf = o => this.setState({ perfil: Object.assign({}, this.state.perfil, o) });
     v.conta = { nome: pf.nome !== undefined ? pf.nome : U.usuario, cargo: pf.cargo !== undefined ? pf.cargo : U.label, fone: pf.fone || '',
       mudarNome: e => setPf({ nome: e.target.value }), mudarCargo: e => setPf({ cargo: e.target.value }), mudarFone: e => setPf({ fone: e.target.value }),
-      salvar: () => this.avisarCfg('Dados salvos.'),
-      trocarFoto: e => { const f = e.target.files && e.target.files[0]; if (!f) return; if (f.size > 2 * 1024 * 1024) { this.avisarCfg('A foto passa de 2 MB. Escolha uma menor.'); return; }
+      salvar: () => this.modoDemo === false ? this.salvarMinhaContaReal() : this.avisarCfg('Dados salvos.'),
+      trocarFoto: e => { const f = e.target.files && e.target.files[0]; if (!f) return; if (this.modoDemo === false) return this.trocarFotoReal(f); if (f.size > 2 * 1024 * 1024) { this.avisarCfg('A foto passa de 2 MB. Escolha uma menor.'); return; }
         const r = new FileReader(); r.onload = () => { this.setState({ minhaFoto: r.result }); try { localStorage.setItem('althius-foto', r.result); } catch (x) {} this.avisarCfg('Foto atualizada.'); }; r.readAsDataURL(f); },
-      removerFoto: () => { this.setState({ minhaFoto: '' }); try { localStorage.setItem('althius-foto', ''); } catch (x) {} },
+      removerFoto: () => { if (this.modoDemo === false) return this.removerFotoReal(); this.setState({ minhaFoto: '' }); try { localStorage.setItem('althius-foto', ''); } catch (x) {} },
       senhaAtual: sn.atual || '', senhaNova: sn.nova || '', senhaConf: sn.conf || '', forcaTexto: forca(sn.nova || ''),
       mudarSenhaAtual: e => setSn({ atual: e.target.value, erro: '' }), mudarSenhaNova: e => setSn({ nova: e.target.value, erro: '' }), mudarSenhaConf: e => setSn({ conf: e.target.value, erro: '' }),
       temErroSenha: !!sn.erro, erroSenha: sn.erro || '',
@@ -984,9 +984,9 @@ export class AlthiusLogic extends React.Component {
         if (!s.atual) return setSn({ erro: 'Digite sua senha atual.' });
         if (!s.nova || s.nova.length < 8 || !/[0-9]/.test(s.nova) || !/[a-zA-Z]/.test(s.nova)) return setSn({ erro: 'A nova senha precisa de 8 caracteres ou mais, com letras e números.' });
         if (s.nova !== s.conf) return setSn({ erro: 'A confirmação não bate com a nova senha.' });
-        this.setState({ senha: {} }); this.avisarCfg('Senha alterada. Os outros dispositivos vão pedir login de novo.'); },
+        if (this.modoDemo === false) return this.alterarSenhaReal(s); this.setState({ senha: {} }); this.avisarCfg('Senha alterada. Os outros dispositivos vão pedir login de novo.'); },
       doisFatores: st.doisFatores ? 'true' : 'false', alternar2fa: () => { this.setState({ doisFatores: !this.state.doisFatores }); this.avisarCfg(this.state.doisFatores ? 'Verificação em duas etapas desligada.' : 'Verificação em duas etapas ligada. No próximo login, leia o QR code com seu app.'); },
-      sairOutras: () => this.avisarCfg('Você saiu dos outros dispositivos.') };
+      sairOutras: () => this.modoDemo === false ? this.sairOutrosReal() : this.avisarCfg('Você saiu dos outros dispositivos.') };
     // workspace e membros
     {
       const wsCfg = this.wsPermitidos().some(w => w.id === st.cfgWs) ? st.cfgWs : ws.id, wsObj = D.WORKSPACES.find(w => w.id === wsCfg) || ws, lista = this.membros(wsCfg);
