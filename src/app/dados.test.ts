@@ -1,6 +1,6 @@
 // Seam: montarDados(contexto do banco, dados do protótipo) -> objeto no formato que o front v18 lê.
 import { describe, expect, it } from 'vitest';
-import { montarDados, type ContextoReal } from './dados';
+import { montarDados, sigla, type ContextoReal } from './dados';
 
 const demo = {
   ROLES: {
@@ -103,5 +103,78 @@ describe('montarDados', () => {
 
   it('dados ainda não ligados ao banco seguem do protótipo', () => {
     expect(D.AGENTS).toBe(demo.AGENTS);
+  });
+});
+
+describe('sigla', () => {
+  it('usa até duas iniciais e ignora espaços', () => {
+    expect(sigla('Aline Xavier')).toBe('AX');
+    expect(sigla('  rafael   nunes  silva')).toBe('RN');
+    expect(sigla('Bruna')).toBe('B');
+    expect(sigla('   ')).toBe('');
+  });
+});
+
+describe('montarDados em papéis e bordas', () => {
+  const base = contexto;
+
+  it('slug desconhecido usa o papel do primeiro workspace', () => {
+    const D = montarDados(base, demo, capsDemo);
+    expect(D.papelNoWorkspace('nao-existe')).toBe('cliente');
+  });
+
+  it('sem workspace, superadmin continua superadmin e os demais caem em BDR', () => {
+    const sem = { ...base, workspaces: [] as ContextoReal['workspaces'] };
+    expect(montarDados({ ...sem, usuario: { ...base.usuario, superadmin: true } }, demo, capsDemo).papelNoWorkspace('evolut')).toBe('superadmin');
+    expect(montarDados(sem, demo, capsDemo).papelNoWorkspace('evolut')).toBe('bdr');
+  });
+
+  it('workspace no banco devolve o id interno ou nada', () => {
+    const D = montarDados(base, demo, capsDemo);
+    expect(D.workspaceNoBanco('evolut')).toEqual({ uuid: 'ws-1', membroId: 'm-aline' });
+    expect(D.workspaceNoBanco('sumiu')).toBeNull();
+  });
+
+  it('membro suspenso some; o dono é o C-level ativo mais antigo, não o convite', () => {
+    const ctx: ContextoReal = {
+      ...base,
+      membros: {
+        evolut: [
+          { id: 'm-convite', userId: 'u-c', nome: 'Convidado C', email: 'c@evolut.com.br', papel: 'clevel', status: 'invited', cargo: null, entrouEm: '2026-01-01' },
+          { id: 'm-suspenso', userId: 'u-s', nome: 'Suspenso', email: 's@evolut.com.br', papel: 'bdr', status: 'suspended', cargo: null, entrouEm: '2026-01-02' },
+          { id: 'm-novo', userId: 'u-n', nome: 'Novo C', email: 'n@evolut.com.br', papel: 'clevel', status: 'active', cargo: null, entrouEm: '2026-09-10' },
+          { id: 'm-aline', userId: 'u-aline', nome: 'Aline Xavier', email: 'aline@evolut.com.br', papel: 'clevel', status: 'active', cargo: null, entrouEm: '2026-09-01' }
+        ],
+        grao: []
+      }
+    };
+    const lista = montarDados(ctx, demo, capsDemo).membros.evolut;
+    expect(lista.map(m => m.id)).toEqual(['m-convite', 'm-novo', 'm-aline']);
+    expect(lista.find(m => m.id === 'm-aline')).toMatchObject({ dono: true, papel: 'cliente' });
+    expect(lista.find(m => m.id === 'm-novo')).not.toHaveProperty('dono');
+    expect(lista.find(m => m.id === 'm-convite')).toMatchObject({ pendente: true });
+    expect(lista.find(m => m.id === 'm-convite')).not.toHaveProperty('dono');
+    expect(montarDados(ctx, demo, capsDemo).membros.grao).toEqual([]);
+  });
+
+  it('escopo só ver vira a letra da matriz e área nova vai para o fim', () => {
+    const ctx: ContextoReal = {
+      ...base,
+      matriz: [
+        ...base.matriz,
+        { papel: 'superadmin', chave: 'credits.policy', escopo: 'all', area: 'Dinheiro', nome: 'Regras', nota: 'Quem paga.' },
+        { papel: 'estrategista', chave: 'credits.policy', escopo: 'read', area: 'Dinheiro', nome: 'Regras', nota: '' },
+        { papel: 'clevel', chave: 'credits.policy', escopo: 'all', area: 'Dinheiro', nome: 'Regras', nota: '' },
+        { papel: 'bdr', chave: 'credits.policy', escopo: 'none', area: 'Dinheiro', nome: 'Regras', nota: '' }
+      ]
+    };
+    const grupos = montarDados(ctx, demo, capsDemo).CAPS.grupos;
+    expect(grupos.map(g => g.nome)).toEqual(['Workspace', 'Dinheiro']);
+    expect(grupos[1].itens[0]).toMatchObject({ k: 'credits.policy', v: ['s', 'l', 's', 'n'], nota: 'Quem paga.' });
+  });
+
+  it('papel sem ficha no protótipo ainda aparece com o nome de quem está logado', () => {
+    const semBdr = { ...demo, ROLES: { superadmin: demo.ROLES.superadmin, estrategista: demo.ROLES.estrategista, cliente: demo.ROLES.cliente } };
+    expect(montarDados(base, semBdr, capsDemo).ROLES.bdr).toMatchObject({ id: 'bdr', label: 'bdr', usuario: 'Aline Xavier', sigla: 'AX' });
   });
 });

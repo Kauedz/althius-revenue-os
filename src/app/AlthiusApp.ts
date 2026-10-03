@@ -8,6 +8,7 @@ import { controlarExecucao, listarExecucoes } from './servicos/execucoes';
 import { comprarCreditos, lerCreditos, salvarPoliticaCreditos as gravarPoliticaCreditos } from './servicos/creditos';
 import { precoEmReais } from './precos';
 import { decidirAprovacao, listarAprovacoes, type AprovacaoTela, type DecisaoTela } from './servicos/aprovacoes';
+import { listarContas, type ContaTela } from './servicos/contas';
 
 export interface AlthiusAppProps {
   dados: DadosAlthius;
@@ -33,6 +34,9 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       list: () => this.carregarExecucoes(),
       control: (id: string, estado: string) => this.registrarControle(id, estado),
       repeat: (id: string) => this.registrarControle(id, 'Repetir')
+    };
+    this.props.dados.accountService = {
+      list: () => this.carregarContas()
     };
     super.componentDidMount?.();
   }
@@ -60,12 +64,13 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       const carga = ++this.cargaWorkspace;
       try {
         const D = this.props.dados;
-        const [home, agents, execs, aprov, notifs, creditos] = await Promise.all([
-          D.homeService.summary(), D.agentService.list(), this.carregarExecucoes(), this.carregarAprovacoes(), D.notificationService.list(), this.carregarCreditos()
+        const [home, agents, execs, aprov, notifs, creditos, contas] = await Promise.all([
+          D.homeService.summary(), D.agentService.list(), this.carregarExecucoes(), this.carregarAprovacoes(), D.notificationService.list(), this.carregarCreditos(), this.carregarContas()
         ]);
         if (!this.vivo) return;
         if (carga !== this.cargaWorkspace) continue;
-        this.setState({ home, agents, execs, aprov, notifs, ...creditos, pronto: true, carregandoRota: false });
+        this.publicarContas(contas);
+        this.setState({ home, agents, execs, aprov, notifs, contas, ...creditos, pronto: true, carregandoRota: false });
         return;
       } catch (falha) {
         if (!this.vivo) return;
@@ -79,11 +84,12 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   async recarregarWorkspace() {
     const carga = ++this.cargaWorkspace;
-    this.setState({ aprov: [], execs: [], decisoes: {}, apSel: null, falhaCarga: false, carregandoRota: true });
+    this.setState({ aprov: [], execs: [], contas: [], decisoes: {}, apSel: null, falhaCarga: false, carregandoRota: true });
     try {
-      const [aprov, execs, creditos] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos()]);
+      const [aprov, execs, creditos, contas] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos(), this.carregarContas()]);
       if (this.vivo && carga === this.cargaWorkspace) {
-        this.setState({ aprov, execs, ...creditos, carregandoRota: false });
+        this.publicarContas(contas);
+        this.setState({ aprov, execs, contas, ...creditos, carregandoRota: false });
         return carga;
       }
     } catch (falha) {
@@ -233,6 +239,37 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const { [id]: _desfeita, ...decisoes } = this.state.decisoes || {};
     this.setState({ decisoes });
     this.confirmar('Decisão não registrada', resultado.mensagem, 'Entendi', () => {});
+  }
+
+  // ---------------------------------------------------------------- Contas e leads
+
+  carregarContas(): Promise<ContaTela[]> {
+    const ws = this.workspaceAtual();
+    return ws ? listarContas(this.props.supabase, ws.uuid) : Promise.resolve([]);
+  }
+
+  private publicarContas(contas: ContaTela[]) {
+    if (typeof window === 'undefined') return;
+    const mod = (window as any).ALTHIUS_MOD;
+    if (mod?.accounts) {
+      mod.accounts.linhas = contas;
+      const total = contas.length;
+      const fitMedio = total ? Math.round(contas.reduce((s, c) => s + c.fit, 0) / total) : 0;
+      const comDecisor = total ? Math.round((contas.filter(c => c.decisor !== 'A mapear').length / total) * 100) + '%' : '0%';
+      const quentes = contas.filter(c => c.temperatura === 3).length;
+      mod.accounts.kpis = [
+        ['Contas qualificadas', String(total), ''],
+        ['Fit médio', String(fitMedio), 'de 100'],
+        ['Com decisor mapeado', comDecisor, `${contas.filter(c => c.decisor !== 'A mapear').length} contas`],
+        ['Quentes', String(quentes), 'temperatura alta']
+      ];
+    }
+    const comites = ((window as any).ALTHIUS_COMITES = (window as any).ALTHIUS_COMITES || {});
+    for (const c of contas) {
+      if (c.comite) {
+        comites[c.id] = c.comite;
+      }
+    }
   }
 
   private avisarFalha(titulo: string, falha: unknown) {

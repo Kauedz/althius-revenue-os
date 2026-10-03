@@ -7,6 +7,7 @@ import { AlthiusApp } from './AlthiusApp';
 import { montarDados, type ContextoReal, type PapelBanco } from './dados';
 import { clienteVazio } from '../test/supabaseLocal';
 import * as execucoes from './servicos/execucoes';
+import * as contasServico from './servicos/contas';
 
 const demo = { data: window.ALTHIUS_DATA!, caps: window.ALTHIUS_CAPS };
 const ESCOPOS: Record<string, [string, string, string, string]> = {
@@ -116,4 +117,37 @@ it('repetir não volta ao workspace antigo se a pessoa trocar durante a atualiza
   await act(async () => { atualizacao.resolver([execucaoAlfa]); });
   expect(window.location.hash).toBe('#/app/beta/executions');
   expect(screen.queryByText('Execução exclusiva Alfa')).not.toBeInTheDocument();
+});
+
+describe('contas no AlthiusApp', () => {
+  it('carrega contas pelo serviço e publica no ALTHIUS_MOD e ALTHIUS_COMITES', async () => {
+    const contaMock: contasServico.ContaTela = {
+      id: 'c-teste',
+      nome: 'Empresa Teste',
+      segmento: 'Varejo',
+      fit: 85,
+      temperatura: 2,
+      sinal: 'Nova filial',
+      dono: 'Pessoa Teste',
+      cidade: 'São Paulo, SP',
+      decisor: 'Roberto Santos',
+      comite: [
+        {
+          id: 'ct-1',
+          nome: 'Roberto Santos',
+          cargo: 'Diretor',
+          papel: 'decisor',
+          foto: '',
+          linkedin: '',
+          emails: ['roberto@teste.com'],
+          fones: []
+        }
+      ]
+    };
+    const spy = vi.spyOn(contasServico, 'listarContas').mockResolvedValue([contaMock]);
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/accounts');
+    await waitFor(() => expect(spy).toHaveBeenCalledWith(expect.anything(), 'id-alfa'));
+    await waitFor(() => expect((window as any).ALTHIUS_MOD.accounts.linhas).toContainEqual(contaMock));
+    expect((window as any).ALTHIUS_COMITES['c-teste']).toEqual(contaMock.comite);
+  });
 });

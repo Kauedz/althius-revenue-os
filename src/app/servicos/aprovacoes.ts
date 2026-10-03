@@ -94,11 +94,14 @@ export async function listarAprovacoes(cliente: SupabaseClient, workspaceId: str
 }
 
 async function nomesDosMembros(cliente: SupabaseClient, membroIds: string[]): Promise<Map<string, string>> {
-  const { data: membros } = await cliente.from('workspace_members').select('id, user_id').in('id', membroIds);
+  if (!membroIds.length) return new Map();
+  const { data: membros, error: erroMembros } = await cliente.from('workspace_members').select('id, user_id').in('id', membroIds);
+  if (erroMembros) throw new Error('Não foi possível carregar os solicitantes das aprovações.', { cause: erroMembros });
   const userIds = [...new Set((membros || []).map(m => m.user_id))];
-  const { data: perfis } = userIds.length
+  const { data: perfis, error: erroPerfis } = userIds.length
     ? await cliente.from('profiles').select('id, name').in('id', userIds)
-    : { data: [] as Array<{ id: string; name: string }> };
+    : { data: [] as Array<{ id: string; name: string }>, error: null };
+  if (erroPerfis) throw new Error('Não foi possível carregar os solicitantes das aprovações.', { cause: erroPerfis });
   const nomePorUser = new Map((perfis || []).map(p => [p.id, p.name]));
   return new Map((membros || []).map(m => [m.id, nomePorUser.get(m.user_id) || '']));
 }
