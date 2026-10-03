@@ -32,6 +32,7 @@ import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla 
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
 import { listarProspeccao, prospeccaoSemDados, type ProspeccaoTela } from './servicos/prospeccao';
+import { definirSituacaoEstrategia, estrategiaSemDados, listarEstrategia, salvarEstrategia, type EstrategiaTela } from './servicos/estrategia';
 
 export interface AlthiusAppProps {
   dados: DadosAlthius;
@@ -49,6 +50,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarRelatorios(relatoriosReais);
     this.publicarSinais(sinaisReais);
     this.publicarProspeccao(prospeccaoReais);
+    this.publicarEstrategia(null);
   }
 
   // Fora da demonstração não existe troca de papel: o papel vem do banco.
@@ -118,6 +120,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarProspeccao(prospeccaoSemDados());
     this.publicarAprendizados({}, {});
     this.publicarCaixa(null);
+    this.publicarEstrategia(null);
     super.componentWillUnmount?.();
   }
 
@@ -240,6 +243,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     };
     this.valoresEquipe(v);
     this.formularioNovoCliente(v);
+    this.formularioEstrategia(v);
     return v;
   }
 
@@ -854,6 +858,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const entrou = rota.page !== antes.page || rota.ws !== antes.ws || (this.state.pronto && !prev.pronto);
     if (!entrou || !this.state.pronto) return;
     if (rota.page === 'inbox') void this.carregarCaixa();
+    if (rota.page === 'strategy') void this.carregarEstrategia();
     if (String(rota.page || '').startsWith('admin/')) void this.carregarAdmin(rota.page);
     if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) { void this.carregarConexoes(); void this.carregarCanais(); }
     if (rota.page === 'channels' && (rota.id !== antes.id || rota.page !== antes.page || rota.ws !== antes.ws || (this.state.pronto && !prev.pronto))) void this.carregarMensagens();
@@ -883,6 +888,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   }
 
   acaoDeLinhaReal(page: string, acao: string, linha: { id: string }): boolean {
+    if (page === 'strategy') return this.acaoNaEstrategia(acao, linha.id);
     if (page === 'admin/workspaces') {
       void this.acaoNoCliente(acao, linha as { id: string; nome: string });
       return true;
@@ -1004,6 +1010,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   }
 
   acaoDaPaginaReal(page: string): boolean {
+    if (page === 'strategy') return this.abrirNovaHipotese();
     if (page !== 'admin/workspaces') return false;
     this.setState({ formNovoWs: { nome: '', slug: '', email: '', estrategista: '', erro: '' } });
     return true;
@@ -1177,5 +1184,102 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.confirmar('Pedido enviado ao Copiloto',
       'O Hermes conferiu papel e créditos e colocou o pedido na fila. O plano e o resultado aparecem em Execuções.',
       'Ver execuções', () => { this.setState({ cop: false }); this.ir('app/' + slug + '/executions'); });
+  }
+
+  // ---- Estratégia (Grok)
+
+  private cargaEstrategia = 0;
+
+  private publicarEstrategia(tela: EstrategiaTela | null) {
+    if (typeof window === 'undefined') return;
+    const mod = (window as any).ALTHIUS_MOD;
+    if (!mod?.strategy) return;
+    const dados = tela || estrategiaSemDados();
+    mod.strategy.kpis = dados.kpis;
+    mod.strategy.linhas = tela ? dados.linhas : [];
+    mod.strategy.acoesLinha = tela && dados.podeEditar ? [
+      ['Publicar', 'Item publicado. Agentes passam a usar esta versão.'],
+      ['Enviar para revisão', 'Enviado para revisão do estrategista.']
+    ] : [];
+  }
+
+  async carregarEstrategia() {
+    const ws = this.workspaceAtual();
+    const carga = ++this.cargaEstrategia;
+    this.publicarEstrategia(null);
+    if (this.vivo) this.setState({ estrategiaPodeEditar: false, estrategiaVersao: carga });
+    if (!ws?.membroId) return;
+    try {
+      const tela = await listarEstrategia(this.props.supabase, ws.uuid, ws.membroId);
+      if (!this.vivo || carga !== this.cargaEstrategia || this.workspaceAtual()?.uuid !== ws.uuid) return;
+      this.publicarEstrategia(tela);
+      this.setState({ estrategiaPodeEditar: tela.podeEditar, estrategiaVersao: carga });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaEstrategia) this.avisarFalha('Não foi possível carregar a estratégia', falha);
+    }
+  }
+
+  private abrirNovaHipotese(): boolean {
+    if (!this.state.estrategiaPodeEditar) {
+      this.confirmar('Sem permissão para editar', 'Seu papel só lê a estratégia.', 'Entendi', () => {});
+      return true;
+    }
+    this.setState({ formEstrategia: { id: null, tipo: 'ICP', nome: '', versao: 'v1', texto: '', erro: '' } });
+    return true;
+  }
+
+  private formularioEstrategia(v: Record<string, any>) {
+    const f = this.state.formEstrategia as { id: string | null; tipo: string; nome: string; versao: string; texto: string; erro: string } | undefined;
+    if (!f || !v.md || (this.state.rota || {}).page !== 'strategy') return;
+    const muda = (campo: string) => (e: { target: { value: string } }) =>
+      this.setState({ formEstrategia: Object.assign({}, this.state.formEstrategia, { [campo]: e.target.value, erro: '' }) });
+    v.md.form = {
+      titulo: 'Nova hipótese',
+      campos: [
+        { label: 'Tipo', valor: f.tipo, mudar: muda('tipo'), placeholder: 'ICP ou Proposta de valor' },
+        { label: 'Nome', valor: f.nome, mudar: muda('nome'), placeholder: 'Nome do ICP ou da proposta' },
+        { label: 'Versão', valor: f.versao, mudar: muda('versao'), placeholder: 'v1' },
+        { label: 'Texto', valor: f.texto, mudar: muda('texto'), placeholder: 'O que esta hipótese afirma' }
+      ],
+      erro: f.erro,
+      salvarLabel: 'Salvar rascunho',
+      salvar: () => { void this.salvarHipotese(); },
+      cancelar: () => this.setState({ formEstrategia: undefined })
+    };
+  }
+
+  private async salvarHipotese() {
+    const ws = this.workspaceAtual();
+    const f = this.state.formEstrategia;
+    if (!ws?.membroId || !f) return;
+    const r = await salvarEstrategia(this.props.supabase, ws.uuid, ws.membroId, f);
+    if (!this.vivo) return;
+    if (!r.ok) return this.setState({ formEstrategia: Object.assign({}, f, { erro: r.mensagem }) });
+    this.setState({ formEstrategia: undefined });
+    this.avisar('mod', 'Hipótese salva como rascunho.');
+    await this.carregarEstrategia();
+  }
+
+  private acaoNaEstrategia(acao: string, id: string): boolean {
+    if (!this.state.estrategiaPodeEditar) {
+      this.confirmar('Sem permissão para editar', 'Seu papel só lê a estratégia.', 'Entendi', () => {});
+      return true;
+    }
+    const status = acao === 'Publicar' ? 'ativo' : acao === 'Enviar para revisão' ? 'em_revisao' : '';
+    if (!status) return false;
+    void this.mudarSituacaoEstrategia(id, status, acao === 'Publicar'
+      ? 'Item publicado. Agentes passam a usar esta versão.'
+      : 'Enviado para revisão do estrategista.');
+    return true;
+  }
+
+  private async mudarSituacaoEstrategia(id: string, status: 'ativo' | 'em_revisao', aviso: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await definirSituacaoEstrategia(this.props.supabase, ws.uuid, ws.membroId, id, status);
+    if (!this.vivo) return;
+    if (!r.ok) return this.confirmar('Situação não alterada', r.mensagem, 'Entendi', () => {});
+    this.avisar('mod', aviso);
+    await this.carregarEstrategia();
   }
 }

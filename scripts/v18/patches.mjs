@@ -366,4 +366,8 @@ export const PATCHES = [
   // ---- Relatórios, Sinais e Prospecção (Grok)
   // Relatórios, no modo real, troca os números na própria tela (AlthiusApp).
   // Sem patch no arquivo gerado. Sinais e Prospecção entram nesta seção depois.
+
+  // ---- Estratégia (Grok)
+  // A tela de Estratégia, no modo real, publica em ALTHIUS_MOD.strategy (AlthiusApp).
+  // Sem patch no arquivo gerado.
 ];
