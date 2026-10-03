@@ -28,6 +28,20 @@ Nomes: "Hermes" no documento de regras é o **orquestrador com as 4 checagens** 
    - os dados das chamadas passam pelos servidores deles;
    - a licença aparece de forma divergente (repositório: Apache 2.0 com termos extras; site: AGPL), o que pede leitura jurídica antes de embutir num produto vendido.
    Pode ser usado como laboratório para testar provedores novos antes de escrevermos o conector.
+7. **O Hermes Agent aprende com cada workspace, sem misturar workspaces.** Três camadas, como no Blueprint ("Memória") e no documento de papéis ("Aprendizado não é tela própria"):
+
+   | Camada | O que guarda | Onde fica | Quem vê e corrige |
+   |---|---|---|---|
+   | Memória do agente | Preferências operacionais que o próprio agente anota (ex.: "na Evolut, ligar antes das 10h funciona melhor") | Perfil do Hermes Agent daquele workspace (`MEMORY.md`, skills), **com cópia no nosso banco** a cada alteração | Estrategista e superadmin: ver, corrigir e excluir |
+   | Memória do workspace | Fatos aprovados sobre o cliente, a oferta e o processo, compartilhados pelos 4 agentes daquele cliente | Nosso banco, lida pelo MCP da Althius (ferramenta de consulta) | Estrategista aprova; C-level lê |
+   | Mudança de comportamento oficial | Playbook e skills publicados | `agent_playbooks` / `agent_skills`; o agente só **sugere** (`learning_entries` com status sugerida → aplicada/descartada, com a evidência, ex.: "aprendido com 140 ligações") | Estrategista aplica ou descarta |
+
+   Garantias de não misturar:
+   - Nenhuma memória global com dado de cliente. Perfis, quadros e contêineres são por workspace; o token do MCP só lê o workspace dele.
+   - **Teste de vazamento obrigatório (canário):** grava-se um fato único e inventado na memória do workspace A e pergunta-se aos agentes do workspace B; o fato nunca pode aparecer. Roda a cada mudança no Hermes Agent ou no MCP.
+   - Aprendizado entre clientes só por curadoria da Althius, com material anonimizado e autorizado, entrando nos **modelos globais** (templates sem dado privado). Nunca automático.
+   - Excluir o workspace (ou pedido do titular, LGPD) apaga também o perfil, a memória e a cópia no banco.
+   - Nem toda mensagem vira memória: o agente anota fatos operacionais, não conversas inteiras nem dados pessoais de leads.
 
 ## Consequências
 - Primeira fatia (pequena):
