@@ -53,7 +53,10 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
   afterAll(async () => {
     // Desfaz só o que este teste criou: tokens de agentes reais no mesmo banco continuam valendo.
     const hash = (t: string) => createHash('sha256').update(t).digest('hex');
-    if (aprovacoesCriadas.length) await admin.from('approvals').delete().in('id', aprovacoesCriadas);
+    if (aprovacoesCriadas.length) {
+      await admin.from('notifications').delete().in('entity_id', aprovacoesCriadas);
+      await admin.from('approvals').delete().in('id', aprovacoesCriadas);
+    }
     await admin.from('contacts').delete().eq('id', CANARIO_ID);
     await admin.from('contacts').update({ job_title: 'Diretora de Supply Chain' }).eq('id', ALINE_CONTATO);
     await admin.from('agent_runtime_tokens').delete().in('token_hash', [tokenEvolut, tokenGrao].filter(Boolean).map(hash));
