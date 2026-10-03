@@ -316,3 +316,37 @@ INSERT INTO public.messages (workspace_id, conversation_id, direction, external_
   ('a0000000-0000-0000-0000-000000000001', 'c5000000-0000-0000-0000-000000000004', 'in', 'demo-msg-4', 'O responsável está de férias até dia 20.', 'automation', now() - interval '3 days 1 hour'),
   ('a0000000-0000-0000-0000-000000000001', 'c5000000-0000-0000-0000-000000000005', 'in', 'demo-msg-5', 'Recebi. Me liga amanhã depois das 10h?', 'member', now() - interval '2 hours')
 ON CONFLICT (external_message_id) DO NOTHING;
+
+-- ---- Canais de exemplo da Evolut (Claude), do protótipo v18 (#geral é criado sozinho com o workspace)
+INSERT INTO public.chat_channels (id, workspace_id, slug, name, description, created_by) VALUES
+  ('c4000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'sinais-de-compra', 'sinais-de-compra', 'Contas com sinais de compra desta semana', 'd0000000-0000-0000-0000-000000000002'),
+  ('c4000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'prospeccao', 'prospeccao', 'Listas, qualificação e enriquecimento', 'd0000000-0000-0000-0000-000000000002'),
+  ('c4000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'cadencia-t1-t7', 'cadencia-t1-t7', 'Execução da cadência de importadores', 'd0000000-0000-0000-0000-000000000002')
+ON CONFLICT (id) DO NOTHING;
+INSERT INTO public.chat_channel_members (workspace_id, channel_id, member_id) VALUES
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000002'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000004'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000005'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000006'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000002'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000004'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000006'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000002'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000004'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000003', 'd0000000-0000-0000-0000-000000000005')
+ON CONFLICT DO NOTHING;
+INSERT INTO public.chat_channel_agents (workspace_id, channel_id, agent_id) VALUES
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000001', 'comercial'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000002', 'comercial'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000002', 'copy'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000003', 'copy')
+ON CONFLICT DO NOTHING;
+INSERT INTO public.chat_messages (workspace_id, channel_id, sender_type, sender_member_id, sender_agent_id, content, created_at) VALUES
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000001', 'agent', NULL, 'comercial', 'Encontrei 6 contas novas dentro do ICP desde ontem. A de maior fit é a Serra Azul Têxtil.', now() - interval '3 hours'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000001', 'member', 'd0000000-0000-0000-0000-000000000005', NULL, '@Agente Comercial mapeia quem decide importação na Serra Azul?', now() - interval '2 hours 50 minutes'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000001', 'agent', NULL, 'comercial', 'Decisora: Aline Xavier, Diretora de Supply Chain. Campeão provável: Jonas Ribeiro, Comprador Sênior. Fontes no dossiê.', now() - interval '2 hours 49 minutes'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000001', 'member', 'd0000000-0000-0000-0000-000000000004', NULL, 'Perfeito. Sobe para a cadência T1 hoje à tarde.', now() - interval '2 hours 30 minutes'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000002', 'agent', NULL, 'comercial', 'Lista do Sudeste pronta: 512 contas com fit acima de 70. Aguardando aprovação para entrar na cadência.', now() - interval '2 hours'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000003', 'agent', NULL, 'copy', 'Rascunhei 3 e-mails T1 para a Serra Azul. Enviei para aprovação da Aline.', now() - interval '4 hours'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000003', 'member', 'd0000000-0000-0000-0000-000000000004', NULL, 'Jonas respondeu pedindo proposta. Vou ligar amanhã cedo.', now() - interval '3 hours 20 minutes'),
+  ('a0000000-0000-0000-0000-000000000001', (SELECT id FROM public.chat_channels WHERE workspace_id = 'a0000000-0000-0000-0000-000000000001' AND slug = 'geral'), 'member', 'd0000000-0000-0000-0000-000000000002', NULL, 'Semana de foco em importadores do Sudeste. Qualquer dúvida sobre o ICP, me chamem aqui.', now() - interval '1 day');

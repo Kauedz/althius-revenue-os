@@ -703,8 +703,8 @@ export class AlthiusLogic extends React.Component {
           agentes: st.agents.map(x => ({ nome: x.nome, sigla: x.sigla, ativo: (cm.agentes || []).indexOf(x.id) >= 0 ? 'true' : 'false', alternar: tog('agentes', x.id) })),
           temErro: !!cm.erro, erro: cm.erro || '', podeArquivar: ed && !geral, salvarLabel: ed ? 'Salvar' : 'Criar canal',
           fechar: () => this.setState({ canalModal: null }),
-          arquivar: () => this.confirmar('Arquivar #' + cm.id + '?', 'O canal some do menu. As mensagens ficam guardadas e um admin pode restaurar.', 'Arquivar', () => { this.setState({ canais: this.canais().filter(c => c.id !== cm.id), canalModal: null }); this.ir(appPath('channels/geral')); }),
-          salvar: () => { const x = this.state.canalModal;
+          arquivar: () => this.confirmar('Arquivar #' + cm.id + '?', 'O canal some do menu. As mensagens ficam guardadas e um admin pode restaurar.', 'Arquivar', () => { if (this.modoDemo === false) return this.arquivarCanalReal(cm.id); this.setState({ canais: this.canais().filter(c => c.id !== cm.id), canalModal: null }); this.ir(appPath('channels/geral')); }),
+          salvar: () => { const x = this.state.canalModal; if (this.modoDemo === false) return this.salvarCanalReal(x, ed);
             if (ed) { this.setState({ canalModal: null, canais: this.canais().map(c => c.id === x.id ? Object.assign({}, c, { pessoas: c.geral ? c.pessoas : x.pessoas, agentes: x.agentes }) : c) }); return; }
             const id = this.slug(x.nome); if (!id) { setM({ erro: 'Dê um nome ao canal.' }); return; }
             if (this.canais().some(c => c.id === id)) { setM({ erro: 'Já existe um canal #' + id + '.' }); return; }
@@ -713,7 +713,7 @@ export class AlthiusLogic extends React.Component {
               canalMsgs: Object.assign({}, this.state.canalMsgs, { [id]: [{ sigla: U.sigla, autor: U.usuario, agente: false, hora: this.hora(), texto: 'Criei o canal #' + id + '.' }] }) });
             this.ir(appPath('channels/' + id)); } }; }
     }
-    const msgsCanal = (st.canalMsgs[canal.id] || MSGS[canal.id] || []);
+    const msgsCanal = (st.canalMsgs[canal.id] || (this.modoDemo === false ? null : MSGS[canal.id]) || []);
     v.canalNome = canal.id;
     const reac = st.reacoes || {};
     const RAPIDAS = ['👍', '❤️', '😆', '😮'], TODAS = ['👍', '❤️', '😆', '😮', '😢', '🙏', '🔥', '👏', '🎯', '✅', '👀', '🚀'];
@@ -724,7 +724,7 @@ export class AlthiusLogic extends React.Component {
       const chaveM = canal.id + ':' + i, cabeca = i === 0 || msgsCanal[i - 1].autor !== m.autor || !!m.resp, fim = i === msgsCanal.length - 1 || msgsCanal[i + 1].autor !== m.autor, meu = m.autor === U.usuario;
       const pickerAberto = st.picker === chaveM, editando = st.editMsg === chaveM, hov = st.hoverMsg === chaveM || pickerAberto;
       const base = Object.assign({}, m.reacoes || {}, reacs[chaveM] || {});   // { emoji: { n, minha, quem } }
-      const reagir = emoji => () => {
+      const reagir = emoji => () => { if (this.modoDemo === false) return this.reagirReal(canal, m, emoji);
         const atual = Object.assign({}, (this.state.reac || {})[chaveM] || m.reacoes || {});
         const r = Object.assign({ n: 0, minha: false, quem: [] }, atual[emoji]);
         const quem = r.minha ? r.quem.filter(q => q !== U.usuario) : r.quem.concat([U.usuario]);
@@ -759,7 +759,7 @@ export class AlthiusLogic extends React.Component {
     v.salvarEdit = () => {
       const t = (this.state.editTexto || '').trim(); if (idxEdit < 0) return;
       if (!t) { this.setState({ editMsg: null }); return; }
-      const nova = msgsCanal.map((x, j) => j === idxEdit ? Object.assign({}, x, { texto: t, editada: x.editada || t !== x.texto }) : x);
+      if (this.modoDemo === false) { this.setState({ editMsg: null, editTexto: '' }); return this.editarMensagemReal(canal, msgsCanal[idxEdit], t); } const nova = msgsCanal.map((x, j) => j === idxEdit ? Object.assign({}, x, { texto: t, editada: x.editada || t !== x.texto }) : x);
       this.setState({ editMsg: null, editTexto: '' }); salvarLista(nova);
     };
     v.teclaEdit = ev => { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); v.salvarEdit(); } else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); v.cancelarEdit(); } };
@@ -767,7 +767,7 @@ export class AlthiusLogic extends React.Component {
     v.refCanalInput = el => { this._canalIn = el; };
     v.digitando = !!st.digitando && st.digitando.canal === canal.id; v.digitandoNome = st.digitando ? st.digitando.nome : ''; v.digitandoSigla = st.digitando ? st.digitando.sigla || 'CO' : 'CO';
     const enviarCanal = () => {
-      const t = (this.state.canalTexto || '').trim(); if (!t) return;
+      const t = (this.state.canalTexto || '').trim(); if (!t) return; if (this.modoDemo === false) return this.enviarNoCanalReal(canal, t);
       const agora = new Date(); const hora = String(agora.getHours()).padStart(2, '0') + ':' + String(agora.getMinutes()).padStart(2, '0');
       const lista = msgsCanal.concat([{ sigla: U.sigla, autor: U.usuario, agente: false, hora, texto: t, resp: this.state.respondendo ? { autor: this.state.respondendo, texto: this.state.respondendoTexto || '' } : null }]);
       this.setState({ canalTexto: '', respondendo: null, canalMsgs: Object.assign({}, this.state.canalMsgs, { [canal.id]: lista }) });

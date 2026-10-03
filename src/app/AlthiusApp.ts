@@ -26,6 +26,7 @@ import { alterarSenha, lerMinhaConta, removerFoto, sairDosOutrosDispositivos, sa
 import { decidirAprendizado, lerPlaybooks, listarSugestoes, publicarPlaybook } from './servicos/aprendizados';
 import { excluirContatoDoCrm, listarCaixa, marcarLida, minhasConexoes, pedirSugestaoDeResposta, type CaixaTela, type ConexoesTela } from './servicos/caixa';
 import * as admin from './servicos/admin';
+import { arquivarCanal, criarCanal, editarMensagem, enviarNoCanal, lerMensagens, listarCanais, mudarCanal, reagir, type CanalTela } from './servicos/canais';
 import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla } from './servicos/notificacoes';
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
@@ -853,7 +854,8 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (!entrou || !this.state.pronto) return;
     if (rota.page === 'inbox') void this.carregarCaixa();
     if (String(rota.page || '').startsWith('admin/')) void this.carregarAdmin(rota.page);
-    if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) void this.carregarConexoes();
+    if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) { void this.carregarConexoes(); void this.carregarCanais(); }
+    if (rota.page === 'channels' && (rota.id !== antes.id || rota.page !== antes.page || rota.ws !== antes.ws || (this.state.pronto && !prev.pronto))) void this.carregarMensagens();
   }
 
   /** No modo real, as conexões pessoais são as da pessoa no banco (o protótipo trazia as da Camila). */
@@ -1049,5 +1051,107 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       if (!r.ok) return this.confirmar('Chaves não revogadas', r.mensagem, 'Entendi', () => {});
       this.avisar('mod', r.revogadas + ' chaves revogadas.');
     }
+  }
+
+  // ---- Canais (Claude): chat do time no banco; agente chamado vira pedido (sem resposta inventada)
+
+  /** No modo real os canais vêm do banco. Enquanto carregam, só o #geral (vazio), para a tela não quebrar. */
+  canais(): CanalTela[] {
+    if (this.modoDemo !== false) return (AlthiusLogic.prototype as any).canais.call(this);
+    const reais = this.state.canaisReais as CanalTela[] | undefined;
+    return reais?.length ? reais : [{ id: 'geral', desc: 'Avisos do time', novas: 0, geral: true, pessoas: [], agentes: [], criador: '' }];
+  }
+
+  private cargaCanais = 0;
+
+  async carregarCanais() {
+    const ws = this.workspaceAtual();
+    const carga = ++this.cargaCanais;
+    if (!ws) return;
+    try {
+      const canaisReais = await listarCanais(this.props.supabase, ws.uuid);
+      if (this.vivo && carga === this.cargaCanais) this.setState({ canaisReais });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaCanais) this.avisarFalha('Não foi possível carregar os canais', falha);
+    }
+  }
+
+  private cargaMensagens = 0;
+
+  async carregarMensagens(slug?: string) {
+    const ws = this.workspaceAtual();
+    const canal = slug || ((this.state.rota || {}).id as string) || this.canais()[0]?.id;
+    const carga = ++this.cargaMensagens;
+    if (!ws?.membroId || !canal) return;
+    try {
+      const msgs = await lerMensagens(this.props.supabase, ws.uuid, canal, ws.membroId);
+      if (this.vivo && carga === this.cargaMensagens) this.setState({ canalMsgs: Object.assign({}, this.state.canalMsgs, { [canal]: msgs }) });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaMensagens) this.avisarFalha('Não foi possível carregar as mensagens', falha);
+    }
+  }
+
+  /** Mesma regra do protótipo para saber qual agente foi chamado: o nome citado com @, ou o primeiro do canal. */
+  async enviarNoCanalReal(canal: CanalTela, texto: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const nomes: Record<string, string> = { comercial: 'Agente Comercial', marketing: 'Agente de Marketing', copy: 'Agente de Copy', revops: 'Agente de RevOps' };
+    const citado = /@/.test(texto) ? (canal.agentes.find(a => texto.includes('@' + nomes[a])) || canal.agentes[0] || null) : null;
+    const resposta = this.state.respondendo ? { autor: this.state.respondendo, texto: this.state.respondendoTexto || '' } : null;
+    this.setState({ canalTexto: '', respondendo: null });
+    const r = await enviarNoCanal(this.props.supabase, ws.uuid, ws.membroId, canal.id, texto, resposta, citado);
+    if (!this.vivo) return;
+    if (!r.ok) {
+      this.setState({ canalTexto: texto });
+      return this.confirmar('Mensagem não enviada', r.mensagem, 'Entendi', () => {});
+    }
+    await this.carregarMensagens(canal.id);
+  }
+
+  private idsDosMembros(nomes: string[]): string[] {
+    const ws = this.workspaceAtual();
+    const lista = (this.membros((this.state.rota || {}).ws) || []) as Array<{ id: string; nome: string }>;
+    return nomes.map(n => lista.find(m => m.nome === n)?.id).filter((id): id is string => !!id && id !== ws?.membroId);
+  }
+
+  async salvarCanalReal(x: { id?: string; nome: string; desc?: string; pessoas?: string[]; agentes?: string[] }, editando: boolean) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const pessoas = this.idsDosMembros(x.pessoas || []);
+    const r = editando
+      ? await mudarCanal(this.props.supabase, ws.uuid, ws.membroId, x.id!, pessoas.concat([ws.membroId]), x.agentes || [])
+      : await criarCanal(this.props.supabase, ws.uuid, ws.membroId, { nome: x.nome, desc: x.desc || '', pessoas, agentes: x.agentes || [] });
+    if (!this.vivo) return;
+    if (!r.ok) return this.setState({ canalModal: Object.assign({}, this.state.canalModal, { erro: r.mensagem }) });
+    this.setState({ canalModal: null });
+    await this.carregarCanais();
+    if (!editando && 'slug' in r) this.ir('app/' + (this.state.rota || {}).ws + '/channels/' + r.slug);
+  }
+
+  async arquivarCanalReal(slug: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await arquivarCanal(this.props.supabase, ws.uuid, ws.membroId, slug);
+    if (!r.ok) return this.confirmar('Canal não arquivado', r.mensagem, 'Entendi', () => {});
+    this.setState({ canalModal: null });
+    await this.carregarCanais();
+    this.ir('app/' + (this.state.rota || {}).ws + '/channels/geral');
+  }
+
+  async editarMensagemReal(canal: CanalTela, mensagem: { id: string }, texto: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId || !mensagem?.id) return;
+    const r = await editarMensagem(this.props.supabase, ws.uuid, ws.membroId, mensagem.id, texto);
+    if (!r.ok) return this.confirmar('Mensagem não editada', r.mensagem, 'Entendi', () => {});
+    await this.carregarMensagens(canal.id);
+  }
+
+  async reagirReal(canal: CanalTela, mensagem: { id: string }, emoji: string) {
+    const ws = this.workspaceAtual();
+    this.setState({ picker: null });
+    if (!ws?.membroId || !mensagem?.id) return;
+    const r = await reagir(this.props.supabase, ws.uuid, ws.membroId, mensagem.id, emoji);
+    if (!r.ok) return this.confirmar('Reação não registrada', r.mensagem, 'Entendi', () => {});
+    await this.carregarMensagens(canal.id);
   }
 }

@@ -246,6 +246,44 @@ export const PATCHES = [
     por: "(page !== 'inbox' || this.modoDemo === false || !IXK[l.canal] || !!ixOn[IXK[l.canal]])"
   },
 
+  // ---- Canais (Claude): canais e mensagens no banco; agente chamado vira pedido, sem resposta inventada
+  {
+    regra: 'canais: no modo real as mensagens vêm do banco (sem as de exemplo do protótipo)',
+    arquivo: 'logic.generated.js',
+    trocar: 'const msgsCanal = (st.canalMsgs[canal.id] || MSGS[canal.id] || []);',
+    por: 'const msgsCanal = (st.canalMsgs[canal.id] || (this.modoDemo === false ? null : MSGS[canal.id]) || []);'
+  },
+  {
+    regra: 'canais: enviar grava no banco e chamar agente vira pedido pela política Hermes',
+    arquivo: 'logic.generated.js',
+    trocar: "const t = (this.state.canalTexto || '').trim(); if (!t) return;",
+    por: "const t = (this.state.canalTexto || '').trim(); if (!t) return; if (this.modoDemo === false) return this.enviarNoCanalReal(canal, t);"
+  },
+  {
+    regra: 'canais: criar e mudar canal gravam no banco',
+    arquivo: 'logic.generated.js',
+    trocar: 'salvar: () => { const x = this.state.canalModal;',
+    por: 'salvar: () => { const x = this.state.canalModal; if (this.modoDemo === false) return this.salvarCanalReal(x, ed);'
+  },
+  {
+    regra: 'canais: arquivar canal grava no banco (mensagens ficam guardadas)',
+    arquivo: 'logic.generated.js',
+    trocar: "'Arquivar', () => { this.setState({ canais: this.canais().filter(c => c.id !== cm.id), canalModal: null });",
+    por: "'Arquivar', () => { if (this.modoDemo === false) return this.arquivarCanalReal(cm.id); this.setState({ canais: this.canais().filter(c => c.id !== cm.id), canalModal: null });"
+  },
+  {
+    regra: 'canais: editar a própria mensagem grava no banco',
+    arquivo: 'logic.generated.js',
+    trocar: 'const nova = msgsCanal.map((x, j) => j === idxEdit',
+    por: "if (this.modoDemo === false) { this.setState({ editMsg: null, editTexto: '' }); return this.editarMensagemReal(canal, msgsCanal[idxEdit], t); } const nova = msgsCanal.map((x, j) => j === idxEdit"
+  },
+  {
+    regra: 'canais: reagir grava no banco',
+    arquivo: 'logic.generated.js',
+    trocar: 'const reagir = emoji => () => {',
+    por: 'const reagir = emoji => () => { if (this.modoDemo === false) return this.reagirReal(canal, m, emoji);'
+  },
+
   // ---- Playbook do agente (Claude): sugestões dos agentes e publicação gravam no banco (ADR 0024)
   {
     regra: 'playbook: aplicar sugestão registra a decisão no banco (o texto entra no rascunho)',
