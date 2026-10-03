@@ -10,6 +10,7 @@ import { precoEmReais } from './precos';
 import { decidirAprovacao, listarAprovacoes, type AprovacaoTela, type DecisaoTela } from './servicos/aprovacoes';
 import { listarContas, type ContaTela } from './servicos/contas';
 import { obterResumoHome, type HomeResumoTela } from './servicos/inicio';
+import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla } from './servicos/notificacoes';
 
 export interface AlthiusAppProps {
   dados: DadosAlthius;
@@ -41,6 +42,9 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     };
     this.props.dados.homeService = {
       summary: () => this.carregarHome()
+    };
+    this.props.dados.notificationService = {
+      list: () => this.carregarNotificacoes()
     };
     super.componentDidMount?.();
   }
@@ -92,10 +96,10 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarContas([]);
     this.setState({ aprov: [], execs: [], contas: [], decisoes: {}, apSel: null, falhaCarga: false, carregandoRota: true });
     try {
-      const [aprov, execs, creditos, contas, home] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos(), this.carregarContas(), this.carregarHome()]);
+      const [aprov, execs, creditos, contas, home, notifs] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos(), this.carregarContas(), this.carregarHome(), this.carregarNotificacoes()]);
       if (this.vivo && carga === this.cargaWorkspace) {
         this.publicarContas(contas);
-        this.setState({ aprov, execs, contas, home, ...creditos, carregandoRota: false });
+        this.setState({ aprov, execs, contas, home, notifs, ...creditos, carregandoRota: false });
         return carga;
       }
     } catch (falha) {
@@ -140,7 +144,31 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   renderVals() {
     // O template lê modoDemo (regra de produto) para esconder a troca de papel.
-    return { ...super.renderVals(), modoDemo: this.modoDemo, sair: () => this.props.aoSair(), recarregar: () => this.recarregarWorkspace() };
+    const base = super.renderVals();
+    const stNotifs = (this.state.notifs as any[]) || [];
+    const naoLidas = stNotifs.filter(n => (n[4] !== undefined ? !n[4] : !this.state.notifLidas)).length;
+    const temNaoLidas = !this.state.notifLidas && naoLidas > 0;
+    const notifResumo = !temNaoLidas ? 'Tudo lido' : (naoLidas === 1 ? '1 não lida' : `${naoLidas} não lidas`);
+
+    const notifs = (base.notifs || []).map((item: any, idx: number) => {
+      const original = stNotifs[idx];
+      const lida = original && original[4] !== undefined ? original[4] : this.state.notifLidas;
+      return {
+        ...item,
+        ponto: !lida && !this.state.notifLidas ? 'var(--signal)' : 'transparent'
+      };
+    });
+
+    return {
+      ...base,
+      modoDemo: this.modoDemo,
+      sair: () => this.props.aoSair(),
+      recarregar: () => this.recarregarWorkspace(),
+      temNaoLidas,
+      notifResumo,
+      notifs,
+      marcarLidas: () => this.marcarNotificacoesLidas()
+    };
   }
 
 
@@ -293,5 +321,33 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       return Promise.resolve(this.props.dados.HOME || { kpis: [], operacao: [], acoes: [], timeline: [] });
     }
     return obterResumoHome(this.props.supabase, ws.uuid, ws.membroId);
+  }
+
+  carregarNotificacoes(): Promise<NotificacaoTupla[]> {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) {
+      return Promise.resolve((this.props.dados.NOTIFICATIONS || []) as NotificacaoTupla[]);
+    }
+    return listarNotificacoes(this.props.supabase, ws.uuid, ws.membroId);
+  }
+
+  async marcarNotificacoesLidas(notificacaoId?: string): Promise<void> {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) {
+      this.setState({ notifLidas: true });
+      return;
+    }
+    try {
+      await marcarNotificacoesComoLidas(this.props.supabase, ws.membroId, notificacaoId);
+      const notifsAtualizadas = ((this.state.notifs as any[]) || []).map(n => {
+        if (!notificacaoId || n[3] === notificacaoId) {
+          return [n[0], n[1], n[2], n[3], true];
+        }
+        return n;
+      });
+      this.setState({ notifs: notifsAtualizadas, notifLidas: true });
+    } catch (falha) {
+      this.avisarFalha('Não foi possível marcar as notificações como lidas.', falha);
+    }
   }
 }

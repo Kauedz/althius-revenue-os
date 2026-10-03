@@ -1,3 +1,4 @@
+// Seam: <AlthiusApp /> (Tela de Início)
 ﻿// Seam: a tela de Início no modo real, de ponta a ponta com o Supabase local.
 import { describe, expect, it } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';

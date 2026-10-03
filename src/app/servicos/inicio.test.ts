@@ -1,3 +1,4 @@
+// Seam: src/app/servicos/inicio.ts (obterResumoHome)
 ﻿// Testes do serviço de Início (Home): dados reais vindos do banco via RPC get_home_summary
 import { describe, expect, it } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';

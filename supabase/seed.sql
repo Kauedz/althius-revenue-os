@@ -210,3 +210,12 @@ INSERT INTO public.contact_channels (workspace_id, contact_id, type, value, valu
   ('a0000000-0000-0000-0000-000000000001', 'cb000000-0000-0000-0000-000000000015', 'phone', '(11) 90000-0015', '11900000015', 1)
 ON CONFLICT (workspace_id, type, value_normalized) DO NOTHING;
 
+-- ==============================================================================
+-- Antigravity: Notificações iniciais de demonstração para testes e telas
+-- ==============================================================================
+INSERT INTO public.notifications (id, workspace_id, recipient_member_id, type, title, body, read_at, created_at) VALUES
+  ('fa000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000003', 'approval', 'Aprovação pendente: E-mails T1', 'Campanha de prospecção aguardando autorização C-level.', NULL, now() - interval '20 minutes'),
+  ('fa000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000003', 'system', 'Créditos consumidos', '15 créditos debitados em execuções de prospecção.', NULL, now() - interval '2 hours'),
+  ('fa000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000004', 'lead', 'Novo lead atribuído', 'Conta Serra Azul atribuída ao seu pipeline.', NULL, now() - interval '1 hour'),
+  ('fa000000-0000-0000-0000-000000000004', 'b0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000009', 'welcome', 'Boas-vindas ao Althius', 'Workspace Grão Norte configurado com sucesso.', NULL, now() - interval '1 day')
+ON CONFLICT (id) DO NOTHING;
