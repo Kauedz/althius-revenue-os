@@ -1,6 +1,8 @@
-// Seam: Integracoes no modo real. A lista deixa o prototipo e o botao de conectar some.
+// Seam: Integracoes no modo real. A lista vem do banco, o erro oferece Tentar de novo e trocar de workspace nao mistura dados.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { configure } from '@testing-library/react';
+configure({ asyncUtilTimeout: 4000 });
 import '../v18/data.js';
 import '../v18/module.js';
 import { AlthiusApp } from './AlthiusApp';
@@ -55,4 +57,71 @@ describe('Integracoes na tela', () => {
     expect(screen.queryByText('Escolha a ferramenta. A conexão abre em uma janela segura.')).not.toBeInTheDocument();
     expect(screen.queryByText('Teste concluído sem erros.')).not.toBeInTheDocument();
   });
+
+function contextoDois(papel: PapelBanco): ContextoReal {
+  const base = contexto(papel);
+  return {
+    ...base,
+    workspaces: [
+      base.workspaces[0],
+      { uuid: 'id-beta', slug: 'beta', nome: 'Beta Industrial', sigla: 'BE', momento: 'Preparação', logoUrl: null, papel, membroId: 'm-beta' }
+    ],
+    membros: {
+      alfa: base.membros.alfa,
+      beta: [{ id: 'm-beta', userId: 'u1', nome: 'Pessoa Teste', email: 'pessoa@cliente.com.br', papel, status: 'active', cargo: null, entrouEm: '2026-09-01' }]
+    }
+  };
+}
+
+function abrirDois(papel: PapelBanco, pagina: string) {
+  const dados = montarDados(contextoDois(papel), demo.data, demo.caps);
+  window.ALTHIUS_DATA = dados;
+  window.ALTHIUS_CAPS = dados.CAPS;
+  window.location.hash = '#/app/alfa/' + pagina;
+  render(<AlthiusApp dados={dados} supabase={clienteVazio()} aoSair={() => {}} />);
+}
+
+async function irPara(hash: string) {
+  await act(async () => { window.location.hash = hash; });
+}
+
+  it('erro de leitura avisa com clareza e Tentar de novo traz o banco', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    let falhar = true;
+    vi.spyOn(integracoes, 'listarIntegracoes').mockImplementation(async () => {
+      if (falhar) throw new Error('Sem conexão para carregar as integrações.');
+      return tela;
+    });
+    // O jsdom avisa a troca de endereço um instante depois. Sem esperar, esse aviso apaga o diálogo.
+    await act(async () => {
+      window.location.hash = '#/app/alfa/integrations';
+      await new Promise(r => setTimeout(r, 0));
+    });
+    abrir('estrategista');
+    const dialogo = await screen.findByRole('alertdialog', { name: 'Não foi possível carregar as integrações' });
+    expect(dialogo).toHaveTextContent('Sem conexão');
+    expect(screen.queryByText('HubSpot')).not.toBeInTheDocument();
+    expect(screen.queryByText('Apify')).not.toBeInTheDocument();
+    expect(screen.queryByText('Conectores')).not.toBeInTheDocument();
+    falhar = false;
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Tentar de novo' }));
+    expect(await screen.findByText('pessoa@cliente.com.br')).toBeInTheDocument();
+    expect(screen.queryByText('Google Sheets')).not.toBeInTheDocument();
+    expect(screen.queryByText('Apollo')).not.toBeInTheDocument();
+  });
+
+  it('trocar de workspace nao deixa a conta do workspace anterior', async () => {
+    vi.spyOn(integracoes, 'listarIntegracoes').mockImplementation(async (_c, id) => ({
+      linhas: [{ ...tela.linhas[0], id: 'n-' + id, fornecedor: id === 'id-alfa' ? 'alfa@cliente.com.br' : 'beta@cliente.com.br' }]
+    }));
+    abrirDois('estrategista', 'integrations');
+    expect(await screen.findByText('alfa@cliente.com.br')).toBeInTheDocument();
+    await irPara('#/app/beta/integrations');
+    expect(await screen.findByText('beta@cliente.com.br')).toBeInTheDocument();
+    expect(screen.queryByText('alfa@cliente.com.br')).not.toBeInTheDocument();
+    expect(screen.queryByText('HubSpot')).not.toBeInTheDocument();
+    expect(screen.queryByText('Conectores')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Conectar ferramenta' })).not.toBeInTheDocument();
+  });
+
 });

@@ -562,6 +562,13 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.confirmar(titulo, falha instanceof Error ? falha.message : 'Verifique a conexão e tente de novo em instantes.', 'Entendi', () => {});
   }
 
+  /** Erro de carga destas telas: a mensagem fica visível e o botão busca de novo no banco. */
+  private falhaComNovaTentativa(titulo: string, falha: unknown, repetir: () => void) {
+    console.error(falha);
+    const texto = falha instanceof Error ? falha.message : 'Verifique a conexão e tente de novo em instantes.';
+    this.confirmar(titulo, texto, 'Tentar de novo', repetir);
+  }
+
   // ---- Início, Notificações e Contas (Antigravity)
   async criarNovaConta(dados: NovaContaInput): Promise<{ id: string; nome: string; dominio: string }> {
     const ws = this.workspaceAtual();
@@ -1236,7 +1243,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       this.publicarEstrategia(tela);
       this.setState({ estrategiaPodeEditar: tela.podeEditar, estrategiaVersao: carga });
     } catch (falha) {
-      if (this.vivo && carga === this.cargaEstrategia) this.avisarFalha('Não foi possível carregar a estratégia', falha);
+      if (this.vivo && carga === this.cargaEstrategia) this.falhaComNovaTentativa('Não foi possível carregar a estratégia', falha, () => { void this.carregarEstrategia(); });
     }
   }
 
@@ -1333,7 +1340,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       this.publicarCampanhas(tela);
       this.setState({ campanhasPodeEditar: tela.podeEditar, campanhasVersao: carga });
     } catch (falha) {
-      if (this.vivo && carga === this.cargaCampanhas) this.avisarFalha('Não foi possível carregar as campanhas', falha);
+      if (this.vivo && carga === this.cargaCampanhas) this.falhaComNovaTentativa('Não foi possível carregar as campanhas', falha, () => { void this.carregarCampanhas(); });
     }
   }
 
@@ -1431,7 +1438,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       this.publicarConteudos(tela);
       this.setState({ conteudosPodeEditar: tela.podeEditar, conteudosVersao: carga });
     } catch (falha) {
-      if (this.vivo && carga === this.cargaConteudos) this.avisarFalha('Não foi possível carregar os conteúdos', falha);
+      if (this.vivo && carga === this.cargaConteudos) this.falhaComNovaTentativa('Não foi possível carregar os conteúdos', falha, () => { void this.carregarConteudos(); });
     }
   }
 
@@ -1534,7 +1541,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       this.publicarIntegracoes(tela);
       this.setState({ integracoesVersao: carga });
     } catch (falha) {
-      if (this.vivo && carga === this.cargaIntegracoes) this.avisarFalha('Não foi possível carregar as integrações', falha);
+      if (this.vivo && carga === this.cargaIntegracoes) this.falhaComNovaTentativa('Não foi possível carregar as integrações', falha, () => { void this.carregarIntegracoes(); });
     }
   }
 }

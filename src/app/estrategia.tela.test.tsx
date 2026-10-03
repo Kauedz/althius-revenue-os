@@ -1,6 +1,8 @@
-// Seam: Estrategia no modo real. A lista deixa de ser a do prototipo assim que a pagina abre.
+// Seam: Estrategia no modo real. A lista vem do banco, o erro oferece Tentar de novo e trocar de workspace nao mistura dados.
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { configure } from '@testing-library/react';
+configure({ asyncUtilTimeout: 4000 });
 import '../v18/data.js';
 import '../v18/module.js';
 import { AlthiusApp } from './AlthiusApp';
@@ -69,4 +71,70 @@ describe('Estrategia na tela', () => {
     expect(await screen.findByText('Seu papel só lê a estratégia.')).toBeInTheDocument();
     expect(screen.queryByText(/Hipótese criada como rascunho/)).not.toBeInTheDocument();
   });
+
+function contextoDois(papel: PapelBanco): ContextoReal {
+  const base = contexto(papel);
+  return {
+    ...base,
+    workspaces: [
+      base.workspaces[0],
+      { uuid: 'id-beta', slug: 'beta', nome: 'Beta Industrial', sigla: 'BE', momento: 'Preparação', logoUrl: null, papel, membroId: 'm-beta' }
+    ],
+    membros: {
+      alfa: base.membros.alfa,
+      beta: [{ id: 'm-beta', userId: 'u1', nome: 'Pessoa Teste', email: 'pessoa@cliente.com.br', papel, status: 'active', cargo: null, entrouEm: '2026-09-01' }]
+    }
+  };
+}
+
+function abrirDois(papel: PapelBanco, pagina: string) {
+  const dados = montarDados(contextoDois(papel), demo.data, demo.caps);
+  window.ALTHIUS_DATA = dados;
+  window.ALTHIUS_CAPS = dados.CAPS;
+  window.location.hash = '#/app/alfa/' + pagina;
+  render(<AlthiusApp dados={dados} supabase={clienteVazio()} aoSair={() => {}} />);
+}
+
+async function irPara(hash: string) {
+  await act(async () => { window.location.hash = hash; });
+}
+
+  it('erro de leitura avisa com clareza e Tentar de novo traz o banco', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    let falhar = true;
+    vi.spyOn(estrategia, 'listarEstrategia').mockImplementation(async () => {
+      if (falhar) throw new Error('Sem conexão para carregar a estratégia.');
+      return telaEditor;
+    });
+    // O jsdom avisa a troca de endereço um instante depois. Sem esperar, esse aviso apaga o diálogo.
+    await act(async () => {
+      window.location.hash = '#/app/alfa/strategy';
+      await new Promise(r => setTimeout(r, 0));
+    });
+    abrir('estrategista');
+    const dialogo = await screen.findByRole('alertdialog', { name: 'Não foi possível carregar a estratégia' });
+    expect(dialogo).toHaveTextContent('Sem conexão');
+    expect(screen.queryByText('Importadores de médio porte · Sudeste')).not.toBeInTheDocument();
+    expect(screen.queryByText('Diretor(a) de Supply Chain')).not.toBeInTheDocument();
+    falhar = false;
+    fireEvent.click(within(dialogo).getByRole('button', { name: 'Tentar de novo' }));
+    expect(await screen.findByText('ICP real da tela')).toBeInTheDocument();
+    expect(screen.queryByText('Excluir tradings concorrentes')).not.toBeInTheDocument();
+    expect(screen.queryByText('3.420')).not.toBeInTheDocument();
+  });
+
+  it('trocar de workspace nao deixa o item do workspace anterior', async () => {
+    vi.spyOn(estrategia, 'listarEstrategia').mockImplementation(async (_c, id) => ({
+      ...telaEditor,
+      linhas: [{ id: 's-' + id, nome: id === 'id-alfa' ? 'ICP da Alfa' : 'ICP da Beta', tipo: 'ICP', versao: 'v1', status: 'Rascunho', resp: 'Pessoa Teste', desc: 'Texto real' }]
+    }));
+    abrirDois('estrategista', 'strategy');
+    expect(await screen.findByText('ICP da Alfa')).toBeInTheDocument();
+    await irPara('#/app/beta/strategy');
+    expect(await screen.findByText('ICP da Beta')).toBeInTheDocument();
+    expect(screen.queryByText('ICP da Alfa')).not.toBeInTheDocument();
+    expect(screen.queryByText('Importadores de médio porte · Sudeste')).not.toBeInTheDocument();
+    expect(screen.queryByText('3.420')).not.toBeInTheDocument();
+  });
+
 });
