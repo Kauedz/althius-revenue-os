@@ -1,0 +1,107 @@
+// Seam: montarDados(contexto do banco, dados do protótipo) -> objeto no formato que o front v18 lê.
+import { describe, expect, it } from 'vitest';
+import { montarDados, type ContextoReal } from './dados';
+
+const demo = {
+  ROLES: {
+    superadmin: { id: 'superadmin', label: 'Superadmin', usuario: 'Rafael Nunes', email: 'rafael@althius.com.br', sigla: 'RN' },
+    estrategista: { id: 'estrategista', label: 'Estrategista', usuario: 'Camila Duarte', email: 'camila@althius.com.br', sigla: 'CD' },
+    cliente: { id: 'cliente', label: 'C-level', usuario: 'Aline Xavier', email: 'aline@evolut.com.br', sigla: 'AX' },
+    bdr: { id: 'bdr', label: 'BDR/SDR', usuario: 'Lucas Teixeira', email: 'lucas@evolut.com.br', sigla: 'LT' }
+  },
+  PERMS: {
+    superadmin: ['home', 'credits', 'ws.switch', 'copilot', 'admin'],
+    estrategista: ['home', 'credits', 'ws.switch', 'copilot', 'providers.view'],
+    cliente: ['home', 'credits', 'copilot', 'agents.request'],
+    bdr: ['home', 'tasks', 'copilot']
+  },
+  WORKSPACES: [{ id: 'evolut', nome: 'Evolut Trading', sigla: 'EV', momento: 'Execução' }],
+  AGENTS: [{ id: 'comercial' }]
+};
+
+const capsDemo = {
+  papeis: [['superadmin', 'Superadmin'], ['estrategista', 'Estrategista'], ['cliente', 'C-level'], ['bdr', 'BDR/SDR']],
+  grupos: [{ nome: 'Workspace', itens: [{ k: 'ws.switch', nome: 'Trocar de workspace', v: ['s', 'a', 'n', 'n'], nota: '' }] }]
+};
+
+const matriz = (chave: string, escopos: [string, string, string, string]): ContextoReal['matriz'] =>
+  (['superadmin', 'estrategista', 'clevel', 'bdr'] as const).map((papel, i) => ({
+    papel, chave, escopo: escopos[i] as ContextoReal['matriz'][number]['escopo'], area: 'Workspace', nome: 'Nome ' + chave, nota: ''
+  }));
+
+const contexto: ContextoReal = {
+  usuario: { id: 'u-aline', nome: 'Aline Xavier', email: 'aline@evolut.com.br', fotoUrl: null, superadmin: false },
+  workspaces: [
+    { uuid: 'ws-1', slug: 'evolut', nome: 'Evolut Trading', sigla: 'EV', momento: 'Execução', logoUrl: null, papel: 'clevel', membroId: 'm-aline' },
+    { uuid: 'ws-2', slug: 'grao', nome: 'Grão Norte Alimentos', sigla: 'GN', momento: 'Preparação', logoUrl: 'https://x/logo.png', papel: 'bdr', membroId: 'm-2' }
+  ],
+  matriz: [
+    ...matriz('ws.switch', ['all', 'assigned', 'none', 'none']),
+    ...matriz('credits.buy', ['all', 'request', 'all', 'none']),
+    ...matriz('accounts.edit', ['all', 'all', 'all', 'own'])
+  ],
+  membros: {
+    evolut: [
+      { id: 'm-aline', userId: 'u-aline', nome: 'Aline Xavier', email: 'aline@evolut.com.br', papel: 'clevel', status: 'active', cargo: 'Diretora', entrouEm: '2026-09-01' },
+      { id: 'm-camila', userId: 'u-camila', nome: 'Camila Duarte', email: 'camila@althius.com.br', papel: 'estrategista', status: 'active', cargo: null, entrouEm: '2026-09-02' },
+      { id: 'm-paula', userId: 'u-paula', nome: 'Paula Gomes', email: 'paula@evolut.com.br', papel: 'bdr', status: 'invited', cargo: null, entrouEm: '2026-09-03' }
+    ]
+  }
+};
+
+describe('montarDados', () => {
+  const D = montarDados(contexto, demo, capsDemo);
+
+  it('workspaces vêm do banco, identificados pelo slug que vai na URL', () => {
+    expect(D.WORKSPACES).toEqual([
+      { id: 'evolut', nome: 'Evolut Trading', sigla: 'EV', momento: 'Execução', logoUrl: null },
+      { id: 'grao', nome: 'Grão Norte Alimentos', sigla: 'GN', momento: 'Preparação', logoUrl: 'https://x/logo.png' }
+    ]);
+  });
+
+  it('o usuário logado aparece em todos os papéis (não há troca de papel fora da demonstração)', () => {
+    for (const papel of ['superadmin', 'estrategista', 'cliente', 'bdr']) {
+      expect(D.ROLES[papel]).toMatchObject({ usuario: 'Aline Xavier', email: 'aline@evolut.com.br', sigla: 'AX' });
+    }
+    expect(D.ROLES.cliente.label).toBe('C-level');
+  });
+
+  it('capacidade com escopo "Sim" ou "Atribuídos" libera a ação; os demais escopos não', () => {
+    expect(D.PERMS.superadmin).toContain('ws.switch');
+    expect(D.PERMS.estrategista).toContain('ws.switch');
+    expect(D.PERMS.cliente).not.toContain('ws.switch');
+    expect(D.PERMS.cliente).toContain('credits.buy');
+    expect(D.PERMS.estrategista).not.toContain('credits.buy'); // "Pede"
+    expect(D.PERMS.bdr).not.toContain('accounts.edit'); // "Só o seu" é tratado tela a tela
+  });
+
+  it('páginas e chaves só de tela continuam vindo do protótipo, sem as capacidades da matriz antiga', () => {
+    expect(D.PERMS.cliente).toEqual(expect.arrayContaining(['home', 'credits', 'copilot', 'agents.request']));
+    expect(D.PERMS.bdr).toEqual(expect.arrayContaining(['home', 'tasks', 'copilot']));
+  });
+
+  it('a matriz "O que cada papel pode fazer" é montada a partir do banco', () => {
+    const C = D.CAPS;
+    expect(C.papeis).toEqual(capsDemo.papeis);
+    const itens = C.grupos.flatMap(g => g.itens);
+    expect(itens.find(i => i.k === 'credits.buy')).toMatchObject({ nome: 'Nome credits.buy', v: ['s', 'q', 's', 'n'] });
+    expect(itens.find(i => i.k === 'accounts.edit')?.v).toEqual(['s', 's', 's', 'p']);
+  });
+
+  it('membros vêm do banco com papel do front, origem e convite pendente', () => {
+    expect(D.membros.evolut).toEqual([
+      { id: 'm-aline', nome: 'Aline Xavier', email: 'aline@evolut.com.br', papel: 'cliente', origem: 'Evolut Trading', dono: true },
+      { id: 'm-camila', nome: 'Camila Duarte', email: 'camila@althius.com.br', papel: 'estrategista', origem: 'Althius' },
+      { id: 'm-paula', nome: 'Paula Gomes', email: 'paula@evolut.com.br', papel: 'bdr', origem: 'Evolut Trading', pendente: true }
+    ]);
+  });
+
+  it('o papel por workspace vem da associação do usuário', () => {
+    expect(D.papelNoWorkspace('evolut')).toBe('cliente');
+    expect(D.papelNoWorkspace('grao')).toBe('bdr');
+  });
+
+  it('dados ainda não ligados ao banco seguem do protótipo', () => {
+    expect(D.AGENTS).toBe(demo.AGENTS);
+  });
+});

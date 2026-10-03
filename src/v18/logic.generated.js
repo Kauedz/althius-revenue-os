@@ -990,8 +990,8 @@ export class AlthiusLogic extends React.Component {
     // workspace e membros
     {
       const wsCfg = this.wsPermitidos().some(w => w.id === st.cfgWs) ? st.cfgWs : ws.id, wsObj = D.WORKSPACES.find(w => w.id === wsCfg) || ws, lista = this.membros(wsCfg);
-      const P = this.PAPEL_INFO, admin = papel === 'superadmin' || papel === 'estrategista' || papel === 'cliente';
-      const podeDar = { superadmin: ['superadmin', 'estrategista', 'cliente', 'bdr'], estrategista: ['estrategista', 'cliente', 'bdr'], cliente: ['cliente', 'bdr'], bdr: [] }[papel];
+      const papelCfg = this.papelEm ? this.papelEm(wsCfg) : papel, P = this.PAPEL_INFO, admin = papelCfg === 'superadmin' || papelCfg === 'estrategista' || papelCfg === 'cliente';
+      const podeDar = { superadmin: ['superadmin', 'estrategista', 'cliente', 'bdr'], estrategista: ['estrategista', 'cliente', 'bdr'], cliente: ['cliente', 'bdr'], bdr: [] }[papelCfg];
       const dono = lista.find(m => m.dono) || lista[0] || { nome: '—' };
       const papelConv = podeDar.indexOf(st.convPapel) >= 0 ? st.convPapel : podeDar[podeDar.length - 1];
       const salvar = l => this.salvarMembros(wsCfg, l);
@@ -1373,7 +1373,7 @@ export class AlthiusLogic extends React.Component {
     nav.forEach(s => s.itens.forEach(it => itens.push({ label: it.label, grupo: 'Ir para', run: () => { this.setState({ paleta: false }); location.hash = it.href; } })));
     agentesVis.forEach(x => itens.push({ label: x.nome, grupo: 'Agente', run: () => { this.setState({ paleta: false }); this.ir(appPath('agents/' + x.id)); } }));
     if (can('copilot')) itens.push({ label: 'Abrir copiloto', grupo: 'Ação', run: () => { this.setState({ paleta: false }); this.abrirCop(''); } });
-    Object.keys(D.ROLES).forEach(k => itens.push({ label: 'Ver como ' + D.ROLES[k].label, grupo: 'Demonstração', run: () => this.setState({ paleta: false, role: k, agTab: 'todos', apSel: null }) }));
+    if (this.modoDemo !== false) Object.keys(D.ROLES).forEach(k => itens.push({ label: 'Ver como ' + D.ROLES[k].label, grupo: 'Demonstração', run: () => this.setState({ paleta: false, role: k, agTab: 'todos', apSel: null }) }));
     const lista = itens.filter(it => !q2 || it.label.toLowerCase().indexOf(q2) >= 0).slice(0, 12);
     this._lista = lista;
     const idx = Math.min(st.paletaIdx, Math.max(lista.length - 1, 0));

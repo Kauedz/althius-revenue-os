@@ -642,7 +642,7 @@ export function renderTemplate($v: Record<string, any>) {
                     {"\n              "}
                   </div>
                   {"\n              "}
-                  <div style={{"padding":"10px 8px","borderBottom":"1px solid var(--rule)","display":"flex","flexDirection":"column","gap":"2px"}}>
+                  {$v.modoDemo !== false ? (<><div style={{"padding":"10px 8px","borderBottom":"1px solid var(--rule)","display":"flex","flexDirection":"column","gap":"2px"}}>
                     {"\n                "}
                     <span style={{"padding":"4px 8px 6px","fontSize":"13px","color":"var(--graphite)"}}>
                       {"Modo demonstração · papel"}
@@ -660,7 +660,7 @@ export function renderTemplate($v: Record<string, any>) {
                       {"\n                "}
                     </React.Fragment>))}
                     {"\n              "}
-                  </div>
+                  </div></>) : null}
                   {"\n              "}
                   <div style={{"padding":"12px 16px","borderBottom":"1px solid var(--rule)","display":"flex","flexDirection":"column","gap":"8px"}}>
                     {"\n                "}

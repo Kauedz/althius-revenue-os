@@ -1,8 +1,12 @@
-import '@testing-library/jest-dom/vitest';
 import { afterEach } from 'vitest';
-import { cleanup } from '@testing-library/react';
 
-afterEach(() => {
-  cleanup();
-  window.location.hash = '';
-});
+// Testes de tela (jsdom) ganham os matchers do DOM e limpeza entre testes.
+// Testes de integração com o banco rodam em ambiente node, sem window.
+if (typeof window !== 'undefined') {
+  await import('@testing-library/jest-dom/vitest');
+  const { cleanup } = await import('@testing-library/react');
+  afterEach(() => {
+    cleanup();
+    window.location.hash = '';
+  });
+}

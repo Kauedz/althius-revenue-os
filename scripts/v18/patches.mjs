@@ -93,5 +93,40 @@ export const PATCHES = [
     arquivo: 'module.js',
     trocar: " ['custo', 'Em dólar', '1fr'],",
     por: ''
+  },
+
+  // --- Login real: troca de papel existe só no modo demonstração -------------------------
+  {
+    regra: 'modo real: esconder "Modo demonstração · papel" do menu do avatar',
+    arquivo: 'template.generated.tsx',
+    aplicar: texto => {
+      const rotulo = texto.indexOf('{"Modo demonstração · papel"}');
+      if (rotulo < 0 || texto.indexOf('{"Modo demonstração · papel"}', rotulo + 1) >= 0) throw new Error('Regra "modo demonstração": rótulo não encontrado (ou repetido) no template.');
+      const inicio = texto.lastIndexOf('<div ', rotulo);
+      const fimLista = texto.indexOf('</React.Fragment>))}', rotulo);
+      const fim = texto.indexOf('</div>', fimLista) + '</div>'.length;
+      if (inicio < 0 || fimLista < 0 || fim < fimLista) throw new Error('Regra "modo demonstração": estrutura do bloco mudou.');
+      return texto.slice(0, inicio) + '{$v.modoDemo !== false ? (<>' + texto.slice(inicio, fim) + '</>) : null}' + texto.slice(fim);
+    }
+  },
+  {
+    regra: 'modo real: tirar "Ver como <papel>" da busca rápida (Ctrl K)',
+    arquivo: 'logic.generated.js',
+    trocar: "Object.keys(D.ROLES).forEach(k => itens.push({ label: 'Ver como '",
+    por: "if (this.modoDemo !== false) Object.keys(D.ROLES).forEach(k => itens.push({ label: 'Ver como '"
+  },
+
+  // --- Papel por workspace: na tela de membros vale o papel no workspace escolhido ----------
+  {
+    regra: 'membros: alçada calculada pelo papel no workspace selecionado (não o da rota)',
+    arquivo: 'logic.generated.js',
+    trocar: "const P = this.PAPEL_INFO, admin = papel === 'superadmin' || papel === 'estrategista' || papel === 'cliente';",
+    por: "const papelCfg = this.papelEm ? this.papelEm(wsCfg) : papel, P = this.PAPEL_INFO, admin = papelCfg === 'superadmin' || papelCfg === 'estrategista' || papelCfg === 'cliente';"
+  },
+  {
+    regra: 'membros: papéis que a pessoa pode dar seguem o papel no workspace selecionado',
+    arquivo: 'logic.generated.js',
+    trocar: "cliente: ['cliente', 'bdr'], bdr: [] }[papel];",
+    por: "cliente: ['cliente', 'bdr'], bdr: [] }[papelCfg];"
   }
 ];

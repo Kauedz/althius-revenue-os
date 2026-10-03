@@ -280,6 +280,7 @@ for (const f of ['data.js', 'module.js']) outputs[f] = fs.readFileSync(path.join
 for (const p of PATCHES) {
   const atual = outputs[p.arquivo];
   if (atual === undefined) throw new Error('Patch aponta para arquivo desconhecido: ' + p.arquivo);
+  if (p.aplicar) { outputs[p.arquivo] = p.aplicar(atual); continue; }
   const n = atual.split(p.trocar).length - 1;
   if (n !== 1) throw new Error('Regra "' + p.regra + '": esperava 1 ocorrência em ' + p.arquivo + ', achei ' + n + '. Revise scripts/v18/patches.mjs.');
   outputs[p.arquivo] = atual.replace(p.trocar, () => p.por);
