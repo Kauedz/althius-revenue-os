@@ -4,6 +4,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AlthiusLogic } from '../v18/logic.generated.js';
 import type { DadosAlthius } from './dados';
+import { controlarExecucao, listarExecucoes } from './servicos/execucoes';
 import { decidirAprovacao, listarAprovacoes, type AprovacaoTela, type DecisaoTela } from './servicos/aprovacoes';
 
 export interface AlthiusAppProps {
@@ -15,6 +16,9 @@ export interface AlthiusAppProps {
 export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   // Fora da demonstração não existe troca de papel: o papel vem do banco.
   modoDemo = false;
+  // Métodos herdados do protótipo, usados só pela camada real.
+  declare avisar: (contexto: string, texto: string) => void;
+  declare ir: (caminho: string) => void;
 
   componentDidMount() {
     // Os "services" do protótipo são o ponto de troca: as telas chamam list/decide sem saber de onde vêm os dados.
@@ -22,16 +26,68 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       list: () => this.carregarAprovacoes(),
       decide: (id: string, decisao: DecisaoTela) => this.registrarDecisao(id, decisao)
     };
+    this.props.dados.executionService = {
+      list: () => this.carregarExecucoes(),
+      control: (id: string, estado: string) => this.registrarControle(id, estado),
+      repeat: (id: string) => this.registrarControle(id, 'Repetir')
+    };
     super.componentDidMount?.();
   }
 
+  private cargaWorkspace = 0;
+  private vivo = true;
+
   componentDidUpdate(prevProps: Readonly<AlthiusAppProps>, prevState: Readonly<Record<string, any>>) {
     super.componentDidUpdate?.(prevProps, prevState);
-    // Trocou de workspace: a fila de aprovações passa a ser a do novo workspace.
-    if (this.state.pronto && prevState.rota?.ws !== this.state.rota?.ws) {
-      this.carregarAprovacoes()
-        .then(aprov => this.setState({ aprov, decisoes: {}, apSel: null }))
-        .catch(falha => this.avisarFalha('Não foi possível carregar as aprovações', falha));
+    if (prevState.rota?.ws !== this.state.rota?.ws) {
+      this.cargaWorkspace++;
+      if (this.state.pronto) void this.recarregarWorkspace();
+    }
+  }
+
+  componentWillUnmount() {
+    this.vivo = false;
+    this.cargaWorkspace++;
+    super.componentWillUnmount?.();
+  }
+
+  async carregarDadosIniciais() {
+    // A carga inicial e as trocas compartilham a mesma geração: uma resposta antiga nunca substitui a atual.
+    while (this.vivo) {
+      const carga = ++this.cargaWorkspace;
+      try {
+        const D = this.props.dados;
+        const [home, agents, execs, aprov, notifs] = await Promise.all([
+          D.homeService.summary(), D.agentService.list(), this.carregarExecucoes(), this.carregarAprovacoes(), D.notificationService.list()
+        ]);
+        if (!this.vivo) return;
+        if (carga !== this.cargaWorkspace) continue;
+        this.setState({ home, agents, execs, aprov, notifs, pronto: true, carregandoRota: false });
+        return;
+      } catch (falha) {
+        if (!this.vivo) return;
+        if (carga !== this.cargaWorkspace) continue;
+        this.setState({ falhaCarga: true, pronto: true, carregandoRota: false });
+        this.avisarFalha('Não foi possível carregar este workspace', falha);
+        return;
+      }
+    }
+  }
+
+  async recarregarWorkspace() {
+    const carga = ++this.cargaWorkspace;
+    this.setState({ aprov: [], execs: [], decisoes: {}, apSel: null, falhaCarga: false, carregandoRota: true });
+    try {
+      const [aprov, execs] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes()]);
+      if (this.vivo && carga === this.cargaWorkspace) {
+        this.setState({ aprov, execs, carregandoRota: false });
+        return carga;
+      }
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaWorkspace) {
+        this.setState({ falhaCarga: true, carregandoRota: false });
+        this.avisarFalha('Não foi possível carregar este workspace', falha);
+      }
     }
   }
 
@@ -69,7 +125,33 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   renderVals() {
     // O template lê modoDemo (regra de produto) para esconder a troca de papel.
-    return { ...super.renderVals(), modoDemo: this.modoDemo, sair: () => this.props.aoSair() };
+    return { ...super.renderVals(), modoDemo: this.modoDemo, sair: () => this.props.aoSair(), recarregar: () => this.recarregarWorkspace() };
+  }
+
+  carregarExecucoes() {
+    const ws = this.workspaceAtual();
+    const custo = (this.props.dados.PERMS[this.papel()] || []).includes('exec.cost');
+    return ws ? listarExecucoes(this.props.supabase, ws.uuid, custo) : Promise.resolve([]);
+  }
+
+  async registrarControle(id: string, estado: string) {
+    const acoes = { Pausada: 'pause', 'Na fila': 'resume', 'Em execução': 'resume', Cancelada: 'cancel', Repetir: 'repeat' } as const;
+    const acao = acoes[estado as keyof typeof acoes];
+    const ws = this.workspaceAtual(), slug = this.wsId();
+    try {
+      if (!ws?.membroId || !acao) throw new Error('Você não participa deste workspace como membro.');
+      const r = await controlarExecucao(this.props.supabase, id, ws.membroId, acao);
+      if (!this.vivo || this.wsId() !== slug) return;
+      const carga = await this.recarregarWorkspace();
+      if (!this.vivo || this.wsId() !== slug || carga !== this.cargaWorkspace) return;
+      if (r.status === 'requires_approval') this.avisar('exec', 'Pedido enviado para Aprovações.');
+      else {
+        if (acao === 'repeat' && r.execution_id) this.ir('app/' + slug + '/executions/' + r.execution_id);
+        this.avisar('exec', 'Mudança registrada no banco.');
+      }
+    } catch (falha) {
+      this.avisarFalha('Controle não registrado', falha);
+    }
   }
 
   // ---------------------------------------------------------------- Aprovações
@@ -102,6 +184,6 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   private avisarFalha(titulo: string, falha: unknown) {
     console.error(falha);
-    this.confirmar(titulo, 'Verifique a conexão e tente de novo em instantes.', 'Entendi', () => {});
+    this.confirmar(titulo, falha instanceof Error ? falha.message : 'Verifique a conexão e tente de novo em instantes.', 'Entendi', () => {});
   }
 }

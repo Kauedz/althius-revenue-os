@@ -3,6 +3,30 @@
 // o conversor para com erro e aponta qual regra revisar (nada é perdido em silêncio).
 
 export const PATCHES = [
+  {
+    regra: 'modo real: carga inicial protegida contra troca de workspace',
+    arquivo: 'logic.generated.js',
+    trocar: 'return Promise.all([D.homeService.summary(), D.agentService.list(), D.executionService.list(), D.approvalService.list(), D.notificationService.list()]);',
+    por: 'return this.carregarDadosIniciais ? this.carregarDadosIniciais() : Promise.all([D.homeService.summary(), D.agentService.list(), D.executionService.list(), D.approvalService.list(), D.notificationService.list()]);'
+  },
+  {
+    regra: 'modo real: carga inicial é publicada pela camada do banco',
+    arquivo: 'logic.generated.js',
+    trocar: '.then(([home, agents, execs, aprov, notifs]) => this.setState({ home, agents, execs, aprov, notifs, pronto: true, carregandoRota: false }))',
+    por: '.then(resultado => { if (resultado) { const [home, agents, execs, aprov, notifs] = resultado; this.setState({ home, agents, execs, aprov, notifs, pronto: true, carregandoRota: false }); } })'
+  },
+  {
+    regra: 'modo real: controles de execução passam pelo serviço do banco',
+    arquivo: 'logic.generated.js',
+    trocar: "const muda = (status, msg) => () => { this.setState({ execs:",
+    por: "const muda = (status, msg) => () => { if (this.modoDemo === false) return this.D.executionService.control(e.id, status); this.setState({ execs:"
+  },
+  {
+    regra: 'modo real: repetir execução cria pedido pelo Hermes',
+    arquivo: 'logic.generated.js',
+    trocar: "() => this.avisar('exec', 'Nova execução criada na fila.')",
+    por: "() => this.modoDemo === false ? this.D.executionService.repeat(e.id) : this.avisar('exec', 'Nova execução criada na fila.')"
+  },
   // --- Créditos: o cliente só vê créditos, nunca dólar (ADR 0021) -----------------------
   {
     regra: 'créditos sem dólar: conversão para US$ removida; preço de pacote em reais',

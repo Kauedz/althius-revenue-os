@@ -57,8 +57,8 @@ export class AlthiusLogic extends React.Component {
   componentDidMount() {
     new Promise((ok, falha) => { let n = 0; const t = () => { if (window.ALTHIUS_DATA && window.ALTHIUS_MOD) ok(window.ALTHIUS_DATA); else if (++n > 150) import(new URL('revenue-os/data.js', document.baseURI).href).then(ok, falha); else setTimeout(t, 20); }; t(); }).then(D => {
       this.D = D;
-      return Promise.all([D.homeService.summary(), D.agentService.list(), D.executionService.list(), D.approvalService.list(), D.notificationService.list()]);
-    }).then(([home, agents, execs, aprov, notifs]) => this.setState({ home, agents, execs, aprov, notifs, pronto: true, carregandoRota: false }))
+      return this.carregarDadosIniciais ? this.carregarDadosIniciais() : Promise.all([D.homeService.summary(), D.agentService.list(), D.executionService.list(), D.approvalService.list(), D.notificationService.list()]);
+    }).then(resultado => { if (resultado) { const [home, agents, execs, aprov, notifs] = resultado; this.setState({ home, agents, execs, aprov, notifs, pronto: true, carregandoRota: false }); } })
       .catch(() => this.setState({ falhaCarga: true, pronto: true }));
     this._hash = () => this.lerRota(); window.addEventListener('hashchange', this._hash); this.lerRota();
     this._rs = () => { if (typeof this.state.copW === 'number' && this.state.copW > window.innerWidth) this.setState({ copW: 'cheia' }); this.forceUpdate(); };
@@ -1274,10 +1274,10 @@ export class AlthiusLogic extends React.Component {
         resumo: [['Agente', agNome(e.agente)], ['Campanha', e.campanha], ['Workspace', ws.nome], ['Solicitante', e.solicitante], ['Horário', e.horario], ['Progresso', e.progresso + '%'], ['Registros processados', e.processados], ['Resultados válidos', e.validos], ['Integrações', e.integracoes.join(', ')], ['Aprovação', e.aprovacao]].map(x => ({ label: x[0], valor: x[1] })),
         etapas: e.plano.map((p, i) => { const feito = i < e.etapaAtual || e.status === 'Concluída'; const atual = !feito && i === e.etapaAtual && ativa; return { done: feito ? 'true' : 'false', st: feito ? 'done' : atual ? 'run' : 'todo', i_check: feito, i_run: atual, texto: p, estado: feito ? 'Concluída' : atual ? 'Em andamento' : 'Pendente', bg: feito ? 'var(--ink)' : atual ? '#F7054F' : 'var(--paper)' }; }) };
       const acs = [];
-      const muda = (status, msg) => () => { this.setState({ execs: st.execs.map(x => x.id === e.id ? Object.assign({}, x, { status }) : x) }); this.avisar('exec', msg); };
+      const muda = (status, msg) => () => { if (this.modoDemo === false) return this.D.executionService.control(e.id, status); this.setState({ execs: st.execs.map(x => x.id === e.id ? Object.assign({}, x, { status }) : x) }); this.avisar('exec', msg); };
       if (can('exec.control') && (ativa || e.status === 'Na fila' || e.status === 'Agendada')) acs.push({ label: 'Pausar', borda: 'var(--ink)', cor: 'var(--ink)', fn: () => this.confirmar('Pausar execução?', 'O trabalho para na etapa atual. Créditos reservados continuam reservados até retomar ou cancelar.', 'Pausar', muda('Pausada', 'Execução pausada.')) });
       if (can('exec.control') && e.status === 'Pausada') acs.push({ label: 'Retomar', borda: 'var(--ink)', cor: 'var(--ink)', fn: muda('Em execução', 'Execução retomada.') });
-      if (can('exec.control') && ['Concluída','Falhou','Cancelada','Concluída parcialmente'].indexOf(e.status) >= 0) acs.push({ label: 'Repetir', borda: 'var(--ink)', cor: 'var(--ink)', fn: () => this.confirmar('Repetir execução?', 'Uma nova execução é criada com o mesmo input. Estimativa: ' + e.credEst + ' créditos.', 'Repetir', () => this.avisar('exec', 'Nova execução criada na fila.')) });
+      if (can('exec.control') && ['Concluída','Falhou','Cancelada','Concluída parcialmente'].indexOf(e.status) >= 0) acs.push({ label: 'Repetir', borda: 'var(--ink)', cor: 'var(--ink)', fn: () => this.confirmar('Repetir execução?', 'Uma nova execução é criada com o mesmo input. Estimativa: ' + e.credEst + ' créditos.', 'Repetir', () => this.modoDemo === false ? this.D.executionService.repeat(e.id) : this.avisar('exec', 'Nova execução criada na fila.')) });
       if (can('exec.export')) acs.push({ label: 'Exportar', borda: 'var(--steel)', cor: 'var(--ink)', fn: () => this.avisar('exec', 'Exportação gerada: ' + e.validos + ' resultados válidos (CSV).') });
       if (can('exec.control') && ['Concluída','Falhou','Cancelada'].indexOf(e.status) < 0) acs.push({ label: 'Cancelar', borda: 'var(--err)', cor: 'var(--err)', fn: () => this.confirmar('Cancelar execução?', 'Esta ação não pode ser desfeita. Créditos não consumidos são liberados.', 'Cancelar execução', muda('Cancelada', 'Execução cancelada. Créditos não consumidos foram liberados.')) });
       v.exAcoes = acs;

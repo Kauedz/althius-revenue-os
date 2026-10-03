@@ -1,11 +1,12 @@
 // Seam: o app no modo real montado com um contexto do banco (sem rede).
-import { describe, expect, it } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '../v18/data.js';
 import '../v18/module.js';
 import { AlthiusApp } from './AlthiusApp';
 import { montarDados, type ContextoReal, type PapelBanco } from './dados';
 import { clienteVazio } from '../test/supabaseLocal';
+import * as execucoes from './servicos/execucoes';
 
 const demo = { data: window.ALTHIUS_DATA!, caps: window.ALTHIUS_CAPS };
 const ESCOPOS: Record<string, [string, string, string, string]> = {
@@ -71,4 +72,48 @@ describe('AlthiusApp (modo real)', () => {
     await within(nav).findByRole('link', { name: /Início/ });
     expect(within(nav).queryByRole('link', { name: /Estratégia/ })).not.toBeInTheDocument();
   });
+});
+
+const execucaoAlfa: execucoes.ExecucaoTela = {
+  id: 'ex-alfa', titulo: 'Execução exclusiva Alfa', tipo: 'Pesquisa', agente: 'comercial', campanha: 'Campanha',
+  solicitante: 'Pessoa Teste', horario: 'Hoje', status: 'Falhou', progresso: 0, processados: 0, validos: 0,
+  credEst: 10, credRes: 0, credCons: 0, plano: [], etapaAtual: 0, logs: [], erros: [], integracoes: [], aprovacao: 'Não exigida'
+};
+const execucaoBeta = { ...execucaoAlfa, id: 'ex-beta', titulo: 'Execução exclusiva Beta' };
+function pendente<T>() {
+  let resolver!: (valor: T) => void;
+  const promise = new Promise<T>(ok => { resolver = ok; });
+  return { promise, resolver };
+}
+afterEach(() => vi.restoreAllMocks());
+
+describe('execuções durante troca de workspace', () => {
+  it('troca na carga inicial mostra somente as execuções do workspace atual', async () => {
+    const primeira = pendente<execucoes.ExecucaoTela[]>();
+    const listar = vi.spyOn(execucoes, 'listarExecucoes').mockImplementation((_cliente, ws) =>
+      ws === 'id-alfa' ? primeira.promise : Promise.resolve([execucaoBeta]));
+    abrir(contexto([['alfa', 'estrategista'], ['beta', 'estrategista']]), '#/app/alfa/executions');
+    await waitFor(() => expect(listar).toHaveBeenCalledWith(expect.anything(), 'id-alfa', false));
+    await act(async () => { window.location.hash = '#/app/beta/executions'; });
+    await act(async () => { primeira.resolver([execucaoAlfa]); });
+    expect(await screen.findByText('Execução exclusiva Beta')).toBeInTheDocument();
+    expect(screen.queryByText('Execução exclusiva Alfa')).not.toBeInTheDocument();
+  });
+});
+it('repetir não volta ao workspace antigo se a pessoa trocar durante a atualização', async () => {
+  const atualizacao = pendente<execucoes.ExecucaoTela[]>();
+  let cargasAlfa = 0;
+  vi.spyOn(execucoes, 'listarExecucoes').mockImplementation((_cliente, ws) =>
+    ws === 'id-beta' ? Promise.resolve([execucaoBeta]) : (++cargasAlfa === 1 ? Promise.resolve([execucaoAlfa]) : atualizacao.promise));
+  vi.spyOn(execucoes, 'controlarExecucao').mockResolvedValue({ success: true, status: 'queued', execution_id: 'nova-execucao' });
+  abrir(contexto([['alfa', 'estrategista'], ['beta', 'estrategista']]), '#/app/alfa/executions/ex-alfa');
+  fireEvent.click(await screen.findByRole('button', { name: 'Repetir' }));
+  const dialog = await screen.findByRole('alertdialog', { name: 'Repetir execução?' });
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Repetir' }));
+  await waitFor(() => expect(cargasAlfa).toBe(2));
+  await act(async () => { window.location.hash = '#/app/beta/executions'; });
+  await screen.findByText('Execução exclusiva Beta');
+  await act(async () => { atualizacao.resolver([execucaoAlfa]); });
+  expect(window.location.hash).toBe('#/app/beta/executions');
+  expect(screen.queryByText('Execução exclusiva Alfa')).not.toBeInTheDocument();
 });
