@@ -9,6 +9,7 @@ import { comprarCreditos, lerCreditos, salvarPoliticaCreditos as gravarPoliticaC
 import { precoEmReais } from './precos';
 import { decidirAprovacao, listarAprovacoes, type AprovacaoTela, type DecisaoTela } from './servicos/aprovacoes';
 import { listarContas, type ContaTela } from './servicos/contas';
+import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 
 export interface AlthiusAppProps {
   dados: DadosAlthius;
@@ -17,6 +18,13 @@ export interface AlthiusAppProps {
 }
 
 export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
+  constructor(props: AlthiusAppProps) {
+    super(props);
+    const relatoriosReais = relatorioSemDados();
+    this.state = { ...this.state, relatoriosReais };
+    this.publicarRelatorios(relatoriosReais);
+  }
+
   // Fora da demonstração não existe troca de papel: o papel vem do banco.
   modoDemo = false;
   // Métodos herdados do protótipo, usados só pela camada real.
@@ -56,6 +64,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.vivo = false;
     this.cargaWorkspace++;
     this.publicarContas([]);
+    this.publicarRelatorios(relatorioSemDados());
     super.componentWillUnmount?.();
   }
 
@@ -65,13 +74,14 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       const carga = ++this.cargaWorkspace;
       try {
         const D = this.props.dados;
-        const [home, agents, execs, aprov, notifs, creditos, contas] = await Promise.all([
-          D.homeService.summary(), D.agentService.list(), this.carregarExecucoes(), this.carregarAprovacoes(), D.notificationService.list(), this.carregarCreditos(), this.carregarContas()
+        const [home, agents, execs, aprov, notifs, creditos, contas, relatorios] = await Promise.all([
+          D.homeService.summary(), D.agentService.list(), this.carregarExecucoes(), this.carregarAprovacoes(), D.notificationService.list(), this.carregarCreditos(), this.carregarContas(), this.carregarRelatorios()
         ]);
         if (!this.vivo) return;
         if (carga !== this.cargaWorkspace) continue;
         this.publicarContas(contas);
-        this.setState({ home, agents, execs, aprov, notifs, contas, ...creditos, pronto: true, carregandoRota: false });
+        this.publicarRelatorios(relatorios);
+        this.setState({ home, agents, execs, aprov, notifs, contas, relatoriosReais: relatorios, ...creditos, pronto: true, carregandoRota: false });
         return;
       } catch (falha) {
         if (!this.vivo) return;
@@ -85,13 +95,16 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   async recarregarWorkspace() {
     const carga = ++this.cargaWorkspace;
+    const relatoriosVazios = relatorioSemDados();
     this.publicarContas([]);
-    this.setState({ aprov: [], execs: [], contas: [], decisoes: {}, apSel: null, falhaCarga: false, carregandoRota: true });
+    this.publicarRelatorios(relatoriosVazios);
+    this.setState({ aprov: [], execs: [], contas: [], relatoriosReais: relatoriosVazios, decisoes: {}, apSel: null, falhaCarga: false, carregandoRota: true });
     try {
-      const [aprov, execs, creditos, contas] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos(), this.carregarContas()]);
+      const [aprov, execs, creditos, contas, relatorios] = await Promise.all([this.carregarAprovacoes(), this.carregarExecucoes(), this.carregarCreditos(), this.carregarContas(), this.carregarRelatorios()]);
       if (this.vivo && carga === this.cargaWorkspace) {
         this.publicarContas(contas);
-        this.setState({ aprov, execs, contas, ...creditos, carregandoRota: false });
+        this.publicarRelatorios(relatorios);
+        this.setState({ aprov, execs, contas, relatoriosReais: relatorios, ...creditos, carregandoRota: false });
         return carga;
       }
     } catch (falha) {
@@ -136,7 +149,9 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   renderVals() {
     // O template lê modoDemo (regra de produto) para esconder a troca de papel.
-    return { ...super.renderVals(), modoDemo: this.modoDemo, sair: () => this.props.aoSair(), recarregar: () => this.recarregarWorkspace() };
+    const v = super.renderVals();
+    if (v?.rl?.ativo && this.modoDemo === false) this.aplicarRelatoriosNaTela(v);
+    return { ...v, modoDemo: this.modoDemo, sair: () => this.props.aoSair(), recarregar: () => this.recarregarWorkspace() };
   }
 
 
@@ -279,5 +294,49 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   private avisarFalha(titulo: string, falha: unknown) {
     console.error(falha);
     this.confirmar(titulo, falha instanceof Error ? falha.message : 'Verifique a conexão e tente de novo em instantes.', 'Entendi', () => {});
+  }
+
+  // ---- Relatórios, Sinais e Prospecção (Grok)
+
+  carregarRelatorios(): Promise<RelatoriosTela> {
+    const ws = this.workspaceAtual();
+    return ws ? listarRelatorios(this.props.supabase, ws.uuid) : Promise.resolve(relatorioSemDados());
+  }
+
+  /** Substitui os números fictícios da página de Relatórios pelos do banco. */
+  private publicarRelatorios(relatorios: RelatoriosTela) {
+    if (typeof window === 'undefined') return;
+    const mod = (window as any).ALTHIUS_MOD;
+    if (!mod?.analytics) return;
+    mod.analytics.kpis = relatorios.kpis.map(k => [k.label, k.valor, k.delta]);
+    mod.analytics.funil = null;
+    mod.analytics.linhas = relatorios.linhas;
+    mod.analytics.acoesLinha = [];
+  }
+
+  /** Troca os números do protótipo pelos do banco, só na página de Relatórios. */
+  private aplicarRelatoriosNaTela(v: Record<string, any>) {
+    const relatorios: RelatoriosTela = this.state.relatoriosReais || relatorioSemDados();
+    Object.assign(v.rl, relatorios, {
+      hrefPipe: v.rl.hrefPipe, hrefSinais: v.rl.hrefSinais, hrefCad: v.rl.hrefCad, hrefCamp: v.rl.hrefCamp, hrefCred: v.rl.hrefCred
+    });
+    if (!v.md) return;
+    v.md.kpis = relatorios.kpis;
+    v.md.temKpis = relatorios.kpis.length > 0;
+    v.md.temFunil = false;
+    v.md.temAcao = false;
+    const cols = ['nome', 'fonte', 'frequencia', 'ultimo', 'dest'] as const;
+    v.md.linhas = relatorios.linhas.map(l => ({
+      abrir: () => {},
+      tecla: () => {},
+      bg: 'transparent',
+      celulas: cols.map((k, ci) => ({
+        temCo: false, temFogo: false, chamas: [], fogoRotulo: '', temTexto: true, temFoto: false, foto: '',
+        v: l[k] || 'Sem dados ainda', temPonto: false, ponto: 'transparent',
+        fs: ci === 0 ? '15px' : '14px', cor: ci === 0 ? 'var(--ink)' : 'var(--text-2)', ws: ci === 0 ? 'normal' : 'nowrap'
+      }))
+    }));
+    v.md.vazio = v.md.linhas.length === 0;
+    v.md.tabela = v.md.linhas.length > 0;
   }
 }

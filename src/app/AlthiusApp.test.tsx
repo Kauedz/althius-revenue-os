@@ -8,6 +8,7 @@ import { montarDados, type ContextoReal, type PapelBanco } from './dados';
 import { clienteVazio } from '../test/supabaseLocal';
 import * as execucoes from './servicos/execucoes';
 import * as contasServico from './servicos/contas';
+import * as relatoriosServico from './servicos/relatorios';
 
 const demo = { data: window.ALTHIUS_DATA!, caps: window.ALTHIUS_CAPS };
 const ESCOPOS: Record<string, [string, string, string, string]> = {
@@ -173,5 +174,20 @@ describe('contas no AlthiusApp', () => {
     cleanup();
     expect((window as any).ALTHIUS_MOD.accounts.linhas).toEqual([]);
     expect((window as any).ALTHIUS_COMITES).toEqual({});
+  });
+});
+
+describe('relatórios no AlthiusApp', () => {
+  it('não mostra os números fictícios do protótipo', async () => {
+    const relatorio = relatoriosServico.relatorioSemDados();
+    relatorio.kpis[0] = { label: 'Pipeline em aberto', valor: 'R$ 0,00', delta: 'negócios ativos' };
+    const spy = vi.spyOn(relatoriosServico, 'listarRelatorios').mockResolvedValue(relatorio);
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/analytics');
+    await waitFor(() => expect(spy).toHaveBeenCalledWith(expect.anything(), 'id-alfa'));
+    expect(await screen.findByRole('heading', { name: 'Relatórios' })).toBeInTheDocument();
+    expect(screen.getAllByText('Sem dados ainda').length).toBeGreaterThan(0);
+    expect(screen.queryByText(/4,8/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/US\$/)).not.toBeInTheDocument();
+    expect(screen.queryByText('512')).not.toBeInTheDocument();
   });
 });
