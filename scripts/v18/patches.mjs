@@ -374,4 +374,8 @@ export const PATCHES = [
   // ---- Campanhas (Grok)
   // A tela de Campanhas, no modo real, publica em ALTHIUS_MOD.campaigns (AlthiusApp).
   // Sem patch no arquivo gerado.
+
+  // ---- Conteúdos (Grok)
+  // A tela de Conteúdos, no modo real, publica em ALTHIUS_MOD.contents (AlthiusApp).
+  // Sem patch no arquivo gerado.
 ];

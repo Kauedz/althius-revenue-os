@@ -34,6 +34,7 @@ import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais
 import { listarProspeccao, prospeccaoSemDados, type ProspeccaoTela } from './servicos/prospeccao';
 import { definirSituacaoEstrategia, estrategiaSemDados, listarEstrategia, salvarEstrategia, type EstrategiaTela } from './servicos/estrategia';
 import { ativarCampanha, campanhasSemDados, listarCampanhas, pausarCampanha, salvarCampanha, type CampanhasTela } from './servicos/campanhas';
+import { listarConteudos, publicarConteudo, salvarConteudo, type ConteudoTela, type ConteudosTela } from './servicos/conteudos';
 
 export interface AlthiusAppProps {
   dados: DadosAlthius;
@@ -53,6 +54,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarProspeccao(prospeccaoReais);
     this.publicarEstrategia(null);
     this.publicarCampanhas(null);
+    this.publicarConteudos(null);
   }
 
   // Fora da demonstração não existe troca de papel: o papel vem do banco.
@@ -124,6 +126,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarCaixa(null);
     this.publicarEstrategia(null);
     this.publicarCampanhas(null);
+    this.publicarConteudos(null);
     super.componentWillUnmount?.();
   }
 
@@ -248,6 +251,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.formularioNovoCliente(v);
     this.formularioEstrategia(v);
     this.formularioCampanha(v);
+    this.formularioConteudo(v);
     return v;
   }
 
@@ -864,6 +868,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (rota.page === 'inbox') void this.carregarCaixa();
     if (rota.page === 'strategy') void this.carregarEstrategia();
     if (rota.page === 'campaigns') void this.carregarCampanhas();
+    if (rota.page === 'contents') void this.carregarConteudos();
     if (String(rota.page || '').startsWith('admin/')) void this.carregarAdmin(rota.page);
     if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) { void this.carregarConexoes(); void this.carregarCanais(); }
     if (rota.page === 'channels' && (rota.id !== antes.id || rota.page !== antes.page || rota.ws !== antes.ws || (this.state.pronto && !prev.pronto))) void this.carregarMensagens();
@@ -890,11 +895,13 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   /** Ganchos das listas genéricas do v18 (scripts/v18/patches.mjs). Devolve true quando a camada do banco tratou. */
   aoAbrirLinhaReal(page: string, linha: { id: string }) {
     if (page === 'inbox') void this.abrirConversa(linha.id);
+    if (page === 'contents') this.abrirConteudo(linha as ConteudoTela);
   }
 
   acaoDeLinhaReal(page: string, acao: string, linha: { id: string }): boolean {
     if (page === 'strategy') return this.acaoNaEstrategia(acao, linha.id);
     if (page === 'campaigns') return this.acaoNaCampanha(acao, linha.id);
+    if (page === 'contents') return this.acaoNoConteudo(acao, linha.id);
     if (page === 'admin/workspaces') {
       void this.acaoNoCliente(acao, linha as { id: string; nome: string });
       return true;
@@ -1018,6 +1025,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   acaoDaPaginaReal(page: string): boolean {
     if (page === 'strategy') return this.abrirNovaHipotese();
     if (page === 'campaigns') return this.abrirNovaCampanha();
+    if (page === 'contents') return this.abrirNovoConteudo();
     if (page !== 'admin/workspaces') return false;
     this.setState({ formNovoWs: { nome: '', slug: '', email: '', estrategista: '', erro: '' } });
     return true;
@@ -1391,5 +1399,108 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (!r.ok) return this.confirmar('Campanha não pausada', r.mensagem, 'Entendi', () => {});
     this.avisar('mod', r.mensagem);
     await this.carregarCampanhas();
+  }
+
+  // ---- Conteúdos (Grok)
+
+  private cargaConteudos = 0;
+
+  private publicarConteudos(tela: ConteudosTela | null) {
+    if (typeof window === 'undefined') return;
+    const mod = (window as any).ALTHIUS_MOD;
+    if (!mod?.contents) return;
+    mod.contents.linhas = tela ? tela.linhas : [];
+    mod.contents.acoesLinha = tela && tela.podeEditar ? [['Publicar', '']] : [];
+  }
+
+  async carregarConteudos() {
+    const ws = this.workspaceAtual();
+    const carga = ++this.cargaConteudos;
+    this.publicarConteudos(null);
+    if (this.vivo) this.setState({ conteudosPodeEditar: false, conteudosVersao: carga });
+    if (!ws?.membroId) return;
+    try {
+      const tela = await listarConteudos(this.props.supabase, ws.uuid, ws.membroId);
+      if (!this.vivo || carga !== this.cargaConteudos || this.workspaceAtual()?.uuid !== ws.uuid) return;
+      this.publicarConteudos(tela);
+      this.setState({ conteudosPodeEditar: tela.podeEditar, conteudosVersao: carga });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaConteudos) this.avisarFalha('Não foi possível carregar os conteúdos', falha);
+    }
+  }
+
+  private abrirNovoConteudo(): boolean {
+    if (!this.state.conteudosPodeEditar) {
+      this.confirmar('Sem permissão para editar', 'Seu papel não edita conteúdo.', 'Entendi', () => {});
+      return true;
+    }
+    this.setState({ formConteudo: { id: null, nome: '', formato: 'E-mail', persona: '', texto: '', erro: '' } });
+    return true;
+  }
+
+  private abrirConteudo(linha: ConteudoTela) {
+    if (!this.state.conteudosPodeEditar || !linha?.id) return;
+    const vazio = 'Sem dados ainda';
+    this.setState({ formConteudo: {
+      id: linha.id,
+      nome: linha.nome === vazio ? '' : linha.nome,
+      formato: linha.formato || 'E-mail',
+      persona: linha.persona === vazio ? '' : (linha.persona || ''),
+      texto: linha.texto === vazio ? '' : (linha.texto || ''),
+      erro: ''
+    } });
+  }
+
+  private formularioConteudo(v: Record<string, any>) {
+    const f = this.state.formConteudo as { id: string | null; nome: string; formato: string; persona: string; texto: string; erro: string } | undefined;
+    if (!f || !v.md || (this.state.rota || {}).page !== 'contents') return;
+    const muda = (campo: string) => (e: { target: { value: string } }) =>
+      this.setState({ formConteudo: Object.assign({}, this.state.formConteudo, { [campo]: e.target.value, erro: '' }) });
+    v.md.form = {
+      titulo: f.id ? 'Editar conteúdo' : 'Novo conteúdo',
+      campos: [
+        { label: 'Nome', valor: f.nome, mudar: muda('nome'), placeholder: 'Nome da peça' },
+        { label: 'Formato', valor: f.formato, mudar: muda('formato'), placeholder: 'E-mail, PDF, Anúncio, Roteiro ou Post' },
+        { label: 'Persona', valor: f.persona, mudar: muda('persona'), placeholder: 'Opcional' },
+        { label: 'Texto', valor: f.texto, mudar: muda('texto'), placeholder: 'O que esta peça diz' }
+      ],
+      erro: f.erro,
+      salvarLabel: 'Salvar rascunho',
+      salvar: () => { void this.salvarConteudoReal(); },
+      cancelar: () => this.setState({ formConteudo: undefined })
+    };
+  }
+
+  private async salvarConteudoReal() {
+    const ws = this.workspaceAtual();
+    const f = this.state.formConteudo;
+    if (!ws?.membroId || !f) return;
+    const r = await salvarConteudo(this.props.supabase, ws.uuid, ws.membroId, f);
+    if (!this.vivo) return;
+    if (!r.ok) return this.setState({ formConteudo: Object.assign({}, f, { erro: r.mensagem }) });
+    this.setState({ formConteudo: undefined });
+    this.avisar('mod', 'Conteúdo salvo como rascunho.');
+    await this.carregarConteudos();
+  }
+
+  private acaoNoConteudo(acao: string, id: string): boolean {
+    if (acao !== 'Publicar') return false;
+    if (!this.state.conteudosPodeEditar) {
+      this.confirmar('Sem permissão para editar', 'Seu papel não edita conteúdo.', 'Entendi', () => {});
+      return true;
+    }
+    void this.publicarConteudoReal(id);
+    return true;
+  }
+
+  private async publicarConteudoReal(id: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await publicarConteudo(this.props.supabase, ws.uuid, ws.membroId, id);
+    if (!this.vivo) return;
+    if (!r.ok) return this.confirmar('Conteúdo não publicado', r.mensagem, 'Entendi', () => {});
+    if (r.destino === 'aprovacao') this.confirmar('Conteúdo não publicado', r.mensagem, 'Entendi', () => {});
+    else this.avisar('mod', r.mensagem);
+    await this.carregarConteudos();
   }
 }
