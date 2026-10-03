@@ -16,11 +16,11 @@ ON CONFLICT (id) DO NOTHING;
 -- u_estra: estrategista assigned ONLY to evolut
 -- u_clevel: clevel of evolut
 -- u_bdr: bdr of evolut
-INSERT INTO public.workspace_members (workspace_id, user_id, role, status) VALUES 
-  ('11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'superadmin', 'active'),
-  ('11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'estrategista', 'active'),
-  ('11111111-1111-1111-1111-111111111111', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'clevel', 'active'),
-  ('11111111-1111-1111-1111-111111111111', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 'bdr', 'active')
+INSERT INTO public.workspace_members (id, workspace_id, user_id, role, status) VALUES 
+  ('87eb998f-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'superadmin', 'active'),
+  ('87eb998f-0000-0000-0000-000000000002', '11111111-1111-1111-1111-111111111111', 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb', 'estrategista', 'active'),
+  ('87eb998f-0000-0000-0000-000000000003', '11111111-1111-1111-1111-111111111111', 'cccccccc-cccc-cccc-cccc-cccccccccccc', 'clevel', 'active'),
+  ('87eb998f-0000-0000-0000-000000000004', '11111111-1111-1111-1111-111111111111', 'dddddddd-dddd-dddd-dddd-dddddddddddd', 'bdr', 'active')
 ON CONFLICT (workspace_id, user_id) DO NOTHING;
 
 -- 2. Verify roles table has exactly the 4 canonical roles
@@ -94,12 +94,32 @@ SELECT is(
 
 SELECT is(
   public.check_permission(
-    '11111111-1111-1111-1111-111111111111'::uuid, 
-    'accounts.edit', 
-    'dddddddd-dddd-dddd-dddd-dddddddddddd'::uuid
+    '11111111-1111-1111-1111-111111111111'::uuid,
+    'accounts.edit',
+    '87eb998f-0000-0000-0000-000000000004'::uuid
   ),
   true,
-  'BDR must have permission to edit their OWN account'
+  'BDR must have permission to edit their OWN account (owner is the member id)'
+);
+
+SELECT is(
+  public.check_permission(
+    '11111111-1111-1111-1111-111111111111'::uuid,
+    'accounts.edit',
+    'dddddddd-dddd-dddd-dddd-dddddddddddd'::uuid
+  ),
+  false,
+  'BDR must NOT match ownership against the login id; owners are member ids'
+);
+
+SELECT is(
+  public.check_permission(
+    '11111111-1111-1111-1111-111111111111'::uuid,
+    'accounts.edit',
+    NULL
+  ),
+  true,
+  'OWN without a target stays allowed so lists and policies can ask the question'
 );
 
 SELECT is(

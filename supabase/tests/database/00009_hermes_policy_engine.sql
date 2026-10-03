@@ -53,6 +53,37 @@ SELECT is(
   'Hermes Check 2: Deve recusar acao se o usuario nao e o dono do dado (BDR -> conta alheia)'
 );
 
+-- Dono do dado e o id do membro, nao o id de login.
+SELECT is(
+  (public.hermes_evaluate_action(
+    '11111111-1111-1111-1111-111111111111'::uuid,
+    '87eb998f-0000-0000-0000-000000000004'::uuid,
+    'accounts.edit',
+    '87eb998f-0000-0000-0000-000000000004'::uuid,
+    0,
+    false,
+    'Editar a propria conta',
+    '{"domain": "propria.com"}'::jsonb
+  )->>'status'),
+  'authorized',
+  'Hermes Check 2: BDR edita o proprio membro sem cair em denied_owner'
+);
+
+SELECT is(
+  (public.hermes_evaluate_action(
+    '11111111-1111-1111-1111-111111111111'::uuid,
+    '87eb998f-0000-0000-0000-000000000004'::uuid,
+    'accounts.edit',
+    '87eb998f-0000-0000-0000-000000000003'::uuid,
+    0,
+    false,
+    'Editar conta de outro membro',
+    '{"domain": "outro.com"}'::jsonb
+  )->>'status'),
+  'denied_owner',
+  'Hermes Check 2: member id de outra pessoa continua denied_owner'
+);
+
 -- 4. Scenario 3 (Check 3 Trigger): Approval required for spend (Estrategista requests budget spend)
 SELECT is(
   (public.hermes_evaluate_action(
