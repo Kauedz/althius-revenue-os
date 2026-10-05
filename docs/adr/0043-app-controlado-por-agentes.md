@@ -25,7 +25,7 @@ e proposta que vira aprovação. Todo o resto do app (tarefas, cadências, pipel
 ## Plano em fatias (uma por PR, TDD, `npm run verificar` verde)
 | Fatia | Ferramentas | Observação |
 |---|---|---|
-| A. Tarefas e cadências | `listar_tarefas`, `propor_tarefa`, `concluir_tarefa`, `listar_cadencias`, `propor_cadencia`, `inscrever_contato_na_cadencia` | Inscrever em cadência gasta crédito → aprovação do C-level |
+| A. Tarefas e cadências (**entregue**, migration 0105) | `listar_membros`, `listar_tarefas`, `listar_cadencias`, `propor_tarefa`, `propor_inscricao_cadencia` | Inscrever em cadência com envio automático é gasto → só o C-level aprova. Ficaram para depois: `concluir_tarefa` e `propor_cadencia` (criar/editar cadência) |
 | B. Pipeline | `listar_negocios`, `propor_mover_negocio`, `propor_nota` | BDR continua vendo só o seu |
 | C. Campanhas | `listar_campanhas`, `propor_campanha`, `propor_verba` | Verba = gasto → só C-level/superadmin aprova |
 | D. Contas e conexões | `listar_contas`, `propor_importacao_csv`, `status_das_conexoes` | Conectar conta continua sendo ato da pessoa (login no provedor) |
