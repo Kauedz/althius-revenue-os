@@ -29,6 +29,7 @@ Decisões já tomadas estão em `docs/adr/` (0001 a 0024). Não desfaça uma ADR
 - Em JavaScript, `texto.replace(a, b)` transforma `$$` em `$` e quebra SQL. Use `replace(a, () => b)` ou edite o arquivo direto.
 - Testes de integração usam o banco local e rodam um arquivo por vez. Dados de seed mutáveis devem ser restaurados (veja `src/test/isolarAprovacoes.ts`).
 - Janela de confirmação do protótipo (`confirmar`) é o jeito padrão de mostrar aviso/erro ao usuário.
+- `audit_logs` é encadeada (ADR 0038): nunca grave seq/hash à mão; limpar auditoria em teste só apagando o workspace inteiro.
 
 ## Como trabalhar
 0. **Uma IA por pasta.** Cada IA trabalha na própria cópia do projeto (git worktree), nunca na mesma pasta de outra:
