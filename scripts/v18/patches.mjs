@@ -535,6 +535,23 @@ export const PATCHES = [
     por: "v.tf = { contasOpc: contas.map(a => ({ id: a.id, nome: a.nome })), aberto: true, titulo: t.titulo || '',"
   },
 
+  {
+    regra: 'formulario generico das listas aceita lista de opcoes e texto longo',
+    arquivo: 'template.generated.tsx',
+    aplicar: texto => {
+      const velho = '<input value={__val(c?.valor)} onChange={c?.mudar} placeholder={c?.placeholder} type={c?.tipo || "text"} />';
+      if (texto.split(velho).length !== 2) throw new Error('Regra "formulario generico": o campo do formulario mudou.');
+      const novo = '{c?.opcoes ? (<select className={"cfg-select"} value={__val(c?.valor)} onChange={c?.mudar}>{__arr(c?.opcoes).map((o, $i) => (<option key={$i} value={__val(o?.valor)}>{__t(o?.label)}</option>))}</select>) : c?.longo ? (<textarea value={__val(c?.valor)} onChange={c?.mudar} placeholder={c?.placeholder} rows={4} />) : (' + velho + ')}';
+      return texto.replace(velho, () => novo);
+    }
+  },
+  {
+    regra: 'modo real: cadencia por conta (plano padrao do desenho) nao aparece na lista',
+    arquivo: 'logic.generated.js',
+    trocar: "md.temPorConta = page === 'cadences' && !vazio;",
+    por: "md.temPorConta = page === 'cadences' && !vazio && this.modoDemo !== false;"
+  },
+
   // ---- Relatórios, Sinais e Prospecção (Grok)
   // Relatórios, no modo real, troca os números na própria tela (AlthiusApp).
   // Sem patch no arquivo gerado. Sinais e Prospecção entram nesta seção depois.

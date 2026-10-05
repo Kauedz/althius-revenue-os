@@ -5376,7 +5376,7 @@ export function renderTemplate($v: Record<string, any>) {
                 {$v.md?.form ? (<section aria-label={$v.md.form.titulo} style={{"display":"flex","flexDirection":"column","gap":"12px","padding":"18px","border":"1px solid var(--steel)","borderRadius":"12px","background":"var(--paper)"}}>
                   <h2 style={{"fontFamily":"var(--f-display)","margin":"0","fontWeight":"400","fontSize":"18px"}}>{__t($v.md.form.titulo)}</h2>
                   <div className={"cfg-grid"}>
-                    {__arr($v.md.form.campos).map((c, $index) => (<label key={$index} className={"cfg-campo"}><span>{__t(c?.label)}</span><input value={__val(c?.valor)} onChange={c?.mudar} placeholder={c?.placeholder} type={c?.tipo || "text"} /></label>))}
+                    {__arr($v.md.form.campos).map((c, $index) => (<label key={$index} className={"cfg-campo"}><span>{__t(c?.label)}</span>{c?.opcoes ? (<select className={"cfg-select"} value={__val(c?.valor)} onChange={c?.mudar}>{__arr(c?.opcoes).map((o, $i) => (<option key={$i} value={__val(o?.valor)}>{__t(o?.label)}</option>))}</select>) : c?.longo ? (<textarea value={__val(c?.valor)} onChange={c?.mudar} placeholder={c?.placeholder} rows={4} />) : (<input value={__val(c?.valor)} onChange={c?.mudar} placeholder={c?.placeholder} type={c?.tipo || "text"} />)}</label>))}
                   </div>
                   {$v.md.form.erro ? (<p role="alert" style={{"margin":"0","color":"var(--err)","fontSize":"14px"}}>{__t($v.md.form.erro)}</p>) : null}
                   <div className={"cfg-acoes"}>
