@@ -4,7 +4,7 @@ Althius é um Revenue OS B2B vendido a clientes reais. O dono do produto **não 
 
 ## Ordem de verdade
 1. `althius-frontend-v18/docs/Althius_papeis_permissoes_conexoes_Hermes.md` (regra de negócio)
-2. Front v18 (`althius-frontend-v18/`) → 3. documentos antigos.
+2. Front (`althius-frontend-v18/`, hoje na versão v22; o nome da pasta não muda) → 3. documentos antigos.
 Em conflito, **não decida sozinho**: registre uma ADR curta em `docs/adr/` com o padrão indicado no documento e avise o dono.
 Decisões já tomadas estão em `docs/adr/` (0001 a 0024). Não desfaça uma ADR sem o dono pedir; crie uma nova que a substitua.
 

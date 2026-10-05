@@ -9,7 +9,7 @@ Você vai continuar o backend da **Althius**, um Revenue OS B2B com 4 agentes de
 ## Arquivos e ordem de verdade
 
 1. `docs/Althius_papeis_permissoes_conexoes_Hermes.md`: a regra de negócio. O `.pdf` é o mesmo conteúdo, com os diagramas.
-2. `Althius_Desktop_v18.html`: o front que roda. Abra no navegador e troque de papel pelo avatar (Modo demonstração).
+2. `Althius_Desktop_v22.html`: o front que roda. Abra no navegador e troque de papel pelo avatar (Modo demonstração).
 3. `fonte/`: o mesmo front em arquivos legíveis. Comece pelo `LEIA-ME.md`.
 4. Os documentos antigos (banco de dados e Blueprint de 42 páginas). Ignore a versão de 38 páginas.
 
