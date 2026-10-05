@@ -34,6 +34,12 @@ O que acontece: o usuário é criado no login **sem senha**, o banco registra o 
 - Parar sem perder dado: `npm run docker:parar`. **Nunca** use `docker compose down -v` em produção: o `-v` apaga o banco.
 - Migration nova: entra sozinha na próxima subida (o `migrar` aplica só o que falta).
 
+## Webhooks da Unipile (mensagens, e-mails, conexão)
+O contêiner `webhooks` recebe os avisos da Unipile em `https://SEU-DOMINIO/webhooks/unipile` (o Caddy repassa; a porta 3100 não fica aberta). Ao cadastrar o webhook na Unipile, ponha o cabeçalho `Unipile-Auth` com o valor de `UNIPILE_WEBHOOK_SECRET` do `.env` (gerado por `npm run docker:env`; em `.env` antigo, acrescente a linha com um valor aleatório e rode `npm run docker:subir`). Sem o segredo, todo aviso é recusado (401).
+- Responde 200 na hora e grava em seguida (3 tentativas). Se o banco ficar fora do ar nas 3, o aviso é perdido e fica só no log (`docker compose logs webhooks`, linha `webhook_unipile_perdido`). Não existe fila ainda.
+- Só entra mensagem de contato do CRM, em conversa individual e recebida (não a que a própria pessoa enviou). O resto é descartado sem gravar nada, e o log nunca mostra remetente nem texto.
+- **O formato dos avisos da Unipile ainda não foi conferido na documentação oficial** (ver `src/server/webhooks/unipile.ts`). Faça um teste real com uma conta de teste antes de usar com cliente.
+
 ## O que fica aberto
 Só o `web` (portas 80 e 443). Banco, Redis, login, API e arquivos ficam na rede interna do Docker.
 

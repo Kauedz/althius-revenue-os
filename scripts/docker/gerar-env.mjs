@@ -47,6 +47,8 @@ const linhas = [
   `ANON_KEY=${anon}`,
   `SERVICE_ROLE_KEY=${service}`,
   `REDIS_PASSWORD=${aleatorio(24)}`,
+  '# Segredo do webhook da Unipile: vai no cabeçalho "Unipile-Auth" ao cadastrar o webhook na Unipile.',
+  `UNIPILE_WEBHOOK_SECRET=${aleatorio(32)}`,
   '',
   '# true = carrega os dados de demonstração (usuários com senha pública "althius-demo").',
   '# Em produção TEM que ser false.',
