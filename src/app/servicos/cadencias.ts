@@ -21,6 +21,10 @@ export interface CadenciasTela {
   linhas: CadenciaLinha[];
 }
 
+/** Variáveis aceitas nos textos dos passos (a lista do banco é `cadence_variable_names()`; um teste garante que são iguais). */
+export const VARIAVEIS_CADENCIA = ['primeiro_nome', 'nome', 'empresa', 'cargo', 'cidade', 'uf', 'dominio', 'meu_nome'];
+export const DICA_VARIAVEIS = 'Variáveis: ' + VARIAVEIS_CADENCIA.map(v => `{{${v}}}`).join(' ');
+
 export const cadenciasVazias = (): CadenciasTela => ({ kpis: [], linhas: [] });
 
 export const CANAL_PASSO: Record<string, string> = { email: 'E-mail', whatsapp: 'WhatsApp', linkedin: 'LinkedIn', instagram: 'Instagram', call: 'Ligação' };

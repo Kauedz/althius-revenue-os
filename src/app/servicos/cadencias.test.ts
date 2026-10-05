@@ -2,7 +2,7 @@
 // Eduardo C-level do Grão Norte (d..09). O seed não tem cadências.
 import { afterEach, describe, expect, it } from 'vitest';
 import { adminLocal, bancoLocalNoAr, entrarComoLocal } from '../../test/supabaseLocal';
-import { adicionarPasso, cadenciasVazias, inscreverContato, listarCadencias, removerUltimoPasso, salvarCadencia } from './cadencias';
+import { adicionarPasso, cadenciasVazias, VARIAVEIS_CADENCIA, DICA_VARIAVEIS, inscreverContato, listarCadencias, removerUltimoPasso, salvarCadencia } from './cadencias';
 
 const WS = 'a0000000-0000-0000-0000-000000000001';
 const GRAO = 'b0000000-0000-0000-0000-000000000001';
@@ -90,5 +90,19 @@ describe.skipIf(!bancoLocalNoAr)('Cadências (banco local)', () => {
     expect(view).toEqual([]);
     expect((await adicionarPasso(eduardo, GRAO, EDUARDO, c.id, { canal: 'E-mail', modo: 'manual', espera: 0, assunto: '', texto: 'x' })).ok).toBe(false);
     expect((await salvarCadencia(eduardo, GRAO, EDUARDO, c.id, 'Invadida', '', 'Ativa')).ok).toBe(false);
+  });
+
+  it('variáveis: a lista do front é a do banco; texto com variável que não existe é recusado com a lista das válidas', async () => {
+    const camila = await entrarComoLocal('camila@althius.com.br');
+    const { data } = await camila.rpc('cadence_variable_names');
+    expect(VARIAVEIS_CADENCIA).toEqual(data);
+    expect(DICA_VARIAVEIS).toContain('{{primeiro_nome}}');
+
+    const c = await salvarCadencia(camila, WS, CAMILA, null, 'Com variáveis', '', 'Ativa');
+    if (!c.ok || !c.id) throw new Error('cadência não criada');
+    const ruim = await adicionarPasso(camila, WS, CAMILA, c.id, { canal: 'E-mail', modo: 'manual', espera: 0, assunto: '', texto: 'Oi {{apelido}}' });
+    expect(ruim.ok === false && ruim.mensagem).toMatch(/Variável que não existe: \{\{apelido\}\}\. Use: \{\{primeiro_nome\}\}/);
+    const boa = await adicionarPasso(camila, WS, CAMILA, c.id, { canal: 'E-mail', modo: 'auto', espera: 0, assunto: 'Olá {{primeiro_nome}}', texto: 'Vi a {{ Empresa }} ({{cargo}}).' });
+    expect(boa.ok).toBe(true);
   });
 });
