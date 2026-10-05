@@ -23,6 +23,7 @@ export function bancoViaApi(base: string, chaveServico: string, buscar: typeof f
       p_external_chat_id: p.chat, p_external_message_id: p.mensagemId, p_text: p.texto, p_is_group: false, p_intent: 'neutra'
     }),
     definirStatus: (conta, status) => chamar('unipile_set_account_status', { p_unipile_account_id: conta, p_status: status }),
+    concluirConexao: (pedidoId, conta) => chamar('unipile_complete_connection', { p_request_id: pedidoId, p_unipile_account_id: conta, p_display_name: null }),
     novaRelacao: (conta, id) => chamar('unipile_handle_new_relation', { p_unipile_account_id: conta, p_linkedin_identifier: id })
   };
 }

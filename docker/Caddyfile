@@ -25,9 +25,17 @@
 	}
 
 	# Webhooks da Unipile. O segredo (cabeçalho Unipile-Auth) é conferido pelo próprio receptor.
-	handle /webhooks/unipile {
+	handle /webhooks/unipile* {
 		request_body {
 			max_size 1MB
+		}
+		reverse_proxy webhooks:3100
+	}
+
+	# Conexão da conta de mensagem: a tela pede o link ao backend com o login da pessoa (quem confere é o banco).
+	handle /conexoes/link {
+		request_body {
+			max_size 16KB
 		}
 		reverse_proxy webhooks:3100
 	}

@@ -48,6 +48,24 @@ export const PATCHES = [
     por: "const comprar = n => { if (this.modoDemo === false && this.comprarOuPedirCreditos) return this.comprarOuPedirCreditos(n); const preco = 'US$ ' + (n * VAL).toLocaleString('pt-BR'); if (!podeComprar) {"
   },
   {
+    regra: 'modo real: conectar conta de mensagem pelo assistente hospedado (nao ha QR simulado)',
+    arquivo: 'logic.generated.js',
+    trocar: "else this.setState({ ixCon: { k, via: 'gmail' } }); } }; });",
+    por: "else if (this.modoDemo === false && k !== 'email') this.conectarContaReal(k); else this.setState({ ixCon: { k, via: 'gmail' } }); } }; });"
+  },
+  {
+    regra: 'modo real: o e-mail escolhe Gmail ou Outlook e segue para o assistente hospedado',
+    arquivo: 'logic.generated.js',
+    trocar: "confirmar: () => { this.setState({ ixCon: Object.assign({}, x, { ocupado: true }) });",
+    por: "confirmar: () => { if (this.modoDemo === false) return this.conectarContaReal(x.k, x.via); this.setState({ ixCon: Object.assign({}, x, { ocupado: true }) });"
+  },
+  {
+    regra: 'modo real: desconectar grava no banco',
+    arquivo: 'logic.generated.js',
+    trocar: "'Desconectar', () => { setIC(k, null);",
+    por: "'Desconectar', () => { if (this.modoDemo === false) return this.desconectarContaReal(k, c); setIC(k, null);"
+  },
+  {
     regra: 'modo real: carga inicial protegida contra troca de workspace',
     arquivo: 'logic.generated.js',
     trocar: 'return Promise.all([D.homeService.summary(), D.agentService.list(), D.executionService.list(), D.approvalService.list(), D.notificationService.list()]);',

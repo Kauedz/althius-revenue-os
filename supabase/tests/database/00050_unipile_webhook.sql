@@ -49,12 +49,18 @@ SELECT is((SELECT count(*) FROM public.audit_logs WHERE action = 'messaging_acco
 SELECT is((SELECT workspace_id FROM public.audit_logs WHERE action = 'messaging_account.status_changed' AND entity_id = 'ca500000-0000-0000-0000-000000000001'),
   'a0000000-0000-0000-0000-000000000001'::uuid, 'Auditoria cai no workspace dono da conta');
 
+-- Avisa o dono da conta (Lucas, d..04) uma vez, e só quando piora
+SELECT is((SELECT count(*) FROM public.notifications WHERE type = 'conexao_atencao' AND entity_id = 'ca500000-0000-0000-0000-000000000001' AND recipient_member_id = 'd0000000-0000-0000-0000-000000000004'), 1::bigint,
+  'Dono da conta foi avisado da conexão que pede atenção');
+
 -- Repetir o mesmo aviso não muda nada nem audita de novo (idempotente)
 SELECT is(public.unipile_set_account_status('demo-lucas-google', 'attention')->>'action', 'unchanged', 'Mesmo status de novo: sem mudança');
 SELECT is((SELECT count(*) FROM public.audit_logs WHERE action = 'messaging_account.status_changed' AND entity_id = 'ca500000-0000-0000-0000-000000000001'), 1::bigint, 'Sem auditoria duplicada');
 
 SELECT is(public.unipile_set_account_status('demo-lucas-google', 'disconnected')->>'action', 'updated', 'Conexão cai de vez');
+SELECT is((SELECT count(*) FROM public.notifications WHERE type = 'conexao_atencao' AND entity_id = 'ca500000-0000-0000-0000-000000000001'), 2::bigint, 'Repetição não avisa de novo; a queda total avisa');
 SELECT is(public.unipile_set_account_status('demo-lucas-google', 'connected')->>'action', 'updated', 'Conexão volta');
+SELECT is((SELECT count(*) FROM public.notifications WHERE type = 'conexao_atencao' AND entity_id = 'ca500000-0000-0000-0000-000000000001'), 2::bigint, 'Voltar ao normal não gera aviso');
 SELECT is((SELECT count(*) FROM public.audit_logs WHERE action = 'messaging_account.status_changed' AND entity_id = 'ca500000-0000-0000-0000-000000000001'), 3::bigint, 'Cada mudança real gera uma linha');
 
 SELECT is(public.unipile_set_account_status('conta-que-nao-existe', 'attention')->>'reason', 'messaging_account_not_found', 'Conta desconhecida é ignorada sem erro');
