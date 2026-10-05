@@ -984,13 +984,13 @@ export function renderTemplate($v: Record<string, any>) {
                       </span>
                     </div>
                     {"\n                "}
-                    <div className={"seg seg-li"} role="radiogroup" aria-label="Período do mapa">
+                    {$v.modoDemo !== false ? (<div className={"seg seg-li"} role="radiogroup" aria-label="Período do mapa">
                       {__arr($v.mapa?.periodos).map((o, $index) => (<React.Fragment key={$index}>
                         <button role="radio" aria-checked={o?.ativo} onClick={o?.escolher}>
                           {__t(o?.label)}
                         </button>
                       </React.Fragment>))}
-                    </div>
+                    </div>) : null}
                     {"\n              "}
                   </div>
                   {"\n              "}

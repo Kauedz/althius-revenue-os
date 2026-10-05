@@ -1,11 +1,19 @@
-﻿// Resumo do painel de Início (Home) alimentado pelo banco de dados.
+// Resumo do painel de Início (Home) alimentado pelo banco de dados.
+// Regra do projeto: nunca número nem pessoa inventados. Cada valor vem do banco; o que não tem fonte ainda
+// mostra "Sem dados ainda" (mesmo padrão de Relatórios). Horários em Brasília.
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { nomeDoAgente } from '../agentes-exibicao';
+import { SEM_DADOS } from './relatorios';
 
 export interface HomeResumoTela {
   kpis: Array<[string, string, string, string]>;
   operacao: Array<[string, number]>;
   acoes: Array<{ titulo: string; resp: string; prazo: string; origem: string; prioridade: string }>;
   timeline: Array<[string, string, string, string]>;
+  /** Contas ativas por estado (UF -> quantidade), do banco. */
+  mapa: Record<string, number>;
+  /** Contas ativas sem estado informado. */
+  semLocalizacao: number;
 }
 
 interface HomeSummaryRpcResult {
@@ -16,14 +24,62 @@ interface HomeSummaryRpcResult {
   creditos_disponiveis: number;
   creditos_limite: number;
   papel: string;
+  oportunidades_abertas?: number;
+  campanhas_ativas?: number;
+  cadencias_ativas?: number;
+  agentes_trabalhando?: number;
+  acoes?: Array<{ titulo: string; responsavel: string | null; prazo: string | null; origem: string; agente: string | null }>;
+  timeline?: Array<{ id: string; titulo: string | null; tipo: string | null; status: string; quando: string }>;
+  mapa?: Record<string, number>;
+  contas_sem_localizacao?: number;
 }
 
 const nf = (n: number) => Math.round(n).toLocaleString('pt-BR');
+const FUSO = 'America/Sao_Paulo';
+
+function partes(d: Date): Record<string, string> {
+  const f = new Intl.DateTimeFormat('pt-BR', { timeZone: FUSO, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  const o: Record<string, string> = {};
+  for (const p of f.formatToParts(d)) o[p.type] = p.value;
+  return o;
+}
+const diaCivil = (d: Date) => { const p = partes(d); return Date.UTC(+p.year, +p.month - 1, +p.day) / 86400000; };
+const hora = (d: Date) => { const p = partes(d); return `${p.hour}:${p.minute}`; };
+const diaMes = (d: Date) => { const p = partes(d); return `${p.day}/${p.month}`; };
+
+/** Prazo de uma tarefa em linguagem da tela, no horário de Brasília. */
+function prazoTexto(iso: string | null, agora: Date): { texto: string; dias: number | null } {
+  if (!iso) return { texto: 'Sem prazo', dias: null };
+  const d = new Date(iso);
+  const dias = diaCivil(d) - diaCivil(agora);
+  if (dias < 0) return { texto: `Atrasada · ${diaMes(d)}`, dias };
+  if (dias === 0) return { texto: `Hoje, ${hora(d)}`, dias };
+  if (dias === 1) return { texto: `Amanhã, ${hora(d)}`, dias };
+  return { texto: `${diaMes(d)} · ${hora(d)}`, dias };
+}
+
+function origemTexto(origem: string, agente: string | null): string {
+  if (origem === 'manual') return 'Manual';
+  if (origem === 'cadencia') return 'Cadência';
+  return agente ? nomeDoAgente(agente) : 'Agente';
+}
+
+const TOM_AVISO = ['partial', 'paused', 'pending_approval', 'cancelled'];
+const tomDoStatus = (status: string) => (status === 'failed' ? 'erro' : TOM_AVISO.includes(status) ? 'aviso' : 'ok');
+
+function quandoTexto(iso: string, agora: Date): string {
+  const d = new Date(iso);
+  const dias = diaCivil(d) - diaCivil(agora);
+  if (dias === 0) return hora(d);
+  if (dias === -1) return 'Ontem';
+  return diaMes(d);
+}
 
 export async function obterResumoHome(
   cliente: SupabaseClient,
   workspaceId: string,
-  membroId: string
+  membroId: string,
+  agora: Date = new Date()
 ): Promise<HomeResumoTela> {
   const { data, error } = await cliente.rpc('get_home_summary', {
     p_workspace_id: workspaceId,
@@ -35,43 +91,45 @@ export async function obterResumoHome(
   }
 
   const r = data as HomeSummaryRpcResult;
+  const numero = (v: number | undefined) => (typeof v === 'number' ? nf(v) : SEM_DADOS);
 
+  // Sem fonte no banco (ainda): pipeline influenciado, leads, respostas, reuniões e mídia. Nada de variação inventada.
   const kpis: Array<[string, string, string, string]> = [
-    ['pipeline', 'Pipeline influenciado', 'R$ 4,8 mi', '+12% no período'],
-    ['oportunidades', 'Oportunidades abertas', '37', '+5'],
-    ['contas', 'Contas qualificadas', nf(r.contas_qualificadas), '+184'],
-    ['leads', 'Leads prospectados', '1.946', '+620'],
-    ['respostas', 'Respostas positivas', '64', '6,1% de taxa'],
-    ['reunioes', 'Reuniões agendadas', '23', '+8'],
-    ['midia', 'Investimento de mídia', 'R$ 30.000', '62% do orçamento'],
+    ['pipeline', 'Pipeline influenciado', SEM_DADOS, ''],
+    ['oportunidades', 'Oportunidades abertas', numero(r.oportunidades_abertas), ''],
+    ['contas', 'Contas qualificadas', nf(r.contas_qualificadas), ''],
+    ['leads', 'Leads prospectados', SEM_DADOS, ''],
+    ['respostas', 'Respostas positivas', SEM_DADOS, ''],
+    ['reunioes', 'Reuniões agendadas', SEM_DADOS, ''],
+    ['midia', 'Investimento de mídia', SEM_DADOS, ''],
     ['creditos', 'Créditos disponíveis', nf(r.creditos_disponiveis), `de ${nf(r.creditos_limite)} no ciclo`]
   ];
 
   const operacao: Array<[string, number]> = [
     ['Execuções ativas', r.execucoes_ativas],
-    ['Campanhas ativas', 4],
-    ['Cadências ativas', 6],
-    ['Agentes trabalhando', 3],
+    ['Campanhas ativas', r.campanhas_ativas ?? 0],
+    ['Cadências ativas', r.cadencias_ativas ?? 0],
+    ['Agentes trabalhando', r.agentes_trabalhando ?? 0],
     ['Alertas e bloqueios', r.alertas_bloqueios]
   ];
 
-  const acoes = [
-    { titulo: 'Ligar para Aline Xavier — Serra Azul Têxtil', resp: 'Lucas Teixeira', prazo: 'Hoje, 11:00', origem: 'Agente', prioridade: 'Alta' },
-    { titulo: 'Aprovar e-mails T1 da Serra Azul', resp: 'Aline Xavier', prazo: 'Hoje, 14:00', origem: 'Agente', prioridade: 'Alta' },
-    { titulo: 'Reconectar mídia paga', resp: 'Camila Duarte', prazo: 'Hoje', origem: 'Integração', prioridade: 'Alta' },
-    { titulo: 'Revisar ICP para região Nordeste', resp: 'Camila Duarte', prazo: 'Qua', origem: 'Estrategista', prioridade: 'Média' },
-    { titulo: 'Follow-up Douglas Quites — Alvorada', resp: 'Lucas Teixeira', prazo: 'Amanhã', origem: 'CRM', prioridade: 'Média' }
-  ];
+  const acoes = (r.acoes ?? []).map(a => {
+    const prazo = prazoTexto(a.prazo, agora);
+    return {
+      titulo: a.titulo,
+      resp: a.responsavel || 'Sem responsável',
+      prazo: prazo.texto,
+      origem: origemTexto(a.origem, a.agente),
+      prioridade: prazo.dias !== null && prazo.dias <= 0 ? 'Alta' : 'Média'
+    };
+  });
 
-  const timeline: Array<[string, string, string, string]> = [
-    ['09:31', 'Lista enriquecida', '512 contas com fit acima de 70', 'ok'],
-    ['09:20', 'Conta qualificada', 'Serra Azul Têxtil · fit 96', 'ok'],
-    ['09:02', 'Execução concluída', 'Comitê de 48 contas · parcial', 'aviso'],
-    ['08:48', 'Lead respondeu', 'Douglas Quites pediu proposta', 'ok'],
-    ['08:10', 'Oportunidade criada', 'Grão Norte Alimentos · R$ 35.000', 'ok'],
-    ['07:01', 'Integração com falha', 'Mídia paga · conexão expirou', 'erro'],
-    ['Ontem', 'Campanha publicada', 'Importação sem risco · LinkedIn', 'ok']
-  ];
+  const timeline: Array<[string, string, string, string]> = (r.timeline ?? []).map(e => [
+    quandoTexto(e.quando, agora),
+    e.tipo || 'Execução',
+    e.titulo || '',
+    tomDoStatus(e.status)
+  ]);
 
-  return { kpis, operacao, acoes, timeline };
+  return { kpis, operacao, acoes, timeline, mapa: r.mapa ?? {}, semLocalizacao: r.contas_sem_localizacao ?? 0 };
 }
