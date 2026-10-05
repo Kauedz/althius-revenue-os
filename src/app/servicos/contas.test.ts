@@ -113,6 +113,18 @@ describe('listarContas (unitário / mapeamento)', () => {
     });
   });
 
+  it('o comitê sai em ordem fixa (decisor, campeão, influenciador; por nome), qualquer que seja a ordem em que o banco devolve', async () => {
+    const pessoa = (id: string, name: string, buying_role: string) => ({ id, account_id: 'c1', name, job_title: 'Cargo', buying_role, photo_url: null, linkedin_status: 'sem_conexao' });
+    const cliente = mockSupabase({
+      accounts: { data: [{ id: 'c1', name: 'Acme', domain: 'acme.com', logo_url: null, segment: 'x', fit: 50, temperature: 1, last_signal_text: null, owner_member_id: null, city: 'SP', state_uf: 'SP', status: 'ativa' }], error: null },
+      contacts: { data: [pessoa('3', 'Zélia', 'influenciador'), pessoa('2', 'Bruno', 'campeao'), pessoa('4', 'Ana', 'influenciador'), pessoa('1', 'Carla', 'decisor')], error: null },
+      contact_channels: { data: [], error: null }
+    });
+    const contas = await listarContas(cliente, 'ws');
+    expect(contas[0].comite?.map(p => p.nome)).toEqual(['Carla', 'Bruno', 'Ana', 'Zélia']);
+    expect(contas[0].decisor).toBe('Carla');
+  });
+
   it('quando não há decisor mapeado, mostra "A mapear"', async () => {
     const cliente = mockSupabase({
       accounts: {

@@ -36,7 +36,7 @@ import { listarProspeccao, prospeccaoSemDados, type ProspeccaoTela } from './ser
 import { arquivarNegocio, atualizarNegocio, criarNegocio, criarQuadro, excluirQuadro, listarPipeline, moverNegocio, MOTIONS, pipelineVazio, reordenarEtapas, renomearQuadro, type Motion, type PipelineTela, type Resultado } from './servicos/pipeline';
 import { adiarTarefa, criarTarefa, listarTarefas, mudarStatusTarefa, tarefasVazias, type TarefasTela } from './servicos/tarefas';
 import { CANAIS_CAMPANHA, campanhasVazias, criarCampanha, listarCampanhas, mudarStatusCampanha, mudarVerba, type CampanhasTela } from './servicos/campanhas';
-import { adicionarPasso, cadenciasVazias, CANAL_PASSO, inscreverContato, listarCadencias, removerUltimoPasso, salvarCadencia, type CadenciasTela } from './servicos/cadencias';
+import { adicionarPasso, cadenciasVazias, CANAL_PASSO, DICA_VARIAVEIS, inscreverContato, listarCadencias, removerUltimoPasso, salvarCadencia, type CadenciasTela } from './servicos/cadencias';
 import { nomeDoAgente } from './agentes-exibicao';
 import { normalizarDominio } from './normalizacao';
 
@@ -1283,8 +1283,8 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
         { k: 'canal', label: 'Canal', valor: 'E-mail', opcoes: Object.values(CANAL_PASSO).map(x => ({ valor: x, label: x })) },
         { k: 'modo', label: 'Como sai', valor: 'Manual', opcoes: [{ valor: 'Manual', label: 'Manual (vira tarefa)' }, { valor: 'Automático', label: 'Automático (só e-mail e WhatsApp)' }] },
         { k: 'espera', label: 'Espera depois do passo anterior (dias)', valor: '0', tipo: 'number' },
-        { k: 'assunto', label: 'Assunto (e-mail)', valor: '' },
-        { k: 'texto', label: 'Texto ou roteiro', valor: '', longo: true }
+        { k: 'assunto', label: 'Assunto (e-mail)', valor: '', placeholder: 'Ex.: Olá {{primeiro_nome}}' },
+        { k: 'texto', label: 'Texto ou roteiro', valor: '', longo: true, placeholder: 'Ex.: Vi a {{empresa}} e queria falar com você, {{primeiro_nome}}. ' + DICA_VARIAVEIS }
       ] });
     }
     if (acao === 'Inscrever contato') {

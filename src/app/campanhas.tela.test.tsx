@@ -101,4 +101,24 @@ describe.skipIf(!bancoLocalNoAr)('Campanhas e Cadências (banco local)', () => {
     fireEvent.click(within(passo).getByRole('button', { name: 'Adicionar passo' }));
     expect(await within(passo).findByRole('alert', {}, { timeout: 8000 })).toHaveTextContent('Só e-mail e WhatsApp podem ser automáticos.');
   });
+
+  it('Cadências: o texto do passo mostra as variáveis e recusa variável que não existe', async () => {
+    await adm.from('cadences').insert({ workspace_id: WS, name: 'Com variáveis', status: 'ativa' });
+    await entrar('camila@althius.com.br', 'cadences', 'Com variáveis');
+    fireEvent.click(screen.getAllByText('Com variáveis')[0]);
+    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar passo' }, { timeout: 8000 }));
+    const passo = await screen.findByRole('region', { name: 'Novo passo em "Com variáveis"' }, { timeout: 8000 });
+    const texto = within(passo).getByLabelText('Texto ou roteiro') as HTMLTextAreaElement;
+    expect(texto.placeholder).toContain('{{primeiro_nome}}');
+    expect(texto.placeholder).toContain('{{empresa}}');
+    fireEvent.change(texto, { target: { value: 'Oi {{apelido}}' } });
+    fireEvent.click(within(passo).getByRole('button', { name: 'Adicionar passo' }));
+    expect(await within(passo).findByRole('alert', {}, { timeout: 8000 })).toHaveTextContent('Variável que não existe: {{apelido}}');
+    fireEvent.change(texto, { target: { value: 'Oi {{primeiro_nome}}, vi a {{empresa}}' } });
+    fireEvent.click(within(passo).getByRole('button', { name: 'Adicionar passo' }));
+    await waitFor(async () => {
+      const { data } = await adm.from('cadence_steps').select('body').eq('workspace_id', WS);
+      expect(data).toEqual([{ body: 'Oi {{primeiro_nome}}, vi a {{empresa}}' }]);
+    }, { timeout: 8000 });
+  });
 });

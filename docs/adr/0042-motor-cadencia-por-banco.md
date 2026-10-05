@@ -12,7 +12,7 @@ O roteiro do PR 06 pedia "worker no `CADENCE_DISPATCHER`" (fila BullMQ) com dese
 
 ## Fora deste PR (declarado)
 - **Ramificação** ("se abriu o e-mail, vai para X") e "esperar evento" além da resposta do contato. Hoje o único evento que interrompe a cadência é a resposta (já tratada em `unipile_ingest_message`).
-- Variáveis de texto (`{nome}`): o texto do passo vai como está escrito. Quem personaliza usa `custom_body` por inscrição.
+- ~~Variáveis de texto~~: feitas no PR 10 (migration 0104). `{{primeiro_nome}}`, `{{nome}}`, `{{empresa}}`, `{{cargo}}`, `{{cidade}}`, `{{uf}}`, `{{dominio}}`, `{{meu_nome}}`. Passo automático com variável sem dado bloqueia o envio e avisa o dono; passo manual mostra `[FALTA: cargo]`; o passo não grava variável que não existe.
 - Reconciliação das execuções "incertas" (tela ou rotina que confere a caixa de saída e conclui à mão).
 - Telas de Cadências ligadas ao banco (PR 08).
 

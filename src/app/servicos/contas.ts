@@ -95,6 +95,13 @@ export async function listarContas(cliente: SupabaseClient, workspaceId: string)
     comitePorConta.set(c.account_id, lista);
   }
 
+  // Ordem fixa do comitê: decisor, depois campeão, depois influenciador; por nome dentro de cada papel.
+  // (Sem isso a ordem seguia a posição física das linhas no banco e mudava depois de qualquer edição.)
+  const RANK_PAPEL: Record<string, number> = { decisor: 0, campeao: 1, influenciador: 2 };
+  for (const lista of comitePorConta.values()) {
+    lista.sort((x, y) => (RANK_PAPEL[x.papel] ?? 3) - (RANK_PAPEL[y.papel] ?? 3) || x.nome.localeCompare(y.nome, 'pt-BR'));
+  }
+
   return data.map(a => {
     const comite = comitePorConta.get(a.id) || [];
     const decisorContato = comite.find(p => p.papel === 'decisor');

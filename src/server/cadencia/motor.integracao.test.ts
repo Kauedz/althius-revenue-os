@@ -142,4 +142,31 @@ describe.skipIf(!bancoLocalNoAr)('motor de cadência com o banco local', () => {
       for (const c of conv ?? []) await adm.from('notifications').delete().eq('entity_id', c.id);
     }
   });
+
+  it('variáveis: o provedor recebe o texto resolvido, sem {{...}}', async () => {
+    await adm.from('cadence_steps').update({ subject: 'Olá {{primeiro_nome}}', body: 'Vi a {{empresa}} ({{cargo}}). Abraço, {{meu_nome}}' }).eq('cadence_id', CAD).eq('step_number', 1);
+    const r = await rodarCiclo({ banco, mensageiro, log: () => {} });
+    expect(r.enviados).toBe(1);
+    expect(enviados[0]).toMatchObject({ assunto: 'Olá Aline', texto: 'Vi a Serra Azul Têxtil (Diretora de Supply Chain). Abraço, Lucas Teixeira' });
+    expect(JSON.stringify(enviados)).not.toContain('{{');
+  });
+
+  it('variável sem dado: o provedor nem é chamado, nada é reservado e o dono é avisado', async () => {
+    await adm.from('cadence_steps').update({ body: 'Oi {{primeiro_nome}}, e o {{cargo}}?' }).eq('cadence_id', CAD).eq('step_number', 1);
+    await adm.from('contacts').update({ job_title: null }).eq('id', ALINE);
+    try {
+      const r = await rodarCiclo({ banco, mensageiro, log: () => {} });
+      expect(r.bloqueados).toBe(1);
+      expect(enviados).toEqual([]);
+      const e = await estado();
+      expect(e.execucoes).toEqual([]);
+      expect(e.carteira.reserved_balance).toBe(carteira.reserved_balance);
+      const { data } = await adm.from('notifications').select('type, body').eq('entity_id', INSC);
+      expect(data).toHaveLength(1);
+      expect(data![0].type).toBe('cadencia_bloqueada');
+      expect(data![0].body).toContain('cargo');
+    } finally {
+      await adm.from('contacts').update({ job_title: 'Diretora de Supply Chain' }).eq('id', ALINE);
+    }
+  });
 });
