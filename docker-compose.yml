@@ -28,14 +28,22 @@ services:
     environment:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: "9999"
-      API_EXTERNAL_URL: ${SITE_URL}/auth/v1
+      API_EXTERNAL_URL: ${SITE_URL}
+      # Os links dos e-mails/convites passam pelo Caddy em /auth/v1.
+      GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /auth/v1/verify
       GOTRUE_SITE_URL: ${SITE_URL}
+      GOTRUE_URI_ALLOW_LIST: ${SITE_URL}/**
       GOTRUE_DB_DRIVER: postgres
       GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD}@db:5432/postgres
       GOTRUE_JWT_SECRET: ${JWT_SECRET}
       GOTRUE_JWT_EXP: "3600"
       GOTRUE_JWT_AUD: authenticated
       GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      # Link de definir senha vale uma vez e dura 24 h (quem roda o criar-superadmin entrega por canal seguro).
+      GOTRUE_MAILER_OTP_EXP: "86400"
       # Sem cadastro aberto: as pessoas entram por convite/superadmin (service_role continua podendo criar).
       GOTRUE_DISABLE_SIGNUP: "true"
       GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"

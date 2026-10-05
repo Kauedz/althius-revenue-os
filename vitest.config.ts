@@ -6,7 +6,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'scripts/**/*.test.mjs'],
     testTimeout: 15000,
     // Os testes de integração compartilham o mesmo banco local: um arquivo por vez evita corrida
     fileParallelism: false,

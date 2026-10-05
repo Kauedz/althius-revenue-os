@@ -18,6 +18,17 @@ npm run docker:subir
 Aponte o DNS do domínio para o servidor e libere só as portas 80 e 443. O certificado HTTPS é emitido sozinho. O `.env` guarda as senhas do banco: **faça cópia segura e não perca**. Para gerar de novo, apague o `.env` (isso só vale para uma instalação nova; trocar a senha do banco com dados existentes exige trocar também dentro do banco).
 Trocar `SITE_URL` depois exige `npm run docker:subir` de novo (o endereço é gravado dentro do front na compilação).
 
+## Criar o primeiro superadmin (servidor novo)
+Servidor sem dados de demonstração não tem ninguém para entrar. Crie o primeiro superadmin, **uma única vez, no servidor**:
+```
+npm run criar-superadmin -- --email pessoa@empresa.com.br
+```
+O que acontece: o usuário é criado no login **sem senha**, o banco registra o superadmin (e cria o workspace interno "Althius (interno)", onde ele "mora"; sem workspace não existe superadmin) com registro na auditoria, e o comando mostra um **link de definir senha** (vale uma vez, expira em 24 horas). A pessoa abre o link, escolhe a senha e entra.
+- **Nada é enviado por e-mail** (o conector de e-mail ainda não existe): quem roda entrega o link por um canal seguro e não o guarda.
+- O comando **se recusa a rodar** se já existir superadmin ativo, ou se faltar o `--email`. Não existe senha fixa.
+- Os próximos superadmins e os clientes são criados dentro do sistema (tela Superadmin), não por este comando.
+- Se o link expirar antes de ser usado, não dá para rodar de novo (já existe superadmin). Nesse caso, peça ajuda técnica: é preciso gerar um link novo pelo login do servidor.
+
 ## Dia a dia
 - Ver o que está rodando: `docker compose ps`. Logs: `docker compose logs -f auth` (ou `rest`, `web`, `migrar`...).
 - Parar sem perder dado: `npm run docker:parar`. **Nunca** use `docker compose down -v` em produção: o `-v` apaga o banco.

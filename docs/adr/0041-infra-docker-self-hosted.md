@@ -5,6 +5,8 @@ Decisão do dono (2026-10-05): **nada de Supabase Cloud**. A Althius roda em Doc
 
 (Numeração: o prompt pedia 0039, mas 0039 e 0040 já estão nos PRs abertos da âncora e da política de auditoria. Por isso esta é a 0041.)
 
+**Aceite do dono (2026-10-05):** workers, MCP e Hermes entram no PR de cada um; Caddy sem Kong, Realtime e Edge Runtime por enquanto; código de servidor = serviço Node no compose; esta ADR é a 0041.
+
 ## Decisão
 Um `docker-compose.yml` na raiz sobe tudo. Imagens oficiais, com versão fixa (as mesmas do `npx supabase start`, para o ambiente de teste e o de servidor se comportarem igual).
 
@@ -27,7 +29,8 @@ Um `docker-compose.yml` na raiz sobe tudo. Imagens oficiais, com versão fixa (a
 6. **Segredos:** o `.env` é gerado por `npm run docker:env` (senhas aleatórias, permissão 600) e **nunca** vai para o git (a trava `guardas` bloqueia). O compose só tem referências `${...}`, nunca valores. As chaves `anon` (pública) e `service_role` são assinadas com o `JWT_SECRET` gerado. Docker secrets ficam como evolução.
 7. **Backup:** o contêiner `backup` roda `pg_dump` (formato custom) e empacota os arquivos a cada 24 h (`BACKUP_INTERVALO_HORAS`), em `./backups`, e apaga o que passar de 14 dias (`BACKUP_RETENCAO_DIAS`). **Copiar essa pasta para fora do servidor** é obrigação de quem opera (ainda sem rotina automática).
 8. **Atualizar imagens:** versão fixa no compose. Para atualizar: trocar a versão num PR, subir em homologação com uma cópia de backup, `docker compose pull && docker compose up -d --build`. As migrations novas são aplicadas sozinhas pelo `migrar`. Voltar atrás = restaurar o backup.
-9. **Homologação e produção** usam o mesmo compose com `.env` diferentes (`SITE_URL`, senhas). `SEMEAR_DEMO` é `false` fora do desenvolvimento.
+9. **Primeiro superadmin: `npm run criar-superadmin -- --email X`** (decisão do dono, 2026-10-05). Roda uma única vez no servidor: cria o usuário no GoTrue sem senha, gera um link de definir senha (uma vez, 24 h), chama `public.bootstrap_superadmin` e mostra o link. Recusa se faltar o e-mail ou se já existir superadmin ativo (confere antes de criar qualquer coisa e de novo dentro do banco, com trava contra duas execuções ao mesmo tempo). Superadmin é uma linha de `workspace_members`, então a função de banco cria também o workspace interno **"Althius (interno)"** (slug `althius-interno`) e a carteira, e registra `superadmin.bootstrap` na auditoria (sem ator de tela). Nunca há senha fixa. Nenhum e-mail sai (sem conector de e-mail): o link aparece no terminal. Como o front não tinha tela de definir senha, existe uma página estática mínima em `/definir-senha/` (`docker/definir-senha/`), servida pelo Caddy, fora do front gerado.
+10. **Homologação e produção** usam o mesmo compose com `.env` diferentes (`SITE_URL`, senhas). `SEMEAR_DEMO` é `false` fora do desenvolvimento.
 
 ## O que foi provado (ambiente de teste, não servidor real)
 - Subida do zero com um comando; 47 migrations aplicadas; subir de novo não refaz nada; os dados sobrevivem a parar e subir.
@@ -37,6 +40,7 @@ Um `docker-compose.yml` na raiz sobe tudo. Imagens oficiais, com versão fixa (a
 
 ## Pendências e limites
 - **HTTPS com domínio real não foi testado** (precisa de domínio e DNS). Só o HTTP em `localhost`.
-- **O estágio de build do `docker/Dockerfile.web` (`npm ci` + `vite build` dentro do Docker) não foi exercitado** no ambiente de teste, que só tem internet por um proxy que o contêiner de build não alcança. O mesmo build foi feito fora do Docker e o resultado servido pelo Caddy. Valide num servidor com internet normal.
-- Como criar o **primeiro superadmin em produção** (sem o seed): decisão pendente do dono.
+- **Validar em servidor com internet (não bloqueia o merge):** o estágio de build do `docker/Dockerfile.web` (`npm ci` + `vite build` dentro do Docker) não foi exercitado no ambiente de teste, que só tem internet por um proxy que o contêiner de build não alcança. O mesmo build foi feito fora do Docker e o resultado servido pelo Caddy. Valide num servidor com internet normal.
+- Link de definir senha só aparece no terminal de quem roda o comando. Se expirar sem uso, não há como gerar outro pelo comando (ele recusa por já existir superadmin): hoje exige acesso técnico ao login. Um "reenviar link" fica para quando houver conector de e-mail.
+- Os convites de membros novos também precisam de uma tela de definir senha no front; a página `/definir-senha/` já serve de base.
 - Cópia automática do `./backups` para fora do servidor; Docker secrets; Realtime, Edge Runtime e Studio (painel do Supabase) quando houver uso.

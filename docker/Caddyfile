@@ -24,6 +24,13 @@
 		reverse_proxy storage:5000
 	}
 
+	# Página de definir senha (link do criar-superadmin e dos convites). Fica fora do front gerado.
+	handle /definir-senha* {
+		root * /srv
+		rewrite * /definir-senha/index.html
+		file_server
+	}
+
 	# O front (build do Vite). Rotas do app caem no index.html.
 	handle {
 		root * /srv

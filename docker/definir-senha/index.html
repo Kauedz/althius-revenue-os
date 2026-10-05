@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>Definir senha · Althius</title>
+<style>
+  :root { --paper:#faf7f2; --ink:#14110d; --muted:#6b645a; --line:#d9d2c5; --erro:#b3261e; --ok:#1f6b3a; }
+  @media (prefers-color-scheme: dark) { :root { --paper:#14110d; --ink:#f3eee6; --muted:#a39b8e; --line:#3a342b; --erro:#ff8a80; --ok:#7bd69a; } }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; padding:24px; background:var(--paper); color:var(--ink);
+         font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { width:100%; max-width:400px; }
+  h1 { font-size:24px; margin:0 0 6px; }
+  p { color:var(--muted); margin:0 0 20px; }
+  label { display:block; font-size:14px; margin:14px 0 6px; }
+  input { width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:10px; background:transparent; color:inherit; font:inherit; }
+  input:focus { outline:2px solid var(--ink); outline-offset:1px; }
+  button, a.botao { display:block; width:100%; margin-top:22px; padding:13px; border:0; border-radius:10px; background:var(--ink); color:var(--paper);
+         font:inherit; font-weight:600; text-align:center; text-decoration:none; cursor:pointer; }
+  button:disabled { opacity:.55; cursor:default; }
+  .msg { margin-top:14px; font-size:14px; min-height:1.4em; }
+  .msg.erro { color:var(--erro); } .msg.ok { color:var(--ok); }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Definir senha</h1>
+
+  <form id="form" hidden>
+    <p>Escolha a senha para entrar na Althius.</p>
+    <label for="nova">Nova senha</label>
+    <input id="nova" type="password" autocomplete="new-password" required>
+    <label for="repete">Repita a senha</label>
+    <input id="repete" type="password" autocomplete="new-password" required>
+    <div id="msg" class="msg erro" role="alert" aria-live="polite"></div>
+    <button id="enviar" type="submit">Salvar senha</button>
+  </form>
+
+  <section id="pronto" hidden>
+    <p>Senha definida. Já pode entrar.</p>
+    <a class="botao" href="/">Entrar na Althius</a>
+  </section>
+
+  <section id="invalido" hidden>
+    <p id="invalido-msg">Este link não é válido ou já foi usado. Peça um novo a quem administra o sistema.</p>
+  </section>
+</main>
+<script>
+(function () {
+  // O endereço traz a sessão temporária depois do "#". Guardo só na memória e apago da barra de endereço.
+  var dados = new URLSearchParams(location.hash.replace(/^#/, ''));
+  var token = dados.get('access_token');
+  var tipo = dados.get('type');
+  var erroLink = dados.get('error_description');
+  history.replaceState(null, '', location.pathname);
+
+  var $ = function (id) { return document.getElementById(id); };
+  if (!token || tipo !== 'recovery') {
+    $('invalido').hidden = false;
+    if (erroLink) $('invalido-msg').textContent = 'Este link expirou ou já foi usado. Peça um novo a quem administra o sistema.';
+    return;
+  }
+  $('form').hidden = false;
+
+  function senhaFraca(s) { return s.length < 8 || !/[0-9]/.test(s) || !/[a-zA-Z]/.test(s); }
+
+  $('form').addEventListener('submit', function (ev) {
+    ev.preventDefault();
+    var nova = $('nova').value;
+    var msg = $('msg');
+    msg.textContent = '';
+    if (senhaFraca(nova)) { msg.textContent = 'A senha precisa de 8 caracteres ou mais, com letras e números.'; return; }
+    if (nova !== $('repete').value) { msg.textContent = 'As duas senhas não são iguais.'; return; }
+    $('enviar').disabled = true;
+    fetch('/auth/v1/user', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+      body: JSON.stringify({ password: nova })
+    }).then(function (res) {
+      if (!res.ok) throw new Error('http ' + res.status);
+      token = null;
+      $('form').hidden = true;
+      $('pronto').hidden = false;
+    }).catch(function () {
+      msg.textContent = 'Não foi possível salvar a senha. O link pode ter expirado: peça um novo.';
+      $('enviar').disabled = false;
+    });
+  });
+})();
+</script>
+</body>
+</html>
