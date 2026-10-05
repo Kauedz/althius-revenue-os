@@ -7,3 +7,4 @@ buzz-reference
 *.log
 supabase/.branches
 .scratch/desenvolvimento/
+backups

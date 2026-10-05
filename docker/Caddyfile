@@ -1,0 +1,33 @@
+# Único serviço exposto à internet. Fala HTTPS sozinho quando SITE_ADDRESS é um domínio
+# (certificado automático). Em desenvolvimento, SITE_ADDRESS=http://localhost (HTTP puro).
+{$SITE_ADDRESS:http://localhost} {
+	encode gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# Login (GoTrue), API do banco (PostgREST) e arquivos (Storage). O front usa o mesmo endereço.
+	handle_path /auth/v1/* {
+		reverse_proxy auth:9999
+	}
+	handle_path /rest/v1/* {
+		reverse_proxy rest:3000
+	}
+	handle_path /storage/v1/* {
+		request_body {
+			max_size 10MB
+		}
+		reverse_proxy storage:5000
+	}
+
+	# O front (build do Vite). Rotas do app caem no index.html.
+	handle {
+		root * /srv
+		try_files {path} /index.html
+		file_server
+	}
+}

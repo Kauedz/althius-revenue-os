@@ -14,6 +14,7 @@ Decisões já tomadas estão em `docs/adr/` (0001 a 0024). Não desfaça uma ADR
 - `src/app/` integração do front com o banco (login, contexto, `AlthiusApp.ts`, `servicos/*`). É aqui que se liga uma tela ao banco.
 - `src/server/` esqueleto do backend (filas, provedores, Hermes). Ainda não roda em produção.
 - Modo real (padrão, com login) e modo demo (`VITE_ALTHIUS_MODO=demo`).
+- `docker-compose.yml` + `docker/` infraestrutura em Docker, em servidor nosso (ADR 0041; guia em `docker/LEIA-ME.md`). `.env` do Docker é gerado por `npm run docker:env` e nunca vai para o git.
 
 ## Regras inegociáveis
 1. **Créditos, nunca dólar.** Nenhuma tela de cliente mostra US$ nem a conversão (ADR 0021). Preço de compra em reais (`src/app/precos.ts`). Custo real do fornecedor só para o superadmin.
