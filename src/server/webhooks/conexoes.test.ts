@@ -1,23 +1,24 @@
 // Testes da conexão de contas (PR 05): link do assistente hospedado e aviso de conclusão. A Unipile é falsa.
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AddressInfo } from 'node:net';
-import { assinarPedido, assinaturaValida, iniciarConexao, type DepsConexoes } from './conexoes';
+import { iniciarConexao, type DepsConexoes } from './conexoes';
 import { criarLinkHospedado } from './hospedado';
 import { criarServidor } from './servidor';
-import { interpretarConexao, type Banco } from './unipile';
+import { assinarCorpo, type Banco } from './unipile';
 
 const WS = 'a0000000-0000-0000-0000-000000000001';
 const MEMBRO = 'd0000000-0000-0000-0000-000000000004';
 const PEDIDO = 'f6000000-0000-0000-0000-000000000001';
 const SEGREDO = 'segredo-de-teste-123';
-const DSN = 'https://api-falsa.exemplo.test:1111';
+const URL_API = 'https://api-falsa.exemplo.test';
+const config = (apiKey = 'chave-de-teste') => () => ({ apiKey, url: URL_API });
 
 /** fetch falso: guarda as chamadas e responde conforme o endereço */
 function fetchFalso(opts: { banco?: { status: number; corpo: unknown }; unipile?: { status: number; corpo: unknown } } = {}) {
   const chamadas: Array<{ url: string; cabecalhos: Record<string, string>; corpo: any }> = [];
   const f = (async (url: string, init: RequestInit = {}) => {
     chamadas.push({ url, cabecalhos: init.headers as Record<string, string>, corpo: init.body ? JSON.parse(init.body as string) : undefined });
-    const alvo = url.startsWith(DSN) ? (opts.unipile ?? { status: 200, corpo: { url: 'https://conectar.exemplo.test/abc' } })
+    const alvo = url.startsWith(URL_API) ? (opts.unipile ?? { status: 200, corpo: { link: 'https://conectar.exemplo.test/abc' } })
       : (opts.banco ?? { status: 200, corpo: { request_id: PEDIDO, type: 'create', provider: 'instagram', reconnect_account_id: null } });
     return { ok: alvo.status < 300, status: alvo.status, json: async () => alvo.corpo };
   }) as unknown as typeof fetch;
@@ -25,35 +26,42 @@ function fetchFalso(opts: { banco?: { status: number; corpo: unknown }; unipile?
 }
 
 const deps = (buscar: typeof fetch, extra: Partial<DepsConexoes> = {}): DepsConexoes => ({
-  segredo: SEGREDO, siteUrl: 'https://app.exemplo.com.br/', unipile: { dsn: DSN, apiKey: 'chave-de-teste' },
+  siteUrl: 'https://app.exemplo.com.br/', obterConfig: config(),
   baseBanco: 'http://rest:3000', chaveAnon: 'anon-de-teste', buscar, agora: () => new Date('2026-10-05T12:00:00Z'), ...extra
 });
 const pedido = { workspace_id: WS, member_id: MEMBRO, provider: 'instagram' };
 
 describe('criarLinkHospedado', () => {
-  it('monta o pedido do assistente (create) e devolve o link', async () => {
+  const base = { tipo: 'create', provedor: 'whatsapp', pedidoId: PEDIDO, retornoUrl: 'https://x/volta', expiraEm: new Date('2026-10-05T12:30:00Z') } as const;
+  it('monta o pedido do link (v2) e devolve o link', async () => {
     const { f, chamadas } = fetchFalso();
-    const url = await criarLinkHospedado({ dsn: DSN, apiKey: 'k' }, { tipo: 'create', provedor: 'microsoft', nome: PEDIDO, notifyUrl: 'https://x/n', sucessoUrl: 'https://x/ok', falhaUrl: 'https://x/no', expiraEm: new Date('2026-10-05T12:30:00Z') }, f);
+    const url = await criarLinkHospedado(config('k'), { ...base, provedor: 'microsoft' }, f);
     expect(url).toBe('https://conectar.exemplo.test/abc');
-    expect(chamadas[0].url).toBe(`${DSN}/api/v1/hosted/accounts/link`);
+    expect(chamadas[0].url).toBe(`${URL_API}/v2/auth/link`);
     expect(chamadas[0].cabecalhos['X-API-KEY']).toBe('k');
-    expect(chamadas[0].corpo).toMatchObject({ type: 'create', providers: ['OUTLOOK'], name: PEDIDO, notify_url: 'https://x/n', expiresOn: '2026-10-05T12:30:00.000Z' });
-    expect(chamadas[0].corpo.reconnect_account).toBeUndefined();
+    expect(chamadas[0].corpo).toEqual({ expires_on: '2026-10-05T12:30:00.000Z', redirect_uri: 'https://x/volta', state: PEDIDO, providers: ['outlook'] });
   });
-  it('reconexão leva a conta que já existe', async () => {
+  it('aceita o link dentro de data (formato alternativo da resposta)', async () => {
+    const { f } = fetchFalso({ unipile: { status: 200, corpo: { data: { link: 'https://conectar.exemplo.test/z' } } } });
+    expect(await criarLinkHospedado(config(), base, f)).toBe('https://conectar.exemplo.test/z');
+  });
+  it('reconexão leva a conta que já existe, sem lista de provedores', async () => {
     const { f, chamadas } = fetchFalso();
-    await criarLinkHospedado({ dsn: DSN, apiKey: 'k' }, { tipo: 'reconnect', provedor: 'linkedin', nome: PEDIDO, notifyUrl: 'n', sucessoUrl: 's', falhaUrl: 'f', expiraEm: new Date(), reconnectAccount: 'acc-9' }, f);
-    expect(chamadas[0].corpo).toMatchObject({ type: 'reconnect', providers: ['LINKEDIN'], reconnect_account: 'acc-9' });
+    await criarLinkHospedado(config(), { ...base, tipo: 'reconnect', provedor: 'linkedin', reconnectAccount: 'acc-9' }, f);
+    expect(chamadas[0].corpo).toMatchObject({ state: PEDIDO, account_id: 'acc-9' });
+    expect(chamadas[0].corpo.providers).toBeUndefined();
   });
-  it('recusa resposta sem link seguro e erro HTTP', async () => {
-    const base = { tipo: 'create', provedor: 'whatsapp', nome: 'n', notifyUrl: 'n', sucessoUrl: 's', falhaUrl: 'f', expiraEm: new Date() } as const;
-    await expect(criarLinkHospedado({ dsn: DSN, apiKey: 'k' }, base, fetchFalso({ unipile: { status: 200, corpo: { url: 'http://inseguro' } } }).f)).rejects.toThrow();
-    await expect(criarLinkHospedado({ dsn: DSN, apiKey: 'k' }, base, fetchFalso({ unipile: { status: 500, corpo: {} } }).f)).rejects.toThrow('HTTP 500');
+  it('recusa resposta sem link seguro, erro HTTP e falta de chave (sem chamar)', async () => {
+    await expect(criarLinkHospedado(config(), base, fetchFalso({ unipile: { status: 200, corpo: { link: 'http://inseguro' } } }).f)).rejects.toThrow();
+    await expect(criarLinkHospedado(config(), base, fetchFalso({ unipile: { status: 500, corpo: {} } }).f)).rejects.toThrow('HTTP 500');
+    const { f, chamadas } = fetchFalso();
+    await expect(criarLinkHospedado(config(''), base, f)).rejects.toThrow('sem chave');
+    expect(chamadas).toHaveLength(0);
   });
 });
 
 describe('iniciarConexao', () => {
-  it('repassa o login da pessoa ao banco e devolve o link; o endereço de retorno é assinado', async () => {
+  it('repassa o login da pessoa ao banco e devolve o link; o pedido volta no state', async () => {
     const { f, chamadas } = fetchFalso();
     const r = await iniciarConexao(deps(f), 'jwt-da-pessoa', pedido);
     expect(r).toEqual({ status: 200, corpo: { url: 'https://conectar.exemplo.test/abc' } });
@@ -61,11 +69,9 @@ describe('iniciarConexao', () => {
     expect(chamadas[0].cabecalhos.Authorization).toBe('Bearer jwt-da-pessoa');
     expect(chamadas[0].cabecalhos.apikey).toBe('anon-de-teste');
     expect(chamadas[0].corpo).toEqual({ p_workspace_id: WS, p_member_id: MEMBRO, p_provider: 'instagram' });
-    const notify = new URL(chamadas[1].corpo.notify_url);
-    expect(notify.origin + notify.pathname).toBe('https://app.exemplo.com.br/webhooks/unipile/conta');
-    expect(notify.searchParams.get('r')).toBe(PEDIDO);
-    expect(assinaturaValida(SEGREDO, PEDIDO, notify.searchParams.get('t')!)).toBe(true);
-    expect(chamadas[1].corpo.expiresOn).toBe('2026-10-05T12:30:00.000Z');
+    expect(chamadas[1].corpo.state).toBe(PEDIDO);
+    expect(chamadas[1].corpo.redirect_uri).toBe('https://app.exemplo.com.br/#/inbox');
+    expect(chamadas[1].corpo.expires_on).toBe('2026-10-05T12:30:00.000Z');
   });
   it('a chave do provedor nunca vai ao banco, e o login da pessoa nunca vai ao provedor', async () => {
     const { f, chamadas } = fetchFalso();
@@ -89,28 +95,24 @@ describe('iniciarConexao', () => {
     expect((await iniciarConexao(deps(f), 'jwt', { ...pedido, member_id: 'nao-e-uuid' })).status).toBe(400);
     expect((await iniciarConexao(deps(f), 'jwt', null)).status).toBe(400);
   });
-  it('sem chave do provedor ou sem segredo: 503 claro (nunca simula)', async () => {
+  it('sem chave do provedor: 503 claro (nunca simula)', async () => {
     const { f, chamadas } = fetchFalso();
-    expect((await iniciarConexao(deps(f, { unipile: { dsn: DSN, apiKey: '' } }), 'jwt', pedido)).corpo).toEqual({ erro: 'conexao_indisponivel' });
-    expect((await iniciarConexao(deps(f, { segredo: '' }), 'jwt', pedido)).status).toBe(503);
+    expect((await iniciarConexao(deps(f, { obterConfig: config('') }), 'jwt', pedido)).corpo).toEqual({ erro: 'conexao_indisponivel' });
     expect(chamadas).toHaveLength(0);
+  });
+  it('trocar a chave vale no pedido seguinte', async () => {
+    const { f, chamadas } = fetchFalso();
+    let chave = 'antiga';
+    const d = deps(f, { obterConfig: () => ({ apiKey: chave, url: URL_API }) });
+    await iniciarConexao(d, 'jwt', pedido);
+    chave = 'nova';
+    await iniciarConexao(d, 'jwt', pedido);
+    const dosProvedor = chamadas.filter(c => c.url.startsWith(URL_API)).map(c => c.cabecalhos['X-API-KEY']);
+    expect(dosProvedor).toEqual(['antiga', 'nova']);
   });
   it('provedor externo fora do ar: 502', async () => {
     const { f } = fetchFalso({ unipile: { status: 503, corpo: {} } });
     expect((await iniciarConexao(deps(f), 'jwt', pedido)).status).toBe(502);
-  });
-});
-
-describe('interpretarConexao', () => {
-  it('criação com sucesso e nome igual ao pedido vira conclusão', () => {
-    expect(interpretarConexao({ status: 'CREATION_SUCCESS', account_id: 'acc1', name: PEDIDO }, PEDIDO)).toEqual({ tipo: 'conexao', pedidoId: PEDIDO, conta: 'acc1' });
-    expect(interpretarConexao({ status: 'RECONNECTED', account_id: 'acc1', name: PEDIDO }, PEDIDO)).toMatchObject({ tipo: 'conexao' });
-  });
-  it('nome diferente do pedido, sem conta ou status de falha: ignorado', () => {
-    expect(interpretarConexao({ status: 'CREATION_SUCCESS', account_id: 'acc1', name: 'outro' }, PEDIDO)).toMatchObject({ tipo: 'ignorar' });
-    expect(interpretarConexao({ status: 'CREATION_SUCCESS', name: PEDIDO }, PEDIDO)).toMatchObject({ tipo: 'ignorar' });
-    expect(interpretarConexao({ status: 'ERROR', account_id: 'a', name: PEDIDO }, PEDIDO)).toEqual({ tipo: 'ignorar', motivo: 'conexao_sem_efeito' });
-    expect(interpretarConexao(null, PEDIDO)).toMatchObject({ tipo: 'ignorar' });
   });
 });
 
@@ -144,29 +146,34 @@ describe('rotas HTTP de conexão', () => {
     const s = await subir({}, false);
     expect((await post(s.url + '/conexoes/link', pedido, { Authorization: 'Bearer jwt-x' })).status).toBe(503);
   });
-  it('/webhooks/unipile/conta: assinatura errada ou ausente é 401 e nada é concluído', async () => {
+  const avisoDeConta = (extra: Record<string, unknown> = {}) => JSON.stringify({ id: 'ev9', type: 'account.add', account_id: 'acc1', payload: { state: PEDIDO, account: { provider: 'google' } }, ...extra });
+  const enviarAviso = (url: string, corpo: string, segredo = SEGREDO) => {
+    const t = String(Math.floor(Date.now() / 1000));
+    return fetch(url + '/webhooks/unipile', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Unipile-Signature': `t=${t},v0=${assinarCorpo(corpo, t, segredo)}` }, body: corpo });
+  };
+  it('aviso account.add com assinatura errada não conclui nada', async () => {
     let n = 0;
     const s = await subir({ concluirConexao: async () => { n++; return { action: 'connected' }; } });
-    const corpo = { status: 'CREATION_SUCCESS', account_id: 'acc1', name: PEDIDO };
-    expect((await post(`${s.url}/webhooks/unipile/conta?r=${PEDIDO}&t=errada`, corpo)).status).toBe(401);
-    expect((await post(`${s.url}/webhooks/unipile/conta?r=${PEDIDO}`, corpo)).status).toBe(401);
-    expect((await post(`${s.url}/webhooks/unipile/conta?r=outro&t=${assinarPedido(SEGREDO, PEDIDO)}`, corpo)).status).toBe(401);
+    expect((await enviarAviso(s.url, avisoDeConta(), 'segredo-errado')).status).toBe(401);
     await s.ocioso();
     expect(n).toBe(0);
   });
-  it('/webhooks/unipile/conta: assinatura certa conclui o pedido certo', async () => {
+  it('aviso account.add assinado conclui o pedido que veio no state', async () => {
     const vistos: string[] = [];
     const s = await subir({ concluirConexao: async (p, c) => { vistos.push(`${p}:${c}`); return { action: 'connected' }; } });
-    const r = await post(`${s.url}/webhooks/unipile/conta?r=${PEDIDO}&t=${assinarPedido(SEGREDO, PEDIDO)}`, { status: 'CREATION_SUCCESS', account_id: 'acc1', name: PEDIDO });
-    expect(r.status).toBe(200);
+    expect((await enviarAviso(s.url, avisoDeConta())).status).toBe(200);
     await s.ocioso();
     expect(vistos).toEqual([`${PEDIDO}:acc1`]);
   });
-  it('/webhooks/unipile/conta com nome de outro pedido não conclui nada', async () => {
+  it('aviso account.add sem state de pedido não conclui nada', async () => {
     let n = 0;
     const s = await subir({ concluirConexao: async () => { n++; return { action: 'connected' }; } });
-    await post(`${s.url}/webhooks/unipile/conta?r=${PEDIDO}&t=${assinarPedido(SEGREDO, PEDIDO)}`, { status: 'CREATION_SUCCESS', account_id: 'acc1', name: 'f6000000-0000-0000-0000-0000000000ff' });
+    await enviarAviso(s.url, avisoDeConta({ payload: { state: 'outra-coisa' } }));
     await s.ocioso();
     expect(n).toBe(0);
+  });
+  it('a rota antiga /webhooks/unipile/conta não existe mais', async () => {
+    const s = await subir();
+    expect((await post(s.url + '/webhooks/unipile/conta', {})).status).toBe(404);
   });
 });

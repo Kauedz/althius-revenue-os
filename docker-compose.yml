@@ -150,13 +150,13 @@ services:
     environment:
       BANCO_URL: http://rest:3000
       SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
-      # Vazio = recusa todo webhook (401) até configurar. Gerado por "npm run docker:env".
+      # Segredo que a própria Unipile gera ao cadastrar o webhook (v2). Vazio = recusa todo webhook (401).
       UNIPILE_WEBHOOK_SECRET: ${UNIPILE_WEBHOOK_SECRET:-}
       # Conexão de contas de mensagem (PR 05). Sem a chave, a tela avisa que a conexão está indisponível.
       SITE_URL: ${SITE_URL}
       ANON_KEY: ${ANON_KEY}
-      UNIPILE_DSN: ${UNIPILE_DSN:-}
       UNIPILE_API_KEY: ${UNIPILE_API_KEY:-}
+      UNIPILE_API_URL: ${UNIPILE_API_URL:-}
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/saude"]
       interval: 10s
@@ -177,9 +177,9 @@ services:
     environment:
       BANCO_URL: http://rest:3000
       SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
-      # Sem estes dois, só passos que viram tarefa rodam; o envio automático fica parado (nunca finge enviar).
-      UNIPILE_DSN: ${UNIPILE_DSN:-}
+      # Sem a chave, só passos que viram tarefa rodam; o envio automático fica parado (nunca finge enviar).
       UNIPILE_API_KEY: ${UNIPILE_API_KEY:-}
+      UNIPILE_API_URL: ${UNIPILE_API_URL:-}
       CADENCIA_INTERVALO_SEGUNDOS: ${CADENCIA_INTERVALO_SEGUNDOS:-60}
     networks: [interna]
 

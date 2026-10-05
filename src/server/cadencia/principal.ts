@@ -3,6 +3,7 @@
 import { bancoCadenciaViaApi } from './banco.ts';
 import { mensageiroViaApi } from './envio.ts';
 import { rodarCiclo } from './motor.ts';
+import { configDoAmbiente } from '../unipile/config.ts';
 
 const base = process.env.BANCO_URL ?? '';
 const chave = process.env.SERVICE_ROLE_KEY ?? '';
@@ -10,11 +11,11 @@ if (!base || !chave) {
   console.error(JSON.stringify({ nivel: 'erro', msg: 'faltam BANCO_URL e SERVICE_ROLE_KEY' }));
   process.exit(1);
 }
-const dsn = process.env.UNIPILE_DSN ?? '';
-const apiKey = process.env.UNIPILE_API_KEY ?? '';
-const mensageiro = dsn && apiKey ? mensageiroViaApi({ dsn, apiKey }) : null;
+// A chave é lida a cada envio: trocar UNIPILE_API_KEY vale no próximo ciclo (sem chave, o envio recusa claro).
+const obterConfig = configDoAmbiente();
+const mensageiro = obterConfig().apiKey ? mensageiroViaApi(obterConfig) : null;
 if (!mensageiro) {
-  console.warn(JSON.stringify({ nivel: 'aviso', msg: 'sem UNIPILE_DSN/UNIPILE_API_KEY: só passos que viram tarefa rodam; envio automático fica parado' }));
+  console.warn(JSON.stringify({ nivel: 'aviso', msg: 'sem UNIPILE_API_KEY: só passos que viram tarefa rodam; envio automático fica parado' }));
 }
 
 const banco = bancoCadenciaViaApi(base, chave);

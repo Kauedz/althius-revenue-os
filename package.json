@@ -22,6 +22,7 @@
     "docker:env:demo": "node scripts/docker/gerar-env.mjs --demo",
     "docker:subir": "docker compose up -d --build",
     "docker:parar": "docker compose down",
+    "docker:chave-unipile": "node scripts/docker/trocar-chave-unipile.mjs",
     "criar-superadmin": "node scripts/docker/criar-superadmin.mjs"
   },
   "dependencies": {

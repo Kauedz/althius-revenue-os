@@ -2,6 +2,7 @@
 import { bancoViaApi } from './banco.ts';
 import { criarServidor } from './servidor.ts';
 import type { DepsConexoes } from './conexoes.ts';
+import { configDoAmbiente } from '../unipile/config.ts';
 
 const segredo = process.env.UNIPILE_WEBHOOK_SECRET ?? '';
 const base = process.env.BANCO_URL ?? '';
@@ -14,15 +15,16 @@ if (!segredo) {
   console.warn(JSON.stringify({ nivel: 'aviso', msg: 'UNIPILE_WEBHOOK_SECRET vazio: todo webhook será recusado (401) até configurar' }));
 }
 
-// Conexão de contas (PR 05): precisa da chave do provedor, do endereço público e da chave pública do banco.
+// Conexão de contas: precisa da chave do canal, do endereço público e da chave pública do banco. A chave é relida a
+// cada pedido (configDoAmbiente), então trocar UNIPILE_API_KEY vale sem mudar o código.
 const siteUrl = process.env.SITE_URL ?? '';
 const chaveAnon = process.env.ANON_KEY ?? '';
-const unipile = { dsn: process.env.UNIPILE_DSN ?? '', apiKey: process.env.UNIPILE_API_KEY ?? '' };
-const conexoes: DepsConexoes | undefined = siteUrl && chaveAnon && unipile.dsn
-  ? { segredo, siteUrl, unipile, baseBanco: base, chaveAnon }
+const obterConfig = configDoAmbiente();
+const conexoes: DepsConexoes | undefined = siteUrl && chaveAnon
+  ? { siteUrl, obterConfig, baseBanco: base, chaveAnon }
   : undefined;
-if (!conexoes || !unipile.apiKey) {
-  console.warn(JSON.stringify({ nivel: 'aviso', msg: 'conexão de contas desligada: faltam SITE_URL, ANON_KEY, UNIPILE_DSN ou UNIPILE_API_KEY (a tela mostra "indisponível")' }));
+if (!conexoes || !obterConfig().apiKey) {
+  console.warn(JSON.stringify({ nivel: 'aviso', msg: 'conexão de contas desligada: faltam SITE_URL, ANON_KEY ou UNIPILE_API_KEY (a tela mostra "indisponível")' }));
 }
 
 const { servidor } = criarServidor({ segredo, banco: bancoViaApi(base, chave), conexoes });
