@@ -164,6 +164,25 @@ services:
       retries: 10
     networks: [interna]
 
+  # Motor de cadência (PR 06): a cada minuto pega os passos que venceram e cria tarefas ou envia e-mail/WhatsApp.
+  # Quem decide é o banco (política Hermes, créditos, agente pausado); aqui só se repete o ciclo e se fala com o provedor.
+  cadencia:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.cadencia
+    restart: unless-stopped
+    depends_on:
+      rest:
+        condition: service_started
+    environment:
+      BANCO_URL: http://rest:3000
+      SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      # Sem estes dois, só passos que viram tarefa rodam; o envio automático fica parado (nunca finge enviar).
+      UNIPILE_DSN: ${UNIPILE_DSN:-}
+      UNIPILE_API_KEY: ${UNIPILE_API_KEY:-}
+      CADENCIA_INTERVALO_SEGUNDOS: ${CADENCIA_INTERVALO_SEGUNDOS:-60}
+    networks: [interna]
+
   # Backup agendado do banco e dos arquivos, em ./backups (copie para fora do servidor).
   backup:
     image: supabase/postgres:17.11.0.002

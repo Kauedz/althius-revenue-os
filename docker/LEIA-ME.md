@@ -41,6 +41,14 @@ O contêiner `webhooks` recebe os avisos da Unipile em `https://SEU-DOMINIO/webh
 - Só entra mensagem de contato do CRM, em conversa individual e recebida (não a que a própria pessoa enviou). O resto é descartado sem gravar nada, e o log nunca mostra remetente nem texto.
 - **O formato dos avisos da Unipile ainda não foi conferido na documentação oficial** (ver `src/server/webhooks/unipile.ts`). Faça um teste real com uma conta de teste antes de usar com cliente.
 
+## Motor de cadência
+O contêiner `cadencia` roda a cada 60 segundos (`CADENCIA_INTERVALO_SEGUNDOS`). Para cada inscrição ativa cujo passo venceu:
+- **Passo manual** (LinkedIn, Instagram, ligação), ou **automático com o envio automático desligado**: vira uma tarefa do responsável, no dia, com o texto/roteiro pronto.
+- **Passo automático (e-mail ou WhatsApp) com o envio automático ligado** (o dono liga; BDR só nas próprias inscrições): passa pela política Hermes, reserva créditos, envia pela conta de mensagem do dono, e consome os créditos (4 por envio). Se o envio falhar, a reserva é liberada e nada é cobrado; depois de 3 falhas a inscrição pausa e o dono é avisado.
+- **Não envia** (e avisa o dono, uma vez) se: a Lia (agente de copy) estiver pausada (volta sozinho quando ela voltar), faltar crédito ou aprovação (a inscrição pausa), o dono não tiver conta conectada, ou o contato não tiver o canal. Resposta do contato pausa a cadência automaticamente.
+- Sem `UNIPILE_DSN` e `UNIPILE_API_KEY`, só os passos que viram tarefa rodam (veja `docker compose logs cadencia`).
+- **Garantia:** no máximo um envio por inscrição+passo. Se o resultado do envio for incerto (rede caiu, erro 5xx), o motor NÃO reenvia sozinho: a execução fica "em andamento" e a linha `cadencia_envio_incerto` aparece no log para alguém conferir na caixa de saída da conta.
+
 ## O que fica aberto
 Só o `web` (portas 80 e 443). Banco, Redis, login, API e arquivos ficam na rede interna do Docker.
 
@@ -65,4 +73,4 @@ npm run docker:subir                         # sobe o resto
 As versões estão fixas no `docker-compose.yml`. Troque a versão num PR, teste em homologação com uma cópia de backup e depois: `docker compose pull && npm run docker:subir`.
 
 ## Ainda não está aqui (entra quando existir ponto de entrada)
-Workers das filas, servidor MCP e Hermes Agent. Hoje só existe o Redis das filas.
+Outros workers das filas (enriquecimento, raspagem), servidor MCP e Hermes Agent. Hoje só existe o Redis das filas.

@@ -1,0 +1,6 @@
+# Motor de cadência (worker). Só Node: sem dependências, sem build. Roda o TypeScript direto (Node 22.18+).
+FROM node:22-alpine
+WORKDIR /app
+COPY src/server/cadencia/motor.ts src/server/cadencia/banco.ts src/server/cadencia/envio.ts src/server/cadencia/principal.ts ./
+USER node
+CMD ["node", "principal.ts"]
