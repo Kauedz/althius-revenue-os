@@ -320,6 +320,13 @@ export const PATCHES = [
     por: "salvar: () => this.modoDemo === false ? this.salvarMinhaContaReal() : this.avisarCfg('Dados salvos.'),"
   },
   {
+    // Antes do perfil chegar do banco, o campo Cargo mostrava o papel do sistema (BDR/SDR) como se fosse o cargo.
+    regra: 'configurações: cargo não mostra o papel do sistema enquanto o perfil carrega',
+    arquivo: 'logic.generated.js',
+    trocar: 'cargo: pf.cargo !== undefined ? pf.cargo : U.label,',
+    por: "cargo: pf.cargo !== undefined ? pf.cargo : (this.modoDemo === false ? '' : U.label),"
+  },
+  {
     regra: 'configurações: foto vai para o depósito de fotos',
     arquivo: 'logic.generated.js',
     trocar: 'trocarFoto: e => { const f = e.target.files && e.target.files[0]; if (!f) return;',

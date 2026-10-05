@@ -791,6 +791,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       if (!this.vivo) return;
       this.setState({
         perfil: { nome: conta.nome, cargo: conta.cargo, fone: conta.fone },
+        perfilPronto: true,
         minhaFoto: conta.foto,
         ops: Object.assign({}, this.state.ops, conta.preferencias)
       });
@@ -808,6 +809,11 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   }
 
   async salvarMinhaContaReal() {
+    // Salvar antes de o perfil chegar gravaria cargo e telefone vazios por cima dos reais.
+    if (!(this.state as { perfilPronto?: boolean }).perfilPronto) {
+      this.avisarCfg('Seus dados ainda estão carregando. Tente de novo em instantes.');
+      return;
+    }
     const pf = (this.state.perfil || {}) as { nome?: string; cargo?: string; fone?: string };
     const r = await salvarMinhaConta(this.props.supabase, { nome: pf.nome ?? '', cargo: pf.cargo ?? '', fone: pf.fone ?? '' });
     await this.resultadoConta(r, 'Dados salvos.');
