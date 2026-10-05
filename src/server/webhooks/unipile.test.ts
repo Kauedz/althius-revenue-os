@@ -102,6 +102,7 @@ function bancoFalso(respostas: { ingestao?: (remetente: string) => any } = {}) {
   const banco: Banco = {
     async ingerirMensagem(p) { chamadas.push({ fn: 'ingerir', args: [p.remetente] }); return respostas.ingestao ? respostas.ingestao(p.remetente) : { action: 'persisted' }; },
     async definirStatus(conta, status) { chamadas.push({ fn: 'status', args: [conta, status] }); return { action: 'updated' }; },
+    async concluirConexao(pedido, conta) { chamadas.push({ fn: 'conexao', args: [pedido, conta] }); return { action: 'connected' }; },
     async novaRelacao(conta, id) { chamadas.push({ fn: 'relacao', args: [conta, id] }); return { action: id === 'fulano' ? 'connected' : 'ignored' }; }
   };
   return { banco, chamadas };

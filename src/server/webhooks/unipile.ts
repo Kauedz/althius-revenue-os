@@ -18,6 +18,7 @@ export type EventoUnipile =
   | { tipo: 'mensagem'; conta: string; canal: Canal; remetentes: string[]; chat: string; mensagemId: string; texto: string }
   | { tipo: 'status'; conta: string; status: StatusConexao }
   | { tipo: 'relacao'; conta: string; identificadores: string[] }
+  | { tipo: 'conexao'; pedidoId: string; conta: string }
   | { tipo: 'ignorar'; motivo: string };
 
 export interface ResultadoIngestao { action: string; reason?: string; idempotent_replay?: boolean }
@@ -27,6 +28,8 @@ export interface Banco {
   ingerirMensagem(p: { conta: string; canal: Canal; remetente: string; chat: string; mensagemId: string; texto: string }): Promise<ResultadoIngestao>;
   definirStatus(conta: string, status: StatusConexao): Promise<{ action: string }>;
   novaRelacao(conta: string, identificador: string): Promise<{ action: string }>;
+  /** Conclui um pedido de conexão de conta (PR 05). O dono da conta vem do pedido, nunca do aviso. */
+  concluirConexao(pedidoId: string, conta: string): Promise<{ action: string; reason?: string }>;
 }
 
 /** Compara o cabeçalho com o segredo em tempo constante. Sem segredo configurado, recusa tudo. */
@@ -57,6 +60,20 @@ const STATUS_POR_MENSAGEM: Record<string, StatusConexao | undefined> = {
 };
 
 const objeto = (v: unknown): Record<string, unknown> | null => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+
+/**
+ * Aviso de que o assistente hospedado terminou (notify_url). NÃO VERIFICADO: assumo { status, account_id, name },
+ * com `name` igual ao id do pedido que enviamos ao gerar o link. Quem decide o dono da conta é o pedido, nunca este aviso.
+ */
+export function interpretarConexao(payload: unknown, pedidoId: string): EventoUnipile {
+  const p = objeto(payload);
+  if (!p) return { tipo: 'ignorar', motivo: 'payload_invalido' };
+  const status = texto(p.status).toUpperCase();
+  if (status !== 'CREATION_SUCCESS' && status !== 'RECONNECTED') return { tipo: 'ignorar', motivo: 'conexao_sem_efeito' };
+  const conta = texto(p.account_id);
+  if (!conta || texto(p.name) !== pedidoId) return { tipo: 'ignorar', motivo: 'payload_incompleto' };
+  return { tipo: 'conexao', pedidoId, conta };
+}
 
 export function interpretar(payload: unknown): EventoUnipile {
   const p = objeto(payload);
@@ -134,6 +151,10 @@ export async function processar(evento: EventoUnipile, banco: Banco): Promise<{ 
         if (r.action === 'connected') break;
       }
       return { tipo: 'relacao', resultado: ultimo };
+    }
+    case 'conexao': {
+      const r = await banco.concluirConexao(evento.pedidoId, evento.conta);
+      return { tipo: 'conexao', resultado: r.reason ?? r.action };
     }
     case 'mensagem': {
       let ultimo = 'discarded';

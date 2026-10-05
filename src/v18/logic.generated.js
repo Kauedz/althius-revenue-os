@@ -620,7 +620,7 @@ export class AlthiusLogic extends React.Component {
       const DEF = [['email', 'E-mail', 'gmail'], ['whatsapp', 'WhatsApp', 'whatsapp'], ['linkedin', 'LinkedIn', 'linkedin'], ['instagram', 'Instagram', 'instagram']];
       const setIC = (k, val) => this.setState({ inboxCon: Object.assign({}, this.inboxCon(), { [k]: val }) });
       if (v.ix.ativo) v.ix.canais = DEF.map(([k, nome, logo]) => { const c = IC[k]; return { nome, logo: LG[k === 'email' && c && c.via === 'outlook' ? 'outlook' : logo], on: c ? 'true' : 'false', conta: c ? c.conta : 'Não conectado', btnCls: c ? 'con-btn-sec' : 'con-btn', acaoLabel: c ? 'Desconectar' : 'Conectar',
-        acao: () => { if (c) this.confirmar('Desconectar ' + nome + '?', 'As conversas de ' + nome + ' param de entrar na Caixa de entrada. O que já está nas contas continua lá.', 'Desconectar', () => { setIC(k, null); this.avisar('mod', nome + ' desconectado.'); }); else this.setState({ ixCon: { k, via: 'gmail' } }); } }; });
+        acao: () => { if (c) this.confirmar('Desconectar ' + nome + '?', 'As conversas de ' + nome + ' param de entrar na Caixa de entrada. O que já está nas contas continua lá.', 'Desconectar', () => { if (this.modoDemo === false) return this.desconectarContaReal(k, c); setIC(k, null); this.avisar('mod', nome + ' desconectado.'); }); else if (this.modoDemo === false && k !== 'email') this.conectarContaReal(k); else this.setState({ ixCon: { k, via: 'gmail' } }); } }; });
       if (st.ixCon && v.ix.ativo) { const x = st.ixCon, d = DEF.find(z => z[0] === x.k);
         const fim = () => { const conta = x.k === 'whatsapp' ? '(11) 90000-0100 · Evolut' : x.k === 'instagram' ? '@evolut.trading' : x.k === 'linkedin' ? U.usuario + ' · perfil pessoal' : (x.via === 'outlook' ? 'camila@evolut.com.br' : U.email);
           setIC(x.k, { conta, via: x.via }); this.setState({ ixCon: null }); this.avisar('mod', d[1] + ' conectado. Só conversas com contatos do CRM entram aqui.'); };
@@ -628,7 +628,7 @@ export class AlthiusLogic extends React.Component {
           loginTexto: 'Você entra na sua conta do ' + d[1] + ' numa janela segura. A Althius nunca vê sua senha e só recebe as conversas com pessoas que já estão no CRM.',
           provedores: [['gmail', 'Gmail ou Google Workspace'], ['outlook', 'Outlook ou Microsoft 365']].map(([id, nome]) => ({ nome, logo: LG[id], ativo: x.via === id ? 'true' : 'false', escolher: () => this.setState({ ixCon: Object.assign({}, x, { via: id }) }) })),
           botao: x.ocupado ? 'Conectando…' : x.k === 'whatsapp' ? 'Já escaneei' : x.k === 'email' ? 'Continuar' : 'Entrar com ' + d[1],
-          fechar: () => this.setState({ ixCon: null }), confirmar: () => { this.setState({ ixCon: Object.assign({}, x, { ocupado: true }) }); clearTimeout(this._ixT); this._ixT = setTimeout(fim, 900); } };
+          fechar: () => this.setState({ ixCon: null }), confirmar: () => { if (this.modoDemo === false) return this.conectarContaReal(x.k, x.via); this.setState({ ixCon: Object.assign({}, x, { ocupado: true }) }); clearTimeout(this._ixT); this._ixT = setTimeout(fim, 900); } };
       }
     }
     // CRÉDITOS
