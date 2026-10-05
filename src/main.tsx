@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import './v18/data.js';
 import './v18/module.js';
 import './v18/althius.css';
+import './app/avatares-agentes.css';
 
 // "demo": protótipo v18 com dados fictícios e troca de papel pelo avatar (não precisa de banco).
 // "real" (padrão): login e dados do banco.

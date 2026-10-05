@@ -44,3 +44,6 @@ Em `fonte/component.js.html`, dentro de `renderVals()`, as áreas são separadas
 - **Logo:** é buscado direto pelo navegador. No produto, isso é função do backend.
 - **Estado:** quase tudo fica só na memória da página. Recarregar zera. As exceções são tema, foto e histórico do copiloto, que ficam no `localStorage`.
 - **Contrato de dados:** os "services" em `data.js` (`workspaceService`, `agentService` e outros) são o lugar onde a API real deve entrar, mantendo o mesmo formato de dados.
+
+## Avatares dos agentes (camada do projeto)
+Os desenhos dos quatro agentes ficam em `src/app/avatares/*.svg` e são ligados por `src/app/avatares-agentes.css`, por cima do protótipo. Assim um novo `fonte/` do design não apaga os avatares. Para trocar o desenho de um agente, troque o arquivo na linha dele no CSS. O `src/app/avatares-agentes.test.ts` recusa arquivo com script, com link para fora ou acima de 120 KB (os originais do design vinham com texturas de 1,6 a 2,4 MB: reduza antes de entrar).
