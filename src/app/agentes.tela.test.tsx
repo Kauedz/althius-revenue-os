@@ -16,7 +16,7 @@ async function entrarEmAgentes(email: string) {
   fireEvent.change(await screen.findByPlaceholderText('voce@empresa.com.br'), { target: { value: email } });
   fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'althius-demo' } });
   fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
-  await screen.findAllByText('Venator', {}, { timeout: 8000 }); // v22: o Agente Comercial aparece com o nome de exibição Venator
+  await screen.findAllByText('Zoe', {}, { timeout: 8000 }); // o agente comercial aparece com o nome de exibição Zoe
 }
 
 describe.skipIf(!bancoLocalNoAr)('tela Agentes (banco local)', () => {
@@ -24,10 +24,10 @@ describe.skipIf(!bancoLocalNoAr)('tela Agentes (banco local)', () => {
     await pausarAgente(await entrarComoLocal('aline@evolut.com.br'), EVOLUT, ALINE, 'comercial', false);
   });
 
-  it('C-level pausa o Venator (agente comercial) e a pausa continua depois de recarregar', async () => {
+  it('C-level pausa a Zoe (agente comercial) e a pausa continua depois de recarregar', async () => {
     await entrarEmAgentes('aline@evolut.com.br');
     fireEvent.click((await screen.findAllByRole('button', { name: 'Pausar' }))[0]);
-    const dialogo = await screen.findByRole('alertdialog', { name: 'Pausar Venator?' });
+    const dialogo = await screen.findByRole('alertdialog', { name: 'Pausar Zoe?' });
     fireEvent.click(within(dialogo).getByRole('button', { name: 'Pausar agente' }));
     expect((await screen.findAllByRole('button', { name: 'Retomar' }, { timeout: 8000 })).length).toBeGreaterThan(0);
 

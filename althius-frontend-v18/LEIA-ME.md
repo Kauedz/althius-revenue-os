@@ -46,4 +46,8 @@ Em `fonte/component.js.html`, dentro de `renderVals()`, as áreas são separadas
 - **Contrato de dados:** os "services" em `data.js` (`workspaceService`, `agentService` e outros) são o lugar onde a API real deve entrar, mantendo o mesmo formato de dados.
 
 ## Avatares dos agentes (camada do projeto)
-Os desenhos dos quatro agentes ficam em `src/app/avatares/*.svg` e são ligados por `src/app/avatares-agentes.css`, por cima do protótipo. Assim um novo `fonte/` do design não apaga os avatares. Para trocar o desenho de um agente, troque o arquivo na linha dele no CSS. O `src/app/avatares-agentes.test.ts` recusa arquivo com script, com link para fora ou acima de 120 KB (os originais do design vinham com texturas de 1,6 a 2,4 MB: reduza antes de entrar).
+Os nomes de exibição são **Zoe** (comercial), **Jax** (marketing), **Lia** (copy) e **Neo** (revops); os códigos técnicos não mudam. A troca de nome vive em `scripts/v18/patches.mjs` (sobrevive a um novo `fonte/`).
+
+Os desenhos ficam em `src/app/avatares/` e são ligados por `src/app/avatares-agentes.css`, por cima do protótipo. Para cada agente há dois arquivos: `zoe.svg` (a arte original, parada) e `zoe-animado.svg` (**os olhos mexem**). Mesma regra do protótipo: parado nos tamanhos pequenos, animado nos grandes e quando o mouse passa em cima, e parado de novo para quem pede movimento reduzido no sistema.
+
+Os `*-animado.svg` são **gerados**, não editados à mão: `node scripts/avatares/gerar-animados.mjs` (usa as medidas de `scripts/avatares/olhos.json`). Na arte, contorno e pupila são uma forma só, então o gerador desenha por cima de cada olho um olho equivalente com a pupila móvel. Para trocar um desenho: troque o `<nome>.svg`, meça os olhos em `olhos.json` e rode o gerador. O `src/app/avatares-agentes.test.ts` recusa arquivo com script, com link para fora, acima de 120 KB (os originais do design vinham com texturas de 1,6 a 2,4 MB: reduza antes de entrar) ou com pupila que sai do olho.

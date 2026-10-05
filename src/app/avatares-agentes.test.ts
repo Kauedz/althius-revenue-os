@@ -1,54 +1,93 @@
 // Avatares dos 4 agentes: uma camada própria por cima do protótipo (sobrevive a um novo fonte/ do design).
-// Garante: cada agente tem seu arquivo, o CSS cobre todos os estados (parado, hover, tamanho grande,
-// movimento reduzido), e o arquivo é seguro e leve (as originais do design tinham 1,6 a 2,4 MB).
+// Garante: cada agente tem o desenho parado e o animado (olhos que mexem), o CSS cobre todos os estados
+// (parado, animado, hover, movimento reduzido), os arquivos são seguros e leves (os originais do design
+// tinham 1,6 a 2,4 MB) e a pupila nunca sai do olho.
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const PASTA = path.resolve(__dirname);
-const AGENTES = { comercial: 'venator', marketing: 'praeco', copy: 'stilus', revops: 'ratio' } as const;
+const AGENTES = { comercial: 'zoe', marketing: 'jax', copy: 'lia', revops: 'neo' } as const;
 const css = fs.readFileSync(path.join(PASTA, 'avatares-agentes.css'), 'utf8');
+const ler = (arq: string) => fs.readFileSync(path.join(PASTA, 'avatares', arq), 'utf8');
+
+// Estados em que o protótipo mostra o avatar animado (tamanho grande e hover).
+const seletoresAnimados = (c: string) => [`html .ag4-tile[data-ag="${c}"]`, `html .ag-tile[data-ag="${c}"][style*="56px"]`, `html [data-ag="${c}"]:hover`, `html .navrow:hover [data-ag="${c}"]`, `html .ag4-card:hover [data-ag="${c}"]`];
+
+// Blocos do CSS: { seletores, arquivo, reduzido }
+function blocos() {
+  const r: { seletores: string; arquivo: string; reduzido: boolean }[] = [];
+  const re = /(@media \(prefers-reduced-motion: reduce\) \{\s*)?([^{}@]+?)\{\s*background-image:\s*url\("\.\/avatares\/([^"]+)"\)\s*!important;\s*\}/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(css))) r.push({ seletores: m[2], arquivo: m[3], reduzido: !!m[1] });
+  return r;
+}
 
 describe('avatares dos agentes', () => {
-  for (const [codigo, arquivo] of Object.entries(AGENTES)) {
-    describe(`${codigo} → ${arquivo}.svg`, () => {
-      const caminho = path.join(PASTA, 'avatares', `${arquivo}.svg`);
+  for (const [codigo, nome] of Object.entries(AGENTES)) {
+    describe(`${codigo} → ${nome}`, () => {
+      for (const arquivo of [`${nome}.svg`, `${nome}-animado.svg`]) {
+        it(`${arquivo}: existe, é SVG, seguro e leve`, () => {
+          const svg = ler(arquivo);
+          expect(svg.trimStart().startsWith('<svg')).toBe(true);
+          expect(svg).not.toMatch(/<script|<foreignObject|\son[a-z]+\s*=/i);
+          const links = [...svg.matchAll(/(?:xlink:href|href|src)="([^"]*)"/g)].map(m => m[1]);
+          expect(links.filter(l => !l.startsWith('#') && !l.startsWith('data:image/'))).toEqual([]);
+          expect(svg).not.toMatch(/url\(\s*['"]?https?:/i);
+          expect(fs.statSync(path.join(PASTA, 'avatares', arquivo)).size).toBeLessThan(120 * 1024);
+        });
+      }
 
-      it('o arquivo existe e é um SVG', () => {
-        expect(fs.existsSync(caminho)).toBe(true);
-        expect(fs.readFileSync(caminho, 'utf8').trimStart().startsWith('<svg')).toBe(true);
+      it('o desenho parado não tem animação (é a arte original) e o animado tem', () => {
+        expect(ler(`${nome}.svg`)).not.toMatch(/<animate|data-olhos-animados/);
+        const animado = ler(`${nome}-animado.svg`);
+        expect(animado).toContain('data-olhos-animados');
+        expect(animado.match(/<animateTransform/g)?.length).toBe(2); // uma por olho
+        expect(animado).toContain('repeatCount="indefinite"');
+        expect(animado).not.toMatch(/begin="[^"]*(click|mouse|focus|\.)/); // nada de gatilho por evento
       });
 
-      it('é seguro: sem script, sem evento, sem link para fora', () => {
-        const svg = fs.readFileSync(caminho, 'utf8');
-        expect(svg).not.toMatch(/<script|<foreignObject|\son[a-z]+\s*=/i);
-        const links = [...svg.matchAll(/(?:xlink:href|href|src)="([^"]*)"/g)].map(m => m[1]);
-        expect(links.filter(l => !l.startsWith('#') && !l.startsWith('data:image/'))).toEqual([]);
-        expect(svg).not.toMatch(/url\(\s*['"]?https?:/i);
-      });
-
-      it('é leve (nada de textura de megabytes embutida)', () => {
-        expect(fs.statSync(caminho).size).toBeLessThan(120 * 1024);
-      });
-
-      it('o CSS aponta para ele em todos os estados do protótipo', () => {
-        const usos = css.split('\n').filter(l => l.includes(`avatares/${arquivo}.svg`));
-        expect(usos.length).toBeGreaterThanOrEqual(1);
-        const blocos = css.split('}').filter(b => b.includes(`avatares/${arquivo}.svg`)).join('}');
-        for (const seletor of [`[data-ag="${codigo}"]`, `.ag4-tile[data-ag="${codigo}"]`, `.ag-tile[data-ag="${codigo}"][style*="56px"]`, `[data-ag="${codigo}"]:hover`, `.navrow:hover [data-ag="${codigo}"]`, `.ag4-card:hover [data-ag="${codigo}"]`]) {
-          expect(blocos, `falta ${seletor}`).toContain(seletor);
+      it('a pupila nunca sai do olho (em nenhum instante da animação)', () => {
+        const animado = ler(`${nome}-animado.svg`);
+        const camada = animado.slice(animado.indexOf('data-olhos-animados'));
+        const olhos = [...camada.matchAll(/<clipPath id="ci-[^"]+"><ellipse cx="([\d.]+)" cy="([\d.]+)" rx="([\d.]+)" ry="([\d.]+)"\/><\/clipPath>[\s\S]*?<circle cx="([\d.]+)" cy="([\d.]+)" r="([\d.]+)"[^>]*><animateTransform[^>]*values="([^"]+)"/g)];
+        expect(olhos).toHaveLength(2);
+        for (const o of olhos) {
+          const [rxi, ryi, r] = [+o[3], +o[4], +o[7]];
+          const passos = o[8].split(';').map(p => p.trim().split(/\s+/).map(Number));
+          const dx = Math.max(...passos.map(p => Math.abs(p[0]))), dy = Math.max(...passos.map(p => Math.abs(p[1])));
+          expect(dx + r).toBeLessThanOrEqual(rxi + 0.05);
+          expect(dy + r).toBeLessThanOrEqual(ryi + 0.05);
+          expect(dx).toBeGreaterThan(4); // e anda de verdade (movimento perceptível)
         }
+      });
+
+      it('o CSS: parado em todo lugar, animado nos estados grandes/hover, parado de novo se pedir movimento reduzido', () => {
+        const todos = blocos().filter(b => b.arquivo === `${nome}.svg` || b.arquivo === `${nome}-animado.svg`);
+        const base = todos.find(b => !b.reduzido && b.arquivo === `${nome}.svg`);
+        const animado = todos.find(b => !b.reduzido && b.arquivo === `${nome}-animado.svg`);
+        const reduzido = todos.find(b => b.reduzido && b.arquivo === `${nome}.svg`);
+        expect(base?.seletores).toContain(`html [data-ag="${codigo}"]`);
+        for (const s of seletoresAnimados(codigo)) {
+          expect(animado?.seletores, `animado sem ${s}`).toContain(s);
+          expect(reduzido?.seletores, `movimento reduzido sem ${s}`).toContain(s);
+        }
+        // a ordem importa (igual especificidade, vence o último): base, depois animado, depois movimento reduzido
+        const pos = (b?: { arquivo: string }) => css.indexOf(b ? `avatares/${b.arquivo}` : '', 0);
+        expect(css.indexOf(`avatares/${nome}.svg`)).toBeLessThan(css.indexOf(`avatares/${nome}-animado.svg`));
+        expect(css.lastIndexOf(`avatares/${nome}.svg`)).toBeGreaterThan(css.indexOf(`avatares/${nome}-animado.svg`));
+        expect(pos(base)).toBeGreaterThanOrEqual(0);
       });
     });
   }
 
   it('o CSS vence as regras do protótipo (que usam !important)', () => {
     expect(css).toMatch(/html \[data-ag="comercial"\]/);
-    expect(css.match(/background-image:[^;]*!important/g)?.length).toBe(4);
+    expect(blocos().length).toBe(12); // 4 agentes x (parado, animado, movimento reduzido)
   });
 
   it('quatro avatares diferentes entre si', () => {
-    const tamanhos = Object.values(AGENTES).map(a => fs.readFileSync(path.join(PASTA, 'avatares', `${a}.svg`), 'utf8'));
-    expect(new Set(tamanhos).size).toBe(4);
+    const arquivos = Object.values(AGENTES).map(a => ler(`${a}.svg`));
+    expect(new Set(arquivos).size).toBe(4);
   });
 });

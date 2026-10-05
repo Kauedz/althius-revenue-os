@@ -1,33 +1,74 @@
 /* Avatares dos 4 agentes (desenhos do dono, SVG com textura reduzida).
    Camada própria por cima do protótipo v22: sobrepõe os avatares dele e sobrevive a um novo fonte/ do design.
    O prefixo "html " dá prioridade sobre as regras do protótipo, que também usam !important.
-   Os desenhos são parados: o mesmo arquivo vale para tamanho pequeno, grande, hover e movimento reduzido.
+   Mesma regra do protótipo: PARADO nos tamanhos pequenos; ANIMADO (olhos que mexem) nos tamanhos grandes e no hover;
+   PARADO de novo para quem pede movimento reduzido. As versões animadas são geradas por scripts/avatares/gerar-animados.mjs.
    Trocar o desenho de um agente = trocar o arquivo na linha dele. O código técnico do agente não muda. */
 
-html [data-ag="comercial"],
+html [data-ag="comercial"] { background-image: url("./avatares/zoe.svg") !important; }
+
 html .ag4-tile[data-ag="comercial"],
 html .ag-tile[data-ag="comercial"][style*="56px"],
 html [data-ag="comercial"]:hover,
 html .navrow:hover [data-ag="comercial"],
-html .ag4-card:hover [data-ag="comercial"] { background-image: url("./avatares/venator.svg") !important; }
+html .ag4-card:hover [data-ag="comercial"] { background-image: url("./avatares/zoe-animado.svg") !important; }
 
-html [data-ag="marketing"],
+html [data-ag="marketing"] { background-image: url("./avatares/jax.svg") !important; }
+
 html .ag4-tile[data-ag="marketing"],
 html .ag-tile[data-ag="marketing"][style*="56px"],
 html [data-ag="marketing"]:hover,
 html .navrow:hover [data-ag="marketing"],
-html .ag4-card:hover [data-ag="marketing"] { background-image: url("./avatares/praeco.svg") !important; }
+html .ag4-card:hover [data-ag="marketing"] { background-image: url("./avatares/jax-animado.svg") !important; }
 
-html [data-ag="copy"],
+html [data-ag="copy"] { background-image: url("./avatares/lia.svg") !important; }
+
 html .ag4-tile[data-ag="copy"],
 html .ag-tile[data-ag="copy"][style*="56px"],
 html [data-ag="copy"]:hover,
 html .navrow:hover [data-ag="copy"],
-html .ag4-card:hover [data-ag="copy"] { background-image: url("./avatares/stilus.svg") !important; }
+html .ag4-card:hover [data-ag="copy"] { background-image: url("./avatares/lia-animado.svg") !important; }
 
-html [data-ag="revops"],
+html [data-ag="revops"] { background-image: url("./avatares/neo.svg") !important; }
+
 html .ag4-tile[data-ag="revops"],
 html .ag-tile[data-ag="revops"][style*="56px"],
 html [data-ag="revops"]:hover,
 html .navrow:hover [data-ag="revops"],
-html .ag4-card:hover [data-ag="revops"] { background-image: url("./avatares/ratio.svg") !important; }
+html .ag4-card:hover [data-ag="revops"] { background-image: url("./avatares/neo-animado.svg") !important; }
+
+@media (prefers-reduced-motion: reduce) {
+  html [data-ag="comercial"],
+  html .ag4-tile[data-ag="comercial"],
+  html .ag-tile[data-ag="comercial"][style*="56px"],
+  html [data-ag="comercial"]:hover,
+  html .navrow:hover [data-ag="comercial"],
+  html .ag4-card:hover [data-ag="comercial"] { background-image: url("./avatares/zoe.svg") !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html [data-ag="marketing"],
+  html .ag4-tile[data-ag="marketing"],
+  html .ag-tile[data-ag="marketing"][style*="56px"],
+  html [data-ag="marketing"]:hover,
+  html .navrow:hover [data-ag="marketing"],
+  html .ag4-card:hover [data-ag="marketing"] { background-image: url("./avatares/jax.svg") !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html [data-ag="copy"],
+  html .ag4-tile[data-ag="copy"],
+  html .ag-tile[data-ag="copy"][style*="56px"],
+  html [data-ag="copy"]:hover,
+  html .navrow:hover [data-ag="copy"],
+  html .ag4-card:hover [data-ag="copy"] { background-image: url("./avatares/lia.svg") !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html [data-ag="revops"],
+  html .ag4-tile[data-ag="revops"],
+  html .ag-tile[data-ag="revops"][style*="56px"],
+  html [data-ag="revops"]:hover,
+  html .navrow:hover [data-ag="revops"],
+  html .ag4-card:hover [data-ag="revops"] { background-image: url("./avatares/neo.svg") !important; }
+}

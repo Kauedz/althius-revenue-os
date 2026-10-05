@@ -27,17 +27,17 @@ const CANAIS = [
 ];
 const MSGS = {
   'sinais-de-compra': [
-    { sigla: 'VE', autor: 'Venator', agente: true, hora: '09:12', texto: 'Encontrei 6 contas novas dentro do ICP desde ontem. A de maior fit:', card: true, reacoes: { '🎯': { n: 2, minha: false, quem: ['Mateus Maia', 'Lucas Teixeira'] }, '👀': { n: 1, minha: false, quem: ['Aline Xavier'] } } },
-    { sigla: 'MM', autor: 'Mateus Maia', agente: false, hora: '09:20', texto: '@Venator mapeia quem decide importação na Serra Azul?' },
-    { sigla: 'VE', autor: 'Venator', agente: true, hora: '09:21', texto: 'Decisora: Aline Xavier, Diretora de Supply Chain. Campeão provável: Jonas Ribeiro, Comprador Sênior. Fontes no dossiê.' },
-    { sigla: 'VE', autor: 'Venator', agente: true, hora: '09:22', texto: 'E-mail corporativo da Aline validado. Telefone institucional no dossiê.' },
+    { sigla: 'ZO', autor: 'Zoe', agente: true, hora: '09:12', texto: 'Encontrei 6 contas novas dentro do ICP desde ontem. A de maior fit:', card: true, reacoes: { '🎯': { n: 2, minha: false, quem: ['Mateus Maia', 'Lucas Teixeira'] }, '👀': { n: 1, minha: false, quem: ['Aline Xavier'] } } },
+    { sigla: 'MM', autor: 'Mateus Maia', agente: false, hora: '09:20', texto: '@Zoe mapeia quem decide importação na Serra Azul?' },
+    { sigla: 'ZO', autor: 'Zoe', agente: true, hora: '09:21', texto: 'Decisora: Aline Xavier, Diretora de Supply Chain. Campeão provável: Jonas Ribeiro, Comprador Sênior. Fontes no dossiê.' },
+    { sigla: 'ZO', autor: 'Zoe', agente: true, hora: '09:22', texto: 'E-mail corporativo da Aline validado. Telefone institucional no dossiê.' },
     { sigla: 'LT', autor: 'Lucas Teixeira', agente: false, hora: '09:34', texto: 'Perfeito. Sobe para a cadência T1 hoje à tarde.', reacoes: { '👍': { n: 1, minha: false, quem: ['Mateus Maia'] } } }
   ],
   'prospeccao': [
-    { sigla: 'VE', autor: 'Venator', agente: true, hora: '09:31', texto: 'Lista do Sudeste pronta: 512 contas com fit acima de 70. Aguardando aprovação para entrar na cadência.' }
+    { sigla: 'ZO', autor: 'Zoe', agente: true, hora: '09:31', texto: 'Lista do Sudeste pronta: 512 contas com fit acima de 70. Aguardando aprovação para entrar na cadência.' }
   ],
   'cadencia-t1-t7': [
-    { sigla: 'ST', autor: 'Stilus', agente: true, hora: '08:05', texto: 'Rascunhei 3 e-mails T1 para a Serra Azul. Enviei para aprovação da Aline.' },
+    { sigla: 'LI', autor: 'Lia', agente: true, hora: '08:05', texto: 'Rascunhei 3 e-mails T1 para a Serra Azul. Enviei para aprovação da Aline.' },
     { sigla: 'LT', autor: 'Lucas Teixeira', agente: false, hora: '08:48', texto: 'Douglas Quites respondeu pedindo proposta. Vou ligar amanhã cedo.' }
   ],
   'geral': [
@@ -55,8 +55,8 @@ export class AlthiusLogic extends React.Component {
     grupos: {}, canalMsgs: {}, canalTexto: '', cfgSecao: 'Minha conta', ops: { notif: true, som: false, compacto: false, aprovacao: true }, cop: false, copTexto: '', copEtapa: 0, copPct: 0, copPedido: '', confirm: null, aviso: null };
 
   componentDidMount() {
-    { const MAPA = { VE: 'comercial', PR: 'marketing', ST: 'copy', RA: 'revops' };
-      const marcar = () => { document.querySelectorAll('.msg-av-agente, .ag4-tile, .ag-tile').forEach(el => { const k = MAPA[(el.textContent || '').trim()]; if (k) { if (el.dataset.ag !== k) { el.dataset.ag = k; el.setAttribute('role', 'img'); el.setAttribute('aria-label', { comercial: 'Venator', marketing: 'Praeco', copy: 'Stilus', revops: 'Ratio' }[k]); } } else if (el.dataset.ag) { delete el.dataset.ag; el.removeAttribute('role'); el.removeAttribute('aria-label'); } }); };
+    { const MAPA = { ZO: 'comercial', JA: 'marketing', LI: 'copy', NE: 'revops' };
+      const marcar = () => { document.querySelectorAll('.msg-av-agente, .ag4-tile, .ag-tile').forEach(el => { const k = MAPA[(el.textContent || '').trim()]; if (k) { if (el.dataset.ag !== k) { el.dataset.ag = k; el.setAttribute('role', 'img'); el.setAttribute('aria-label', { comercial: 'Zoe', marketing: 'Jax', copy: 'Lia', revops: 'Neo' }[k]); } } else if (el.dataset.ag) { delete el.dataset.ag; el.removeAttribute('role'); el.removeAttribute('aria-label'); } }); };
       this._mo = new MutationObserver(() => { cancelAnimationFrame(this._moR); this._moR = requestAnimationFrame(marcar); });
       this._mo.observe(document.body, { childList: true, subtree: true, characterData: true }); setTimeout(marcar, 0); }
     new Promise((ok, falha) => { let n = 0; const t = () => { if (window.ALTHIUS_DATA && window.ALTHIUS_MOD) ok(window.ALTHIUS_DATA); else if (++n > 150) import(new URL('revenue-os/data.js', document.baseURI).href).then(ok, falha); else setTimeout(t, 20); }; t(); }).then(D => {
@@ -142,7 +142,7 @@ export class AlthiusLogic extends React.Component {
     return [
       { tipo: 'user', texto: 'Quais contas devo priorizar hoje?', hora: '09:02', status: 'Lida' },
       { tipo: 'agente', hora: '09:02', texto: 'Três contas tiveram sinal novo desde ontem. Serra Azul Têxtil lidera com fit 96 e vaga aberta para Gerente de Importação.' },
-      { tipo: 'deleg', texto: 'Delegou para Stilus · rascunhar a abordagem da Serra Azul' },
+      { tipo: 'deleg', texto: 'Delegou para Lia · rascunhar a abordagem da Serra Azul' },
       { tipo: 'plano', passos: ['Criar a empresa Serra Azul Têxtil no CRM', 'Associar Aline Xavier como decisora', 'Criar tarefa de ligação para Lucas Teixeira'], estado: 'pendente' }
     ];
   }
@@ -308,13 +308,13 @@ export class AlthiusLogic extends React.Component {
   falarCom(agId, texto) { this._proxTab = 'conversa'; this.setState({ msgTexto: texto || '' }); this.ir('app/' + this.state.rota.ws + '/agents/' + agId); }
   extrato() { return this.state.extrato || [
     { id: 'x1', data: '2026-09-01', tipo: 'entrada', desc: 'Créditos iniciais do workspace', quem: 'Althius · franquia mensal', cr: 10000 },
-    { id: 'x2', data: '2026-09-05', tipo: 'saida', desc: 'Mapeamento de comitê · 8 contas', quem: 'Venator', ag: 'comercial', cr: 200 },
-    { id: 'x3', data: '2026-09-08', tipo: 'saida', desc: 'Enriquecimento · 64 contatos', quem: 'Venator', ag: 'comercial', cr: 640 },
-    { id: 'x4', data: '2026-09-12', tipo: 'saida', desc: 'E-mails automáticos · 48 envios', quem: 'Stilus', ag: 'copy', cr: 192 },
-    { id: 'x5', data: '2026-09-15', tipo: 'saida', desc: 'Sinais monitorados · setembro', quem: 'Venator', ag: 'comercial', cr: 700 },
-    { id: 'x6', data: '2026-09-22', tipo: 'saida', desc: 'Leitura semanal de mídia', quem: 'Praeco', ag: 'marketing', cr: 120 },
-    { id: 'x7', data: '2026-09-26', tipo: 'saida', desc: 'Rascunhos e respostas · 59', quem: 'Stilus', ag: 'copy', cr: 118 },
-    { id: 'x8', data: '2026-09-29', tipo: 'saida', desc: 'Relatórios e higiene do CRM', quem: 'Ratio', ag: 'revops', cr: 80 }
+    { id: 'x2', data: '2026-09-05', tipo: 'saida', desc: 'Mapeamento de comitê · 8 contas', quem: 'Zoe', ag: 'comercial', cr: 200 },
+    { id: 'x3', data: '2026-09-08', tipo: 'saida', desc: 'Enriquecimento · 64 contatos', quem: 'Zoe', ag: 'comercial', cr: 640 },
+    { id: 'x4', data: '2026-09-12', tipo: 'saida', desc: 'E-mails automáticos · 48 envios', quem: 'Lia', ag: 'copy', cr: 192 },
+    { id: 'x5', data: '2026-09-15', tipo: 'saida', desc: 'Sinais monitorados · setembro', quem: 'Zoe', ag: 'comercial', cr: 700 },
+    { id: 'x6', data: '2026-09-22', tipo: 'saida', desc: 'Leitura semanal de mídia', quem: 'Jax', ag: 'marketing', cr: 120 },
+    { id: 'x7', data: '2026-09-26', tipo: 'saida', desc: 'Rascunhos e respostas · 59', quem: 'Lia', ag: 'copy', cr: 118 },
+    { id: 'x8', data: '2026-09-29', tipo: 'saida', desc: 'Relatórios e higiene do CRM', quem: 'Neo', ag: 'revops', cr: 80 }
   ]; }
   saldo() { if (typeof this.state.saldoCreditos === 'number') return this.state.saldoCreditos; return this.extrato().reduce((s, e) => s + (e.tipo === 'entrada' ? e.cr : -e.cr), 0); }
   gastar(cr, desc, ag) { const a = (this.state.agents || []).find(x => x.id === ag); const hoje = new Date().toISOString().slice(0, 10);
@@ -527,7 +527,7 @@ export class AlthiusLogic extends React.Component {
       const fimDrag = () => { this._drag = null; this.setState({ pipeDrag: null, pipeAlvo: null }); };
       const moverCard = (id, col, antes) => { let msg = '';
         this.mudarPipe(p => { const b = p.quadros[p.motion].find(x => x.id === q.id), i = b.deals.findIndex(d => d.id === id); if (i < 0) return; const d = b.deals.splice(i, 1)[0];
-          if (d.etapa !== col) { d.prob = PROB[col]; msg = d.conta + ' foi para ' + rot(col) + '. O Ratio atualiza o CRM.'; if (col === 'ganho') { d.status = 'ok'; msg = d.conta + ' ganho: ' + brl(d.valor) + '. O Ratio registrou no CRM.'; } }
+          if (d.etapa !== col) { d.prob = PROB[col]; msg = d.conta + ' foi para ' + rot(col) + '. O Neo atualiza o CRM.'; if (col === 'ganho') { d.status = 'ok'; msg = d.conta + ' ganho: ' + brl(d.valor) + '. O Neo registrou no CRM.'; } }
           d.etapa = col; const j = antes ? b.deals.findIndex(x => x.id === antes) : -1; if (j >= 0) b.deals.splice(j, 0, d); else b.deals.push(d); });
         fimDrag(); if (msg) { this.avisar('mod', msg); if (col === 'ganho') this.setState({ notifs: [['Negócio ganho', msg, 'agora']].concat(this.state.notifs || []), notifLidas: false }); } };
       const moverEtapa = (k, antes) => { if (k === antes || k === 'ganho') { fimDrag(); return; } this.mudarPipe(p => { const b = p.quadros[p.motion].find(x => x.id === q.id); const o = (b.ordem || ETAPAS).filter(x => x !== k); let j = o.indexOf(antes); if (j < 0 || antes === 'ganho') j = o.indexOf('ganho'); o.splice(j, 0, k); b.ordem = o; }); fimDrag(); };
@@ -598,7 +598,7 @@ export class AlthiusLogic extends React.Component {
         ['LinkedIn Ads', ['liads'], 'ABM com as contas do ICP: anúncio só para quem está na lista.', 'Monta o público a partir das contas qualificadas, lê CPL por cargo e sugere onde pôr ou tirar verba.'],
         ['Meta Ads', ['meta'], 'Remarketing e públicos parecidos com os clientes atuais.', 'Sobe a lista de clientes como público, acompanha frequência e avisa quando o anúncio cansa.'],
         ['Google Ads', ['gads', 'ga4'], 'Busca por intenção: quem procura importação e conta e ordem.', 'Lê termos de busca, corta palavras que só trazem curioso e cruza conversão com o GA4.'],
-        ['Orgânico', ['notion', 'gdrive'], 'Posts e materiais do calendário editorial.', 'Define a pauta pelos sinais das contas. O Stilus escreve, o Praeco mede alcance e leads.'],
+        ['Orgânico', ['notion', 'gdrive'], 'Posts e materiais do calendário editorial.', 'Define a pauta pelos sinais das contas. O Lia escreve, o Jax mede alcance e leads.'],
         ['Evento', ['eventbrite', 'hubspot'], 'Feiras, webinars e encontros com o ICP.', 'Cruza inscritos com contas do CRM e coloca quem foi numa cadência pós-evento.'],
         ['SEO/GEO', ['gsc', 'ga4'], 'Aparecer no Google e nas respostas de ChatGPT, Gemini e Perplexity.', 'Acompanha buscas e páginas que trazem visita e indica que conteúdo falta para a IA citar a marca.']
       ];
@@ -661,7 +661,7 @@ export class AlthiusLogic extends React.Component {
           filtros: ['Tudo', 'Entradas', 'Saídas'].map(f => ({ label: f, ativo: fx === f ? 'true' : 'false', ir: () => this.setState({ credFiltro: f }) })),
           extrato: linhas.filter(e => fx === 'Tudo' || (fx === 'Entradas') === (e.tipo === 'entrada')).map(e => ({ data: fd(e.data), desc: e.desc, quem: e.quem, tipo: e.tipo, valor: (e.tipo === 'entrada' ? '+' : '−') + nf(e.cr), saldo: nf(e.saldoApos) })),
           porAgente: porAg.map(a => ({ nome: a.nome, sigla: a.sigla, creditos: nf(a.cr), usd: usd(a.cr), pct: (saiu ? a.cr / saiu * 100 : 0).toFixed(1) + '%' })),
-          custos: [['Mensagem no chat ou no copiloto', 'qualquer agente', 2], ['Rascunho de mensagem ou tarefa', 'Stilus', 2], ['E-mail ou WhatsApp automático', 'Stilus · por envio', 4], ['Enriquecer um contato', 'Venator · e-mail e telefone', 10], ['Pesquisa de conta (dossiê)', 'Venator', 15], ['Mapear comitê de uma conta', 'Venator', 25], ['Sinal monitorado', 'por conta, a cada leitura · ver Sinais', '0 a 20'], ['Leitura de mídia', 'Praeco · por semana', 30], ['Relatório automático', 'Ratio · por envio', 20]].map(([acao, quem, c]) => ({ acao, quem, cr: c + ' cr', usd: '' })) });
+          custos: [['Mensagem no chat ou no copiloto', 'qualquer agente', 2], ['Rascunho de mensagem ou tarefa', 'Lia', 2], ['E-mail ou WhatsApp automático', 'Lia · por envio', 4], ['Enriquecer um contato', 'Zoe · e-mail e telefone', 10], ['Pesquisa de conta (dossiê)', 'Zoe', 15], ['Mapear comitê de uma conta', 'Zoe', 25], ['Sinal monitorado', 'por conta, a cada leitura · ver Sinais', '0 a 20'], ['Leitura de mídia', 'Jax · por semana', 30], ['Relatório automático', 'Neo · por envio', 20]].map(([acao, quem, c]) => ({ acao, quem, cr: c + ' cr', usd: '' })) });
       }
     }
     // RELATÓRIOS
@@ -770,7 +770,7 @@ export class AlthiusLogic extends React.Component {
     v.teclaEdit = ev => { if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); v.salvarEdit(); } else if (ev.key === 'Escape') { ev.preventDefault(); ev.stopPropagation(); v.cancelarEdit(); } };
     v.respondendo = !!st.respondendo; v.respondendoNome = st.respondendo || ''; v.cancelarResposta = () => this.setState({ respondendo: null });
     v.refCanalInput = el => { this._canalIn = el; };
-    v.digitando = !!st.digitando && st.digitando.canal === canal.id; v.digitandoNome = st.digitando ? st.digitando.nome : ''; v.digitandoSigla = st.digitando ? st.digitando.sigla || 'VE' : 'VE';
+    v.digitando = !!st.digitando && st.digitando.canal === canal.id; v.digitandoNome = st.digitando ? st.digitando.nome : ''; v.digitandoSigla = st.digitando ? st.digitando.sigla || 'ZO' : 'VE';
     const enviarCanal = () => {
       const t = (this.state.canalTexto || '').trim(); if (!t) return; if (this.modoDemo === false) return this.enviarNoCanalReal(canal, t);
       const agora = new Date(); const hora = String(agora.getHours()).padStart(2, '0') + ':' + String(agora.getMinutes()).padStart(2, '0');
@@ -781,7 +781,7 @@ export class AlthiusLogic extends React.Component {
       if (/@/.test(t) && agR) {
         this.setState({ digitando: { canal: canal.id, nome: agR.nome, sigla: agR.sigla } });
         clearTimeout(this._td); this._td = setTimeout(() => {
-          const atual = (this.state.canalMsgs[canal.id] || lista).concat([{ sigla: (this.state.digitando || {}).sigla || 'VE', autor: (this.state.digitando || {}).nome || 'Venator', agente: true, hora, texto: 'Recebido. Levanto isso agora e respondo aqui com as fontes.' }]);
+          const atual = (this.state.canalMsgs[canal.id] || lista).concat([{ sigla: (this.state.digitando || {}).sigla || 'ZO', autor: (this.state.digitando || {}).nome || 'Zoe', agente: true, hora, texto: 'Recebido. Levanto isso agora e respondo aqui com as fontes.' }]);
           this.setState({ digitando: null, canalMsgs: Object.assign({}, this.state.canalMsgs, { [canal.id]: atual }) });
         }, 1600);
       }
@@ -861,7 +861,7 @@ export class AlthiusLogic extends React.Component {
       const tab = st.contaTab || 'comite', sinc = st.sincConta === contaSel.id;
       const PAPEL = { decisor: 'Decisor', influenciador: 'Influenciador', campeao: 'Campeão' };
       const fechar = () => this.setState({ conta: null, cadPessoa: null });
-      const mapear = () => { this.avisar('mod', 'Venator recebeu ' + contaSel.nome + '. O resultado aparece em Execuções.'); fechar(); };
+      const mapear = () => { this.avisar('mod', 'Zoe recebeu ' + contaSel.nome + '. O resultado aparece em Execuções.'); fechar(); };
       v.cta = { aberta: true, nome: contaSel.nome, fit: contaSel.fit, segmento: contaSel.segmento, cidade: contaSel.cidade || '—', dono: contaSel.dono, donoFoto: this.fotoUsuario(contaSel.dono),
         chamas: this.chamas(+contaSel.temperatura), chamasRotulo: this.fogoRotulo(+contaSel.temperatura), w: lay.mobile ? '100vw' : 'min(760px, 92vw)', fechar, mapear,
         ...this.logoDe(contaSel.id, contaSel.nome, 'co'),
@@ -927,7 +927,7 @@ export class AlthiusLogic extends React.Component {
               ...(() => { const autoOk = s.canal === 'email' || s.canal === 'whatsapp', auto = autoOk && s.modo !== 'manual', canalN = s.canal === 'email' ? 'e-mail' : 'WhatsApp';
                 return { automatizavel: autoOk, soManual: !autoOk, auto, naoAuto: !auto, avisoAuto: 'IA envia no dia ' + dia,
                   modos: [['auto', 'Automático · IA envia'], ['manual', 'Manual · você envia']].map(([k, label]) => ({ label, ativo: (k === 'auto') === auto ? 'true' : 'false', escolher: () => gravar(c => { c.passos[i].modo = k; }) })),
-                  modoTexto: auto ? 'O Stilus personaliza e envia pelo ' + canalN + ' conectado no dia ' + dia + ', em horário comercial. Se ' + primeiro + ' responder, a cadência para. 4 créditos por envio.'
+                  modoTexto: auto ? 'O Lia personaliza e envia pelo ' + canalN + ' conectado no dia ' + dia + ', em horário comercial. Se ' + primeiro + ' responder, a cadência para. 4 créditos por envio.'
                     : autoOk ? 'Vira tarefa para ' + dono + ' no dia ' + dia + ', com a mensagem pronta.'
                     : s.canal === 'linkedin' ? 'O LinkedIn não permite envio automático. ' + dono + ' recebe a tarefa com o texto pronto e abre o perfil num clique.' : s.canal === 'instagram' ? 'O Instagram não permite seguir nem abrir conversa de forma automática. ' + dono + ' recebe a tarefa e abre o perfil ou o direct num clique.' : 'Ligação é sempre feita por uma pessoa. A tarefa chega para ' + dono + ' com o roteiro.' }; })(),
               canais: ['email', 'linkedin', 'whatsapp', 'ligacao', 'instagram'].map(k => ({ label: this.CANAL_LABEL[k], ativo: s.canal === k ? 'true' : 'false', escolher: () => gravar(c => { c.passos[i].canal = k; c.passos[i].alvo = 0; if (k === 'linkedin' && !c.passos[i].liTipo) c.passos[i].liTipo = 'conexao'; if (k === 'instagram' && !c.passos[i].igTipo) c.passos[i].igTipo = 'seguir'; }) })),
@@ -1354,7 +1354,7 @@ export class AlthiusLogic extends React.Component {
       { texto: st.copPedido },
       { texto: 'Gerar uma lista de contas dentro do ICP vigente com sinal de compra recente, pronta para a cadência T1–T7.' },
       { lista: ['Buscar empresas por segmento e região', 'Cruzar com sinais de expansão e importação', 'Pontuar fit com o ICP v4', 'Mapear decisores das 50 contas com maior fit'] },
-      { lista: ['Venator', 'Stilus'] },
+      { lista: ['Zoe', 'Lia'] },
       { lista: integCop },
       bdrFluxo ? { texto: 'Estimativa enviada ao estrategista responsável.' } : { lista: ['Estimativa: 1.800 créditos', 'Reserva máxima: 2.000 créditos', 'Saldo após a reserva: 5.950 créditos'] },
       bdrFluxo ? { texto: 'Pedido enviado para aprovação do estrategista. Você é avisado quando a execução começar.' } : { aprovacao: et === 7, texto: et > 7 ? 'Aprovado por ' + U.usuario + '.' : '' },

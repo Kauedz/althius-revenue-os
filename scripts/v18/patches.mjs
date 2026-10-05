@@ -2,6 +2,32 @@
 // Cada patch precisa encontrar o trecho exato; se uma versão nova do design mudar a tela,
 // o conversor para com erro e aponta qual regra revisar (nada é perdido em silêncio).
 
+// Nomes de exibição dos agentes (decisão do dono, 2026-10-05). O design v22 traz Venator, Praeco, Stilus e Ratio;
+// o produto usa Zoe, Jax, Lia e Neo. Só a exibição muda: os códigos (comercial, marketing, copy, revops) ficam.
+// O app marca cada avatar pela sigla (MAPA), então nome, sigla e mapa precisam mudar juntos.
+const AGENTES_EXIBICAO = [
+  ['Venator', 'Zoe', 'VE', 'ZO'],
+  ['Praeco', 'Jax', 'PR', 'JA'],
+  ['Stilus', 'Lia', 'ST', 'LI'],
+  ['Ratio', 'Neo', 'RA', 'NE']
+];
+function renomearAgentes(regra) {
+  return texto => {
+    let trocas = 0;
+    const troca = (re, por) => { texto = texto.replace(re, (...m) => { trocas++; return typeof por === 'function' ? por(...m) : por; }); };
+    for (const [velho, novo, siglaVelha, siglaNova] of AGENTES_EXIBICAO) {
+      troca(new RegExp(`\\b${velho}\\b`, 'g'), novo);
+      troca(new RegExp(`sigla: '${siglaVelha}'`, 'g'), `sigla: '${siglaNova}'`);
+      troca(new RegExp(`\\|\\| '${siglaVelha}'`, 'g'), `|| '${siglaNova}'`);
+    }
+    troca(/\{ VE: 'comercial', PR: 'marketing', ST: 'copy', RA: 'revops' \}/g, "{ ZO: 'comercial', JA: 'marketing', LI: 'copy', NE: 'revops' }");
+    // "Do latim, o caçador: vai atrás das contas certas" deixa de fazer sentido com nomes que não são latinos.
+    troca(/latim: 'Do latim, [^:']*: ([^']*)'/g, (_m, resto) => `latim: '${resto.charAt(0).toUpperCase()}${resto.slice(1)}'`);
+    if (trocas === 0) throw new Error(`Regra "${regra}": não achei nenhum nome de agente. O design mudou? Revise scripts/v18/patches.mjs.`);
+    return texto;
+  };
+}
+
 export const PATCHES = [
   {
     regra: 'modo real: saldo de creditos vem da carteira',
@@ -368,7 +394,14 @@ export const PATCHES = [
       if (inicio < 0 || fimBotao < 0 || fim < fimBotao) throw new Error('Regra "duas etapas": estrutura do bloco mudou.');
       return texto.slice(0, inicio) + '{$v.modoDemo !== false ? (<>' + texto.slice(inicio, fim) + '</>) : null}' + texto.slice(fim);
     }
-  }
+  },
+
+  // ---- Nomes de exibição dos agentes: Zoe, Jax, Lia e Neo
+  ...['data.js', 'module.js', 'logic.generated.js', 'template.generated.tsx'].map(arquivo => ({
+    regra: `agentes: nomes de exibição Zoe, Jax, Lia e Neo (${arquivo})`,
+    arquivo,
+    aplicar: renomearAgentes(`agentes: nomes de exibição (${arquivo})`)
+  })),
 
   // ---- Relatórios, Sinais e Prospecção (Grok)
   // Relatórios, no modo real, troca os números na própria tela (AlthiusApp).
