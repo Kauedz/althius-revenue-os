@@ -38,6 +38,7 @@ import { adiarTarefa, criarTarefa, listarTarefas, mudarStatusTarefa, tarefasVazi
 import { CANAIS_CAMPANHA, campanhasVazias, criarCampanha, listarCampanhas, mudarStatusCampanha, mudarVerba, type CampanhasTela } from './servicos/campanhas';
 import { adicionarPasso, cadenciasVazias, CANAL_PASSO, inscreverContato, listarCadencias, removerUltimoPasso, salvarCadencia, type CadenciasTela } from './servicos/cadencias';
 import { nomeDoAgente } from './agentes-exibicao';
+import { normalizarDominio } from './normalizacao';
 
 export interface AlthiusAppProps {
   dados: DadosAlthius;
@@ -65,6 +66,12 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   declare PAPEL_INFO: Record<PapelFront, { nome: string; cor: string }>;
   declare ir: (caminho: string) => void;
   declare confirmar: (titulo: string, texto: string, botao: string, fn: () => void) => void;
+
+  // Logo pelo site: mesma normalização do banco (www., MAIÚSCULAS, http/https, porta, caminho, ponto final).
+  // Substitui a regex própria do protótipo (`dominio` em logic.generated.js). Texto que não é domínio vira ''.
+  dominio(u: unknown): string {
+    return normalizarDominio(typeof u === 'string' ? u : u == null ? '' : String(u)) ?? '';
+  }
 
   componentDidMount() {
     // Os "services" do protótipo são o ponto de troca: as telas chamam list/decide sem saber de onde vêm os dados.
