@@ -459,7 +459,7 @@ export class AlthiusLogic extends React.Component {
       const tecla = l => ev => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrir(l)(); } };
       const md = v.md;
       md.titulo = M.titulo;
-      md.temPorConta = page === 'cadences' && !vazio;
+      md.temPorConta = page === 'cadences' && !vazio && this.modoDemo !== false;
       md.porConta = md.temPorConta ? (MOD.accounts.linhas || []).filter(c => (window.ALTHIUS_COMITES || {})[c.id] && window.ALTHIUS_COMITES[c.id].length).map(c => {
         const pessoas = window.ALTHIUS_COMITES[c.id], cads = (st.cad || {})[c.id] || {};
         const p0 = cads[pessoas[0].id] ? cads[pessoas[0].id].passos : this.cadPadrao(c, pessoas[0]).passos;

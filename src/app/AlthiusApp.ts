@@ -35,6 +35,8 @@ import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais
 import { listarProspeccao, prospeccaoSemDados, type ProspeccaoTela } from './servicos/prospeccao';
 import { arquivarNegocio, atualizarNegocio, criarNegocio, criarQuadro, excluirQuadro, listarPipeline, moverNegocio, MOTIONS, pipelineVazio, reordenarEtapas, renomearQuadro, type Motion, type PipelineTela, type Resultado } from './servicos/pipeline';
 import { adiarTarefa, criarTarefa, listarTarefas, mudarStatusTarefa, tarefasVazias, type TarefasTela } from './servicos/tarefas';
+import { CANAIS_CAMPANHA, campanhasVazias, criarCampanha, listarCampanhas, mudarStatusCampanha, mudarVerba, type CampanhasTela } from './servicos/campanhas';
+import { adicionarPasso, cadenciasVazias, CANAL_PASSO, inscreverContato, listarCadencias, removerUltimoPasso, salvarCadencia, type CadenciasTela } from './servicos/cadencias';
 import { nomeDoAgente } from './agentes-exibicao';
 
 export interface AlthiusAppProps {
@@ -95,6 +97,8 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     void this.carregarMinhaConta();
     this.publicarCaixa(null);
     this.publicarTarefas(null);
+    this.publicarCampanhas(null);
+    this.publicarCadencias(null);
     this.registrarTelasAdmin();
   }
 
@@ -124,6 +128,8 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarAprendizados({}, {});
     this.publicarCaixa(null);
     this.publicarTarefas(null);
+    this.publicarCampanhas(null);
+    this.publicarCadencias(null);
     super.componentWillUnmount?.();
   }
 
@@ -246,6 +252,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     };
     this.valoresEquipe(v);
     this.formularioNovoCliente(v);
+    this.formularioDoModulo(v);
     return v;
   }
 
@@ -868,6 +875,8 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (rota.page === 'inbox') void this.carregarCaixa();
     if (rota.page === 'pipeline') void this.carregarPipeline();
     if (rota.page === 'tasks') void this.carregarTarefas();
+    if (rota.page === 'campaigns') void this.carregarCampanhas();
+    if (rota.page === 'cadences') void this.carregarCadencias();
     if (String(rota.page || '').startsWith('admin/')) void this.carregarAdmin(rota.page);
     if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) { void this.carregarConexoes(); void this.carregarCanais(); }
     if (rota.page === 'channels' && (rota.id !== antes.id || rota.page !== antes.page || rota.ws !== antes.ws || (this.state.pronto && !prev.pronto))) void this.carregarMensagens();
@@ -1096,6 +1105,197 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     else this.avisar('mod', 'Tarefa criada.');
   }
 
+  // ---- Cadências e Campanhas ligadas ao banco (PR 08)
+
+  private cargaCampanhas = 0;
+  private cargaCadencias = 0;
+
+  private publicarCampanhas(t: CampanhasTela | null) {
+    if (typeof window === 'undefined' || this.modoDemo !== false) return;
+    const mod = (window as any).ALTHIUS_MOD?.campaigns;
+    if (!mod) return;
+    const tela = t ?? campanhasVazias();
+    // Sem fonte de investimento real, a tabela mostra a verba aprovada (e não "Investido" nem CPL).
+    mod.colunas = [['nome', 'Campanha', '2fr'], ['canal', 'Canal', '1fr'], ['verba', 'Verba aprovada', '1fr'], ['leads', 'Leads', '80px'], ['status', 'Status', '1fr']];
+    mod.kpis = tela.kpis;
+    mod.linhas = tela.linhas;
+    mod.acoesLinha = t ? [['Ativar', ''], ['Pausar', ''], ['Concluir', ''], ['Mudar verba', '']] : [];
+  }
+
+  private publicarCadencias(t: CadenciasTela | null) {
+    if (typeof window === 'undefined' || this.modoDemo !== false) return;
+    const mod = (window as any).ALTHIUS_MOD?.cadences;
+    if (!mod) return;
+    const tela = t ?? cadenciasVazias();
+    mod.kpis = tela.kpis;
+    mod.linhas = tela.linhas;
+    mod.acoesLinha = t ? [['Adicionar passo', ''], ['Remover último passo', ''], ['Inscrever contato', ''], ['Pausar', ''], ['Retomar', ''], ['Arquivar', '']] : [];
+  }
+
+  async carregarCampanhas() {
+    const ws = this.workspaceAtual();
+    const carga = ++this.cargaCampanhas;
+    this.publicarCampanhas(null);
+    if (!ws) return;
+    try {
+      const t = await listarCampanhas(this.props.supabase, ws.uuid);
+      if (!this.vivo || carga !== this.cargaCampanhas) return;
+      this.publicarCampanhas(t);
+      this.setState({ campanhasVersao: carga });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaCampanhas) this.avisarFalha('Não foi possível carregar as campanhas', falha);
+    }
+  }
+
+  async carregarCadencias() {
+    const ws = this.workspaceAtual();
+    const carga = ++this.cargaCadencias;
+    this.publicarCadencias(null);
+    if (!ws) return;
+    try {
+      const t = await listarCadencias(this.props.supabase, ws.uuid);
+      if (!this.vivo || carga !== this.cargaCadencias) return;
+      this.publicarCadencias(t);
+      this.setState({ cadenciasVersao: carga });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaCadencias) this.avisarFalha('Não foi possível carregar as cadências', falha);
+    }
+  }
+
+  // Formulário genérico das listas (usa o mesmo bloco `md.form` do Superadmin)
+  private abrirFormulario(def: { tipo: string; titulo: string; salvarLabel: string; id?: string; extra?: Record<string, unknown>; campos: Array<Record<string, any>> }) {
+    this.setState({ formModulo: { ...def, erro: '' } });
+  }
+
+  private formularioDoModulo(v: Record<string, any>) {
+    const f = this.state.formModulo as { tipo: string; titulo: string; salvarLabel: string; erro: string; campos: Array<Record<string, any>> } | undefined;
+    const pagina = (this.state.rota || {}).page;
+    if (!f || !v.md || (pagina !== 'campaigns' && pagina !== 'cadences')) return;
+    v.md.form = {
+      titulo: f.titulo,
+      campos: f.campos.map(c => ({
+        label: c.label, valor: c.valor, placeholder: c.placeholder, tipo: c.tipo, opcoes: c.opcoes, longo: !!c.longo,
+        mudar: (e: { target: { value: string } }) => this.setState({ formModulo: Object.assign({}, this.state.formModulo, { erro: '', campos: this.state.formModulo.campos.map((x: any) => x.k === c.k ? Object.assign({}, x, { valor: e.target.value }) : x) }) })
+      })),
+      erro: f.erro,
+      salvarLabel: f.salvarLabel,
+      salvar: () => void this.enviarFormulario(),
+      cancelar: () => this.setState({ formModulo: undefined })
+    };
+  }
+
+  /** "5000", "5.000" e "5.000,50" viram número; vazio vira 0. */
+  private static numeroBR(texto: string): number {
+    const t = String(texto || '').replace(/[R$\s]/g, '');
+    if (!t) return 0;
+    const limpo = t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t.replace(/\.(?=\d{3}(\D|$))/g, '');
+    const n = Number(limpo);
+    return Number.isFinite(n) ? n : NaN;
+  }
+
+  private async enviarFormulario() {
+    const f = this.state.formModulo as { tipo: string; id?: string; extra?: Record<string, any>; campos: Array<{ k: string; valor: string }> } | undefined;
+    const ws = this.workspaceAtual();
+    if (!f || !ws?.membroId) return;
+    const val = (k: string) => (f.campos.find(c => c.k === k)?.valor ?? '').trim();
+    const falhou = (erro: string) => this.setState({ formModulo: Object.assign({}, this.state.formModulo, { erro }) });
+    const sb = this.props.supabase;
+    const verba = AlthiusApp.numeroBR(val('verba'));
+    if (Number.isNaN(verba)) return falhou('Informe a verba só com números.');
+
+    if (f.tipo === 'nova_campanha') {
+      const r = await criarCampanha(sb, ws.uuid, ws.membroId, val('nome'), val('canal'), verba);
+      if (!r.ok) return falhou(r.mensagem);
+      this.setState({ formModulo: undefined });
+      await this.carregarCampanhas();
+      return this.avisar('mod', r.pedido ? 'Campanha criada em rascunho. O pedido de verba foi para o C-level aprovar.' : 'Campanha criada em rascunho.');
+    }
+    if (f.tipo === 'mudar_verba') {
+      const r = await mudarVerba(sb, ws.uuid, ws.membroId, f.id!, verba);
+      if (!r.ok) return falhou(r.mensagem);
+      this.setState({ formModulo: undefined });
+      await this.carregarCampanhas();
+      const aviso: Record<string, string> = { requested: 'Pedido de verba enviado ao C-level.', pending_exists: 'Já existe um pedido de verba aguardando o C-level.', unchanged: 'A verba já era essa.', updated: 'Verba atualizada.' };
+      return this.avisar('mod', aviso[r.acao ?? ''] ?? 'Verba atualizada.');
+    }
+    if (f.tipo === 'nova_cadencia') {
+      const r = await salvarCadencia(sb, ws.uuid, ws.membroId, null, val('nome'), val('descricao'), 'Ativa');
+      if (!r.ok) return falhou(r.mensagem);
+      this.setState({ formModulo: undefined });
+      await this.carregarCadencias();
+      return this.avisar('mod', 'Cadência criada. Abra a linha e use "Adicionar passo".');
+    }
+    if (f.tipo === 'novo_passo') {
+      const espera = Number(val('espera') || 0);
+      if (!Number.isInteger(espera)) return falhou('A espera é um número inteiro de dias.');
+      const r = await adicionarPasso(sb, ws.uuid, ws.membroId, f.id!, { canal: val('canal'), modo: val('modo') === 'Automático' ? 'auto' : 'manual', espera, assunto: val('assunto'), texto: val('texto') });
+      if (!r.ok) return falhou(r.mensagem);
+      this.setState({ formModulo: undefined });
+      await this.carregarCadencias();
+      return this.avisar('mod', 'Passo adicionado.');
+    }
+    if (f.tipo === 'inscrever') {
+      if (!val('contato')) return falhou('Escolha o contato.');
+      const r = await inscreverContato(sb, ws.uuid, ws.membroId, f.id!, val('contato'));
+      if (!r.ok) return falhou(r.mensagem);
+      this.setState({ formModulo: undefined });
+      await this.carregarCadencias();
+      return this.avisar('mod', 'Contato inscrito. O primeiro passo vence agora.');
+    }
+  }
+
+  private async acaoNaCampanha(acao: string, linha: { id: string; nome: string; verbaNumero: number }) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    if (acao === 'Mudar verba') {
+      return this.abrirFormulario({ tipo: 'mudar_verba', id: linha.id, titulo: `Verba de "${linha.nome}"`, salvarLabel: 'Salvar verba',
+        campos: [{ k: 'verba', label: 'Verba de mídia (R$)', valor: linha.verbaNumero ? String(linha.verbaNumero) : '', placeholder: '0' }] });
+    }
+    const status = { Ativar: 'Ativa', Pausar: 'Pausada', Concluir: 'Concluída' }[acao as 'Ativar'];
+    if (!status) return;
+    const r = await mudarStatusCampanha(this.props.supabase, ws.uuid, ws.membroId, linha.id, status);
+    await this.carregarCampanhas();
+    if (!r.ok) this.confirmar('Campanha não atualizada', r.mensagem, 'Entendi', () => {});
+    else this.avisar('mod', `Campanha: ${status.toLowerCase()}.`);
+  }
+
+  private contatosParaInscricao() {
+    const mod = (window as any).ALTHIUS_MOD?.accounts?.linhas || [];
+    const comites = (window as any).ALTHIUS_COMITES || {};
+    const lista: Array<{ valor: string; label: string }> = [{ valor: '', label: 'Escolha o contato' }];
+    for (const conta of mod) for (const p of comites[conta.id] || []) lista.push({ valor: p.id, label: `${p.nome} · ${conta.nome}` });
+    return lista;
+  }
+
+  private async acaoNaCadencia(acao: string, linha: { id: string; nome: string; descricao: string; status: string }) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const sb = this.props.supabase;
+    if (acao === 'Adicionar passo') {
+      return this.abrirFormulario({ tipo: 'novo_passo', id: linha.id, titulo: `Novo passo em "${linha.nome}"`, salvarLabel: 'Adicionar passo', campos: [
+        { k: 'canal', label: 'Canal', valor: 'E-mail', opcoes: Object.values(CANAL_PASSO).map(x => ({ valor: x, label: x })) },
+        { k: 'modo', label: 'Como sai', valor: 'Manual', opcoes: [{ valor: 'Manual', label: 'Manual (vira tarefa)' }, { valor: 'Automático', label: 'Automático (só e-mail e WhatsApp)' }] },
+        { k: 'espera', label: 'Espera depois do passo anterior (dias)', valor: '0', tipo: 'number' },
+        { k: 'assunto', label: 'Assunto (e-mail)', valor: '' },
+        { k: 'texto', label: 'Texto ou roteiro', valor: '', longo: true }
+      ] });
+    }
+    if (acao === 'Inscrever contato') {
+      return this.abrirFormulario({ tipo: 'inscrever', id: linha.id, titulo: `Inscrever em "${linha.nome}"`, salvarLabel: 'Inscrever',
+        campos: [{ k: 'contato', label: 'Contato', valor: '', opcoes: this.contatosParaInscricao() }] });
+    }
+    let r;
+    if (acao === 'Remover último passo') r = await removerUltimoPasso(sb, ws.uuid, ws.membroId, linha.id);
+    else {
+      const novo = { Pausar: 'Pausada', Retomar: 'Ativa', Arquivar: 'Arquivada' }[acao as 'Pausar'];
+      if (!novo) return;
+      r = await salvarCadencia(sb, ws.uuid, ws.membroId, linha.id, linha.nome, linha.descricao, novo);
+    }
+    await this.carregarCadencias();
+    if (!r.ok) this.confirmar('Cadência não atualizada', r.mensagem, 'Entendi', () => {});
+    else this.avisar('mod', acao === 'Remover último passo' ? 'Último passo removido.' : 'Cadência atualizada.');
+  }
+
   /** Ganchos das listas genéricas do v18 (scripts/v18/patches.mjs). Devolve true quando a camada do banco tratou. */
   aoAbrirLinhaReal(page: string, linha: { id: string }) {
     if (page === 'inbox') void this.abrirConversa(linha.id);
@@ -1112,6 +1312,14 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     }
     if (page === 'tasks') {
       void this.acaoNaTarefa(acao, linha.id);
+      return true;
+    }
+    if (page === 'campaigns') {
+      void this.acaoNaCampanha(acao, linha as any);
+      return true;
+    }
+    if (page === 'cadences') {
+      void this.acaoNaCadencia(acao, linha as any);
       return true;
     }
     return false;
@@ -1227,6 +1435,21 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   }
 
   acaoDaPaginaReal(page: string): boolean {
+    if (page === 'campaigns') {
+      this.abrirFormulario({ tipo: 'nova_campanha', titulo: 'Nova campanha', salvarLabel: 'Criar campanha', campos: [
+        { k: 'nome', label: 'Nome da campanha', valor: '', placeholder: 'Ex.: Importação sem risco · Q4' },
+        { k: 'canal', label: 'Canal', valor: 'LinkedIn Ads', opcoes: Object.values(CANAIS_CAMPANHA).map(x => ({ valor: x, label: x })) },
+        { k: 'verba', label: 'Verba de mídia (R$)', valor: '', placeholder: '0 se não houver verba', tipo: 'text' }
+      ] });
+      return true;
+    }
+    if (page === 'cadences') {
+      this.abrirFormulario({ tipo: 'nova_cadencia', titulo: 'Nova cadência', salvarLabel: 'Criar cadência', campos: [
+        { k: 'nome', label: 'Nome da cadência', valor: '', placeholder: 'Ex.: Importadores do Sudeste' },
+        { k: 'descricao', label: 'Descrição (opcional)', valor: '', placeholder: 'Para quem é e o que ela faz' }
+      ] });
+      return true;
+    }
     if (page !== 'admin/workspaces') return false;
     this.setState({ formNovoWs: { nome: '', slug: '', email: '', estrategista: '', erro: '' } });
     return true;
