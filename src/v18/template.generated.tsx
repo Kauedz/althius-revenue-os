@@ -4536,7 +4536,7 @@ export function renderTemplate($v: Record<string, any>) {
                       {"\n                  "}
                       <span style={{"display":"flex","flexDirection":"column","gap":"2px","minWidth":"0","flex":"1 1 260px"}}>
                         <span style={{"fontSize":"15px","fontWeight":"500"}}>
-                          {"Praeco cuida de todos os canais"}
+                          {"Jax cuida de todos os canais"}
                         </span>
                         <span style={{"fontSize":"13px","color":"var(--graphite)"}}>
                           {__t($v.cp?.donoTexto)}
@@ -4669,7 +4669,7 @@ export function renderTemplate($v: Record<string, any>) {
                     </div>
                     {"\n                "}
                     <p style={{"margin":"0","fontSize":"12px","color":"var(--graphite)"}}>
-                      {"Lógica: toda campanha pertence a um canal. O Praeco planeja e lê os números pelos conectores do canal, o Stilus escreve os anúncios e posts, e o Ratio liga o lead ao negócio no Pipeline. Mudança de orçamento sempre passa por Aprovações."}
+                      {"Lógica: toda campanha pertence a um canal. O Jax planeja e lê os números pelos conectores do canal, o Lia escreve os anúncios e posts, e o Neo liga o lead ao negócio no Pipeline. Mudança de orçamento sempre passa por Aprovações."}
                     </p>
                     {"\n                "}
                     <h2 style={{"fontFamily":"var(--f-display)","margin":"4px 0 0","fontWeight":"400","fontSize":"18px"}}>
@@ -6188,7 +6188,7 @@ export function renderTemplate($v: Record<string, any>) {
                           {__t(g?.vazioTexto)}
                         </span>
                         <button className={"b-sec mini-btn"} onClick={$v.cta?.mapear}>
-                          {"Mapear com Venator"}
+                          {"Mapear com Zoe"}
                         </button>
                       </div>
                       {"\n                "}
@@ -6212,7 +6212,7 @@ export function renderTemplate($v: Record<string, any>) {
                       {"A cadência é criada por pessoa. Mapeie o comitê primeiro."}
                     </span>
                     <button className={"b-pri mini-btn"} style={{"background":"var(--ink)","color":"var(--paper)","borderColor":"var(--ink)"}} onClick={$v.cta?.mapear}>
-                      {"Mapear com Venator"}
+                      {"Mapear com Zoe"}
                     </button>
                   </div>
                   {"\n            "}

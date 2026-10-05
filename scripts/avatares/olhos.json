@@ -1,0 +1,61 @@
+{
+ "_nota": "Medidas das duas meias-luas (o furo de cada olho, olho esquerdo primeiro) em unidades do viewBox, tiradas da arte parada. Usadas por gerar-animados.mjs.",
+ "agentes": {
+  "zoe": [
+   {
+    "x": 175,
+    "y": 122.8,
+    "w": 50.2,
+    "h": 53.2
+   },
+   {
+    "x": 253,
+    "y": 122.8,
+    "w": 49.8,
+    "h": 53
+   }
+  ],
+  "jax": [
+   {
+    "x": 153.5,
+    "y": 139.2,
+    "w": 44.5,
+    "h": 49.8
+   },
+   {
+    "x": 229.2,
+    "y": 138.5,
+    "w": 45.5,
+    "h": 49.8
+   }
+  ],
+  "lia": [
+   {
+    "x": 143,
+    "y": 112.5,
+    "w": 50.8,
+    "h": 53.8
+   },
+   {
+    "x": 224.5,
+    "y": 112.5,
+    "w": 50.5,
+    "h": 53.8
+   }
+  ],
+  "neo": [
+   {
+    "x": 160.5,
+    "y": 125.5,
+    "w": 46,
+    "h": 49
+   },
+   {
+    "x": 238,
+    "y": 124.5,
+    "w": 45.2,
+    "h": 48.8
+   }
+  ]
+ }
+}
