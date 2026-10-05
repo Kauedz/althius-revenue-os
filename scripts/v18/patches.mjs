@@ -66,6 +66,54 @@ export const PATCHES = [
     por: "'Desconectar', () => { if (this.modoDemo === false) return this.desconectarContaReal(k, c); setIC(k, null);"
   },
   {
+    regra: 'modo real: mover card grava no banco (historico com quem moveu)',
+    arquivo: 'logic.generated.js',
+    trocar: "const moverCard = (id, col, antes) => { let msg = '';",
+    por: "const moverCard = (id, col, antes) => { let msg = ''; if (this.modoDemo === false) { fimDrag(); return this.moverNegocioReal(id, col, antes); }"
+  },
+  {
+    regra: 'modo real: reordenar etapas do quadro grava no banco',
+    arquivo: 'logic.generated.js',
+    trocar: "const moverEtapa = (k, antes) => { if (k === antes || k === 'ganho') { fimDrag(); return; } this.mudarPipe(",
+    por: "const moverEtapa = (k, antes) => { if (k === antes || k === 'ganho') { fimDrag(); return; } if (this.modoDemo === false) { const o = (q.ordem || ETAPAS).filter(x => x !== k); let j = o.indexOf(antes); if (j < 0 || antes === 'ganho') j = o.indexOf('ganho'); o.splice(j, 0, k); fimDrag(); return this.reordenarEtapasReal(q.id, o); } this.mudarPipe("
+  },
+  {
+    regra: 'modo real: novo quadro grava no banco',
+    arquivo: 'logic.generated.js',
+    trocar: "novoQuadro: () => { const id = 'q-' + mot + '-' + Date.now(); const nome = 'Novo quadro ' + (qs.length + 1); this.mudarPipe(",
+    por: "novoQuadro: () => { const id = 'q-' + mot + '-' + Date.now(); const nome = 'Novo quadro ' + (qs.length + 1); if (this.modoDemo === false) return this.novoQuadroReal(mot, nome); this.mudarPipe("
+  },
+  {
+    regra: 'modo real: renomear quadro grava no banco',
+    arquivo: 'logic.generated.js',
+    trocar: "salvarNome: () => { const n = (this.state.pipeNome || '').trim() || q.nome; this.mudarPipe(",
+    por: "salvarNome: () => { const n = (this.state.pipeNome || '').trim() || q.nome; if (this.modoDemo === false) return this.renomearQuadroReal(q.id, n); this.mudarPipe("
+  },
+  {
+    regra: 'modo real: excluir quadro grava no banco',
+    arquivo: 'logic.generated.js',
+    trocar: "'Excluir quadro', () => { this.mudarPipe(",
+    por: "'Excluir quadro', () => { if (this.modoDemo === false) return this.excluirQuadroReal(q.id); this.mudarPipe("
+  },
+  {
+    regra: 'modo real: remover negocio arquiva no banco',
+    arquivo: 'logic.generated.js',
+    trocar: "'Remover', () => { this.mudarPipe(p => { const b = p.quadros[p.motion].find(x => x.id === q.id); b.deals = b.deals.filter(d => d.id !== c.id); });",
+    por: "'Remover', () => { if (this.modoDemo === false) return this.arquivarNegocioReal(c.id); this.mudarPipe(p => { const b = p.quadros[p.motion].find(x => x.id === q.id); b.deals = b.deals.filter(d => d.id !== c.id); });"
+  },
+  {
+    regra: 'modo real: salvar negocio grava no banco',
+    arquivo: 'logic.generated.js',
+    trocar: "const d = { cid: x.cid || null, conta: x.conta, dono: x.dono,",
+    por: "if (this.modoDemo === false) return this.salvarNegocioReal(x, q.id); const d = { cid: x.cid || null, conta: x.conta, dono: x.dono,"
+  },
+  {
+    regra: 'modo real: criar tarefa grava no banco',
+    arquivo: 'logic.generated.js',
+    trocar: "const [yy, mm, dd] = x.data.split('-'), hoje =",
+    por: "if (this.modoDemo === false) return this.criarTarefaReal(x); const [yy, mm, dd] = x.data.split('-'), hoje ="
+  },
+  {
     regra: 'modo real: carga inicial protegida contra troca de workspace',
     arquivo: 'logic.generated.js',
     trocar: 'return Promise.all([D.homeService.summary(), D.agentService.list(), D.executionService.list(), D.approvalService.list(), D.notificationService.list()]);',
@@ -458,6 +506,33 @@ export const PATCHES = [
       if (inicio < 0 || texto.indexOf(abre, inicio + 1) >= 0 || fim < inicio + abre.length) throw new Error('Regra "período do mapa": estrutura do bloco mudou.');
       return texto.slice(0, inicio) + '{$v.modoDemo !== false ? (' + texto.slice(inicio, fim) + ') : null}' + texto.slice(fim);
     }
+  },
+
+  // As listas de contas dos modais de negócio e de tarefa vinham fixas no desenho (a1…a8, as contas do protótipo).
+  // Passam a vir das contas do workspace (as do banco, no modo real).
+  ...[['pd', 'Escolha a conta'], ['tf', 'Sem conta']].map(([modal, vazio]) => ({
+    regra: `contas do modal ${modal} vêm do workspace (não fixas no desenho)`,
+    arquivo: 'template.generated.tsx',
+    aplicar: texto => {
+      const abre = `<select className={"cfg-select"} value={__val($v.${modal}?.conta)} onChange={$v.${modal}?.mudarConta} style={{"height":"40px"}}>`;
+      const inicio = texto.indexOf(abre);
+      const fim = texto.indexOf('</select>', inicio);
+      if (inicio < 0 || fim < 0 || texto.indexOf(abre, inicio + 1) >= 0 || !texto.slice(inicio, fim).includes(`{"${vazio}"}`)) throw new Error(`Regra "contas do modal ${modal}": estrutura do bloco mudou.`);
+      const opcoes = `<option value={__val("")}>{"${vazio}"}</option>{__arr($v.${modal}?.contasOpc).map((o, $index) => (<option key={$index} value={__val(o?.id)}>{__t(o?.nome)}</option>))}`;
+      return texto.slice(0, inicio) + abre + opcoes + texto.slice(fim);
+    }
+  })),
+  {
+    regra: 'lista de contas do modal de negocio vem de MOD.accounts',
+    arquivo: 'logic.generated.js',
+    trocar: "v.pd = { aberto: true, titulo: c.novo ?",
+    por: "v.pd = { contasOpc: contas.map(a => ({ id: a.id, nome: a.nome })), aberto: true, titulo: c.novo ?"
+  },
+  {
+    regra: 'lista de contas do modal de tarefa vem de MOD.accounts',
+    arquivo: 'logic.generated.js',
+    trocar: "v.tf = { aberto: true, titulo: t.titulo || '',",
+    por: "v.tf = { contasOpc: contas.map(a => ({ id: a.id, nome: a.nome })), aberto: true, titulo: t.titulo || '',"
   },
 
   // ---- Relatórios, Sinais e Prospecção (Grok)

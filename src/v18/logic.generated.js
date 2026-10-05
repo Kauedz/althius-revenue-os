@@ -525,12 +525,12 @@ export class AlthiusLogic extends React.Component {
       const dg = st.pipeDrag || null, alvo = st.pipeAlvo || null;
       const setAlvo = a => { const o = this.state.pipeAlvo || {}; if (o.col !== a.col || o.antes !== a.antes || o.tipo !== a.tipo) this.setState({ pipeAlvo: a }); };
       const fimDrag = () => { this._drag = null; this.setState({ pipeDrag: null, pipeAlvo: null }); };
-      const moverCard = (id, col, antes) => { let msg = '';
+      const moverCard = (id, col, antes) => { let msg = ''; if (this.modoDemo === false) { fimDrag(); return this.moverNegocioReal(id, col, antes); }
         this.mudarPipe(p => { const b = p.quadros[p.motion].find(x => x.id === q.id), i = b.deals.findIndex(d => d.id === id); if (i < 0) return; const d = b.deals.splice(i, 1)[0];
           if (d.etapa !== col) { d.prob = PROB[col]; msg = d.conta + ' foi para ' + rot(col) + '. O Neo atualiza o CRM.'; if (col === 'ganho') { d.status = 'ok'; msg = d.conta + ' ganho: ' + brl(d.valor) + '. O Neo registrou no CRM.'; } }
           d.etapa = col; const j = antes ? b.deals.findIndex(x => x.id === antes) : -1; if (j >= 0) b.deals.splice(j, 0, d); else b.deals.push(d); });
         fimDrag(); if (msg) { this.avisar('mod', msg); if (col === 'ganho') this.setState({ notifs: [['Negócio ganho', msg, 'agora']].concat(this.state.notifs || []), notifLidas: false }); } };
-      const moverEtapa = (k, antes) => { if (k === antes || k === 'ganho') { fimDrag(); return; } this.mudarPipe(p => { const b = p.quadros[p.motion].find(x => x.id === q.id); const o = (b.ordem || ETAPAS).filter(x => x !== k); let j = o.indexOf(antes); if (j < 0 || antes === 'ganho') j = o.indexOf('ganho'); o.splice(j, 0, k); b.ordem = o; }); fimDrag(); };
+      const moverEtapa = (k, antes) => { if (k === antes || k === 'ganho') { fimDrag(); return; } if (this.modoDemo === false) { const o = (q.ordem || ETAPAS).filter(x => x !== k); let j = o.indexOf(antes); if (j < 0 || antes === 'ganho') j = o.indexOf('ganho'); o.splice(j, 0, k); fimDrag(); return this.reordenarEtapasReal(q.id, o); } this.mudarPipe(p => { const b = p.quadros[p.motion].find(x => x.id === q.id); const o = (b.ordem || ETAPAS).filter(x => x !== k); let j = o.indexOf(antes); if (j < 0 || antes === 'ganho') j = o.indexOf('ganho'); o.splice(j, 0, k); b.ordem = o; }); fimDrag(); };
       if (v.pp.ativo) {
         const abertos = q.deals.filter(d => d.etapa !== 'ganho'), soma = l => l.reduce((s, d) => s + d.valor, 0);
         const pond = abertos.reduce((s, d) => s + d.valor * d.prob / 100, 0), ganhos = q.deals.filter(d => d.etapa === 'ganho');
@@ -540,13 +540,13 @@ export class AlthiusLogic extends React.Component {
           motions: ['slg', 'mlg', 'plg'].map(m => ({ label: m.toUpperCase(), desc: DESC[m], n: P.quadros[m].length, ativo: m === mot ? 'true' : 'false', ir: () => this.mudarPipe(p => { p.motion = m; }) })),
           quadros: qs.map(x => ({ nome: x.nome, n: x.deals.length, ativo: x.id === q.id ? 'true' : 'false', ir: () => { this.mudarPipe(p => { p.ativo[mot] = x.id; }); this.setState({ pipeNome: null }); } })),
           podeNovo: qs.length < 5 && can('pipeline.boards'), naoGere: !can('pipeline.boards'), limite: qs.length + ' de 5 quadros',
-          novoQuadro: () => { const id = 'q-' + mot + '-' + Date.now(); const nome = 'Novo quadro ' + (qs.length + 1); this.mudarPipe(p => { p.quadros[mot].push({ id, nome, ordem: null, deals: [] }); p.ativo[mot] = id; }); this.setState({ pipeNome: nome }); },
+          novoQuadro: () => { const id = 'q-' + mot + '-' + Date.now(); const nome = 'Novo quadro ' + (qs.length + 1); if (this.modoDemo === false) return this.novoQuadroReal(mot, nome); this.mudarPipe(p => { p.quadros[mot].push({ id, nome, ordem: null, deals: [] }); p.ativo[mot] = id; }); this.setState({ pipeNome: nome }); },
           renomeando: st.pipeNome != null, naoRenomeando: st.pipeNome == null, nomeRascunho: st.pipeNome || '',
           renomear: () => this.setState({ pipeNome: q.nome }), mudarNome: e => this.setState({ pipeNome: e.target.value }),
-          salvarNome: () => { const n = (this.state.pipeNome || '').trim() || q.nome; this.mudarPipe(p => { p.quadros[mot].find(x => x.id === q.id).nome = n; }); this.setState({ pipeNome: null }); },
+          salvarNome: () => { const n = (this.state.pipeNome || '').trim() || q.nome; if (this.modoDemo === false) return this.renomearQuadroReal(q.id, n); this.mudarPipe(p => { p.quadros[mot].find(x => x.id === q.id).nome = n; }); this.setState({ pipeNome: null }); },
           teclaNome: e => { if (e.key === 'Enter') v.pp.salvarNome(); if (e.key === 'Escape') this.setState({ pipeNome: null }); },
           podeExcluir: qs.length > 1,
-          excluir: () => this.confirmar('Excluir o quadro "' + q.nome + '"?', q.deals.length ? 'Os ' + q.deals.length + ' negócios dele vão para o quadro "' + qs.find(x => x.id !== q.id).nome + '".' : 'O quadro está vazio.', 'Excluir quadro', () => { this.mudarPipe(p => { const l = p.quadros[mot], i = l.findIndex(x => x.id === q.id), [b] = l.splice(i, 1); l[0].deals = l[0].deals.concat(b.deals); p.ativo[mot] = l[0].id; }); this.setState({ pipeNome: null }); }),
+          excluir: () => this.confirmar('Excluir o quadro "' + q.nome + '"?', q.deals.length ? 'Os ' + q.deals.length + ' negócios dele vão para o quadro "' + qs.find(x => x.id !== q.id).nome + '".' : 'O quadro está vazio.', 'Excluir quadro', () => { if (this.modoDemo === false) return this.excluirQuadroReal(q.id); this.mudarPipe(p => { const l = p.quadros[mot], i = l.findIndex(x => x.id === q.id), [b] = l.splice(i, 1); l[0].deals = l[0].deals.concat(b.deals); p.ativo[mot] = l[0].id; }); this.setState({ pipeNome: null }); }),
           colunas: ordem.map(k => { const it = q.deals.filter(d => d.etapa === k);
             return { key: k, titulo: rot(k), n: it.length, total: curto(soma(it)), vazia: it.length === 0, fixa: k === 'ganho' || !can('pipeline.boards'), movivel: k !== 'ganho' && can('pipeline.boards'),
               alvo: alvo && alvo.col === k && (alvo.tipo === 'etapa' || !alvo.antes) ? 'true' : 'false', arrastando: dg && dg.tipo === 'etapa' && dg.id === k ? 'true' : 'false',
@@ -570,7 +570,7 @@ export class AlthiusLogic extends React.Component {
       }
       if (st.pipeCard && v.pp.ativo) { const c = st.pipeCard, setC = o => this.setState({ pipeCard: Object.assign({}, this.state.pipeCard, o) }), contas = MOD.accounts ? MOD.accounts.linhas : [];
         const cidSel = c.cid || (contas.find(x => x.nome === c.conta) || {}).id || '';
-        v.pd = { aberto: true, titulo: c.novo ? 'Novo negócio · ' + q.nome : c.conta, editando: !c.novo, temConta: !!cidSel, salvarLabel: c.novo ? 'Criar negócio' : 'Salvar',
+        v.pd = { contasOpc: contas.map(a => ({ id: a.id, nome: a.nome })), aberto: true, titulo: c.novo ? 'Novo negócio · ' + q.nome : c.conta, editando: !c.novo, temConta: !!cidSel, salvarLabel: c.novo ? 'Criar negócio' : 'Salvar',
           conta: c.novo ? (c.cid || '') : cidSel, valor: c.valor, fecha: c.fecha, prob: c.prob, temErro: !!c.erro, erro: c.erro || '',
           mudarConta: e => { const a = contas.find(x => x.id === e.target.value); setC({ cid: e.target.value || null, conta: a ? a.nome : c.conta, cidade: a ? a.cidade : c.cidade, dono: a && c.novo ? a.dono : c.dono, erro: '' }); },
           mudarValor: e => setC({ valor: e.target.value.replace(/[^0-9]/g, ''), erro: '' }), mudarFecha: e => setC({ fecha: e.target.value }), mudarProb: e => setC({ prob: +e.target.value }),
@@ -579,9 +579,9 @@ export class AlthiusLogic extends React.Component {
           donos: this.membros(ws.id).filter(m => !m.pendente && m.papel !== 'superadmin' && (can('pipeline.deals') || m.nome === U.usuario)).map(m => { const f = this.fotoUsuario(m.nome); return { nome: m.nome.split(' ')[0], sigla: sigla(m.nome), foto: f, temFoto: !!f, ativo: c.dono === m.nome ? 'true' : 'false', escolher: () => setC({ dono: m.nome }) }; }),
           fechar: () => this.setState({ pipeCard: null }),
           verConta: () => { this.setState({ pipeCard: null }); location.hash = '#/' + appPath('accounts'); setTimeout(() => this.abrirConta(cidSel, 'comite'), 60); },
-          remover: () => this.confirmar('Remover ' + c.conta + ' do quadro?', 'O negócio sai do pipeline. O histórico continua na conta.', 'Remover', () => { this.mudarPipe(p => { const b = p.quadros[p.motion].find(x => x.id === q.id); b.deals = b.deals.filter(d => d.id !== c.id); }); this.setState({ pipeCard: null }); this.avisar('mod', c.conta + ' saiu do quadro.'); }),
+          remover: () => this.confirmar('Remover ' + c.conta + ' do quadro?', 'O negócio sai do pipeline. O histórico continua na conta.', 'Remover', () => { if (this.modoDemo === false) return this.arquivarNegocioReal(c.id); this.mudarPipe(p => { const b = p.quadros[p.motion].find(x => x.id === q.id); b.deals = b.deals.filter(d => d.id !== c.id); }); this.setState({ pipeCard: null }); this.avisar('mod', c.conta + ' saiu do quadro.'); }),
           salvar: () => { const x = this.state.pipeCard; if (!x.conta) { setC({ erro: 'Escolha a conta.' }); return; } if (!x.valor || +x.valor <= 0) { setC({ erro: 'Informe o valor do negócio.' }); return; }
-            const d = { cid: x.cid || null, conta: x.conta, dono: x.dono, cidade: x.cidade || '—', fecha: x.fecha || '', valor: +x.valor, etapa: x.etapa, status: x.status, prob: x.etapa === 'ganho' ? 100 : x.prob };
+            if (this.modoDemo === false) return this.salvarNegocioReal(x, q.id); const d = { cid: x.cid || null, conta: x.conta, dono: x.dono, cidade: x.cidade || '—', fecha: x.fecha || '', valor: +x.valor, etapa: x.etapa, status: x.status, prob: x.etapa === 'ganho' ? 100 : x.prob };
             this.mudarPipe(p => { const b = p.quadros[p.motion].find(y => y.id === q.id); if (x.novo) b.deals.unshift(Object.assign({ id: 'n' + Date.now() }, d)); else { const i = b.deals.findIndex(y => y.id === x.id); if (i >= 0) b.deals[i] = Object.assign({ id: x.id }, d); } });
             this.setState({ pipeCard: null }); this.avisar('mod', x.novo ? x.conta + ' entrou em ' + rot(x.etapa) + ' · ' + brl(+x.valor) + '.' : 'Negócio atualizado.'); } };
       }
@@ -799,7 +799,7 @@ export class AlthiusLogic extends React.Component {
     v.tf = { aberto: !!st.tarefa, canais: [], contatos: [], resps: [], agentes: [], status: [] };
     if (st.tarefa) { const t = st.tarefa, setT = o => this.setState({ tarefa: Object.assign({}, this.state.tarefa, o) }), COM = window.ALTHIUS_COMITES || {}, FTs = window.ALTHIUS_FOTOS || {};
       const contas = MOD.accounts ? MOD.accounts.linhas : [], cSel = contas.find(c => c.id === t.conta), pessoasC = t.conta ? (COM[t.conta] || []) : [];
-      v.tf = { aberto: true, titulo: t.titulo || '', nota: t.nota || '', data: t.data || '', hora: t.hora || '', conta: t.conta || '', temErro: !!t.erro, erro: t.erro || '',
+      v.tf = { contasOpc: contas.map(a => ({ id: a.id, nome: a.nome })), aberto: true, titulo: t.titulo || '', nota: t.nota || '', data: t.data || '', hora: t.hora || '', conta: t.conta || '', temErro: !!t.erro, erro: t.erro || '',
         mudarTitulo: e => setT({ titulo: e.target.value, erro: '' }), mudarNota: e => setT({ nota: e.target.value }), mudarData: e => setT({ data: e.target.value }), mudarHora: e => setT({ hora: e.target.value }),
         mudarConta: e => setT({ conta: e.target.value, contato: null }),
         canais: ['Ligação', 'E-mail', 'WhatsApp', 'LinkedIn', 'Instagram', 'Reunião', 'CRM'].map(x => ({ label: x, ativo: t.canal === x ? 'true' : 'false', escolher: () => setT({ canal: x }) })),
@@ -810,7 +810,7 @@ export class AlthiusLogic extends React.Component {
         status: ['Pendente', 'Em andamento', 'Concluída'].map(x => ({ label: x, ativo: t.status === x ? 'true' : 'false', escolher: () => setT({ status: x }) })),
         fechar: () => this.setState({ tarefa: null }),
         salvar: () => { const x = this.state.tarefa; if (!(x.titulo || '').trim()) { setT({ erro: 'Escreva o que precisa ser feito.' }); return; } if (!x.data) { setT({ erro: 'Escolha a data.' }); return; }
-          const [yy, mm, dd] = x.data.split('-'), hoje = new Date().toISOString().slice(0, 10), prazo = (x.data === hoje ? 'Hoje' : dd + '/' + mm) + (x.hora ? ', ' + x.hora : '');
+          if (this.modoDemo === false) return this.criarTarefaReal(x); const [yy, mm, dd] = x.data.split('-'), hoje = new Date().toISOString().slice(0, 10), prazo = (x.data === hoje ? 'Hoje' : dd + '/' + mm) + (x.hora ? ', ' + x.hora : '');
           const ct = cSel ? cSel.nome : '—', pessoa = pessoasC.find(p => p.id === x.contato), ag = st.agents.find(a2 => a2.id === x.agente);
           const nova = { id: 'tn' + Date.now(), titulo: x.titulo.trim(), tipo: x.canal, conta: ct + (pessoa ? ' · ' + pessoa.nome : ''), prazo, status: x.status, desc: (x.nota || '') + (ag ? (x.nota ? '\n' : '') + ag.nome + ' vai preparar o material.' : ''), resp: x.resp };
           const n = [['Tarefa criada', nova.titulo + ' · ' + prazo + ' · ' + (x.resp || U.usuario), 'agora']].concat(ag ? [['Agente marcado', ag.nome + ' vai preparar: ' + nova.titulo, 'agora']] : []);

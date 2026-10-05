@@ -33,6 +33,8 @@ import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla 
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
 import { listarProspeccao, prospeccaoSemDados, type ProspeccaoTela } from './servicos/prospeccao';
+import { arquivarNegocio, atualizarNegocio, criarNegocio, criarQuadro, excluirQuadro, listarPipeline, moverNegocio, MOTIONS, pipelineVazio, reordenarEtapas, renomearQuadro, type Motion, type PipelineTela, type Resultado } from './servicos/pipeline';
+import { adiarTarefa, criarTarefa, listarTarefas, mudarStatusTarefa, tarefasVazias, type TarefasTela } from './servicos/tarefas';
 import { nomeDoAgente } from './agentes-exibicao';
 
 export interface AlthiusAppProps {
@@ -92,6 +94,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     super.componentDidMount?.();
     void this.carregarMinhaConta();
     this.publicarCaixa(null);
+    this.publicarTarefas(null);
     this.registrarTelasAdmin();
   }
 
@@ -120,6 +123,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarProspeccao(prospeccaoSemDados());
     this.publicarAprendizados({}, {});
     this.publicarCaixa(null);
+    this.publicarTarefas(null);
     super.componentWillUnmount?.();
   }
 
@@ -862,6 +866,8 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const entrou = rota.page !== antes.page || rota.ws !== antes.ws || (this.state.pronto && !prev.pronto);
     if (!entrou || !this.state.pronto) return;
     if (rota.page === 'inbox') void this.carregarCaixa();
+    if (rota.page === 'pipeline') void this.carregarPipeline();
+    if (rota.page === 'tasks') void this.carregarTarefas();
     if (String(rota.page || '').startsWith('admin/')) void this.carregarAdmin(rota.page);
     if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) { void this.carregarConexoes(); void this.carregarCanais(); }
     if (rota.page === 'channels' && (rota.id !== antes.id || rota.page !== antes.page || rota.ws !== antes.ws || (this.state.pronto && !prev.pronto))) void this.carregarMensagens();
@@ -909,6 +915,187 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.avisar('mod', 'Conta desconectada.');
   }
 
+  // ---- Pipeline e Tarefas ligados ao banco (PR 07)
+
+  /** No modo real o pipeline é o do banco; enquanto carrega, um quadro vazio "Carregando…" por motion (a tela exige um). */
+  pipe() {
+    if (this.modoDemo !== false) return (AlthiusLogic.prototype as any).pipe.call(this);
+    const real = this.state.pipeReal as PipelineTela | null | undefined;
+    const quadros: Record<string, any[]> = {};
+    const ativo: Record<string, string> = {};
+    for (const m of MOTIONS) {
+      quadros[m] = real ? real.quadros[m] : [{ id: 'carregando-' + m, nome: 'Carregando…', ordem: null, deals: [] }];
+      if (!quadros[m].length) quadros[m] = [{ id: 'carregando-' + m, nome: 'Sem quadro', ordem: null, deals: [] }];
+      const escolhido = (this.state.pipeAtivo || {})[m];
+      ativo[m] = quadros[m].some(q => q.id === escolhido) ? escolhido : quadros[m][0].id;
+    }
+    return { motion: (this.state.pipeMotion as Motion) || 'slg', quadros, ativo };
+  }
+
+  /** No modo real só a motion e o quadro em foco são estado da tela; todo o resto passa pelo banco. */
+  mudarPipe(fn: (p: any) => void) {
+    if (this.modoDemo !== false) return (AlthiusLogic.prototype as any).mudarPipe.call(this, fn);
+    const p = JSON.parse(JSON.stringify(this.pipe()));
+    fn(p);
+    this.setState({ pipeMotion: p.motion, pipeAtivo: p.ativo });
+  }
+
+  private cargaPipeline = 0;
+
+  async carregarPipeline() {
+    const ws = this.workspaceAtual();
+    const carga = ++this.cargaPipeline;
+    this.setState({ pipeReal: null });
+    if (!ws) return;
+    try {
+      const pipeReal = await listarPipeline(this.props.supabase, ws.uuid);
+      if (this.vivo && carga === this.cargaPipeline) this.setState({ pipeReal });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaPipeline) {
+        this.setState({ pipeReal: pipelineVazio() });
+        this.avisarFalha('Não foi possível carregar o Pipeline', falha);
+      }
+    }
+  }
+
+  /** Mostra o erro do banco em linguagem de tela e recarrega (o que a tela mostra volta a ser o que o banco tem). */
+  private async fecharAcaoPipeline(r: Resultado, titulo: string, aviso?: string): Promise<boolean> {
+    await this.carregarPipeline();
+    if (!this.vivo) return r.ok;
+    if (!r.ok) { this.confirmar(titulo, r.mensagem, 'Entendi', () => {}); return false; }
+    if (aviso) this.avisar('mod', aviso);
+    return true;
+  }
+
+  private contextoPipeline() {
+    const ws = this.workspaceAtual();
+    return ws?.membroId ? { ws: ws.uuid, membro: ws.membroId } : null;
+  }
+
+  async moverNegocioReal(id: string, etapa: string, antesId: string | null) {
+    const c = this.contextoPipeline();
+    if (!c) return;
+    const antes = this.pipe();
+    const negocio = (antes.quadros[antes.motion] as any[]).flatMap(q => q.deals).find(d => d.id === id);
+    const r = await moverNegocio(this.props.supabase, c.ws, c.membro, id, etapa, antesId);
+    const ok = await this.fecharAcaoPipeline(r, 'Negócio não movido');
+    if (ok && negocio && negocio.etapa !== etapa) this.avisar('mod', negocio.conta + (etapa === 'ganho' ? ' ganho.' : ' mudou de etapa.'));
+  }
+
+  async reordenarEtapasReal(quadroId: string, ordem: string[]) {
+    const c = this.contextoPipeline();
+    if (!c) return;
+    await this.fecharAcaoPipeline(await reordenarEtapas(this.props.supabase, c.ws, c.membro, quadroId, ordem), 'Etapas não reordenadas');
+  }
+
+  async novoQuadroReal(motion: Motion, nome: string) {
+    const c = this.contextoPipeline();
+    if (!c) return;
+    const r = await criarQuadro(this.props.supabase, c.ws, c.membro, motion, nome);
+    if (r.ok && r.id) this.setState({ pipeAtivo: Object.assign({}, this.state.pipeAtivo, { [motion]: r.id }), pipeNome: nome });
+    await this.fecharAcaoPipeline(r, 'Quadro não criado');
+  }
+
+  async renomearQuadroReal(quadroId: string, nome: string) {
+    const c = this.contextoPipeline();
+    if (!c) return;
+    this.setState({ pipeNome: null });
+    await this.fecharAcaoPipeline(await renomearQuadro(this.props.supabase, c.ws, c.membro, quadroId, nome), 'Quadro não renomeado');
+  }
+
+  async excluirQuadroReal(quadroId: string) {
+    const c = this.contextoPipeline();
+    if (!c) return;
+    this.setState({ pipeNome: null });
+    await this.fecharAcaoPipeline(await excluirQuadro(this.props.supabase, c.ws, c.membro, quadroId), 'Quadro não excluído');
+  }
+
+  async arquivarNegocioReal(id: string) {
+    const c = this.contextoPipeline();
+    if (!c) return;
+    this.setState({ pipeCard: null });
+    await this.fecharAcaoPipeline(await arquivarNegocio(this.props.supabase, c.ws, c.membro, id), 'Negócio não removido', 'Negócio removido do quadro.');
+  }
+
+  /** Id do membro (workspace_members) pelo nome que a tela mostra. */
+  private membroPorNome(nome: string): string | null {
+    const m = (this.membros(this.wsId()) as Array<{ id: string; nome: string }>).find(x => x.nome === nome);
+    return m && /^[0-9a-f-]{36}$/i.test(m.id) ? m.id : null;
+  }
+
+  async salvarNegocioReal(x: any, quadroId: string) {
+    const c = this.contextoPipeline();
+    if (!c) return;
+    if (quadroId.startsWith('carregando-') || quadroId === 'carregando') return;
+    const donoId = this.membroPorNome(x.dono);
+    if (!donoId) return this.confirmar('Negócio não salvo', 'Não achei o responsável escolhido neste workspace.', 'Entendi', () => {});
+    const dados = { valor: +x.valor, fecha: x.fecha || '', prob: x.etapa === 'ganho' ? 100 : x.prob, etapa: x.etapa, status: x.status, donoId };
+    this.setState({ pipeCard: null });
+    const r = x.novo
+      ? await criarNegocio(this.props.supabase, c.ws, c.membro, quadroId, { ...dados, contaId: x.cid })
+      : await atualizarNegocio(this.props.supabase, c.ws, c.membro, x.id, dados);
+    await this.fecharAcaoPipeline(r, 'Negócio não salvo', x.novo ? `${x.conta} entrou no quadro.` : 'Negócio atualizado.');
+  }
+
+  private cargaTarefas = 0;
+
+  private publicarTarefas(t: TarefasTela | null) {
+    if (typeof window === 'undefined') return;
+    const mod = (window as any).ALTHIUS_MOD;
+    if (!mod?.tasks || this.modoDemo !== false) return;
+    const tela = t ?? tarefasVazias();
+    mod.tasks.kpis = tela.kpis;
+    mod.tasks.linhas = tela.linhas;
+    mod.tasks.acoesLinha = t ? [['Concluir', 'Tarefa concluída.'], ['Adiar 1 dia', 'Tarefa movida para amanhã.']] : [];
+  }
+
+  async carregarTarefas() {
+    const ws = this.workspaceAtual();
+    const carga = ++this.cargaTarefas;
+    this.publicarTarefas(null);
+    if (!ws) return;
+    try {
+      const tarefas = await listarTarefas(this.props.supabase, ws.uuid);
+      if (!this.vivo || carga !== this.cargaTarefas) return;
+      this.publicarTarefas(tarefas);
+      this.setState({ tarefasVersao: carga });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaTarefas) this.avisarFalha('Não foi possível carregar as tarefas', falha);
+    }
+  }
+
+  private async acaoNaTarefa(acao: string, id: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = acao === 'Concluir'
+      ? await mudarStatusTarefa(this.props.supabase, ws.uuid, ws.membroId, id, 'Concluída')
+      : await adiarTarefa(this.props.supabase, ws.uuid, ws.membroId, id, 1);
+    await this.carregarTarefas();
+    if (!r.ok) this.confirmar('Tarefa não atualizada', r.mensagem, 'Entendi', () => {});
+    else this.avisar('mod', acao === 'Concluir' ? 'Tarefa concluída.' : 'Tarefa movida para amanhã.');
+  }
+
+  /** Data e hora digitadas (horário de Brasília) viram o instante exato. */
+  private static prazoEmBrasilia(data: string, hora: string): string {
+    return new Date(`${data}T${hora || '09:00'}:00-03:00`).toISOString();
+  }
+
+  async criarTarefaReal(x: any) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const responsavelId = x.resp ? this.membroPorNome(x.resp) : ws.membroId;
+    if (!responsavelId) return this.confirmar('Tarefa não criada', 'Não achei o responsável escolhido neste workspace.', 'Entendi', () => {});
+    const uuid = (v: unknown) => (typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v) ? v : null);
+    this.setState({ tarefa: null });
+    const r = await criarTarefa(this.props.supabase, ws.uuid, ws.membroId, {
+      titulo: x.titulo, canal: x.canal, contaId: uuid(x.conta), contatoId: uuid(x.contato), responsavelId, agente: x.agente || null,
+      prazo: AlthiusApp.prazoEmBrasilia(x.data, x.hora), status: x.status || 'Pendente', nota: x.nota || ''
+    });
+    await this.carregarTarefas();
+    if (!r.ok) this.confirmar('Tarefa não criada', r.mensagem, 'Entendi', () => {});
+    else this.avisar('mod', 'Tarefa criada.');
+  }
+
   /** Ganchos das listas genéricas do v18 (scripts/v18/patches.mjs). Devolve true quando a camada do banco tratou. */
   aoAbrirLinhaReal(page: string, linha: { id: string }) {
     if (page === 'inbox') void this.abrirConversa(linha.id);
@@ -921,6 +1108,10 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     }
     if (page === 'inbox') {
       void this.acaoNaConversa(acao, linha.id);
+      return true;
+    }
+    if (page === 'tasks') {
+      void this.acaoNaTarefa(acao, linha.id);
       return true;
     }
     return false;

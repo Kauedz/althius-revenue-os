@@ -34,13 +34,12 @@ SELECT results_eq(
 );
 
 -- 3. Test Max 5 Boards per motion ceiling
--- Create 5 SLG boards: all must succeed
+-- O workspace já nasce com 1 quadro por motion ("SLG (Geral)", migration 0101): com mais 4 criados são 5 SLG, todos aceitos.
 INSERT INTO public.pipelines (workspace_id, motion, name) VALUES 
   ('11111111-1111-1111-1111-111111111111', 'slg', 'SLG Quadro 1'),
   ('11111111-1111-1111-1111-111111111111', 'slg', 'SLG Quadro 2'),
   ('11111111-1111-1111-1111-111111111111', 'slg', 'SLG Quadro 3'),
-  ('11111111-1111-1111-1111-111111111111', 'slg', 'SLG Quadro 4'),
-  ('11111111-1111-1111-1111-111111111111', 'slg', 'SLG Quadro 5');
+  ('11111111-1111-1111-1111-111111111111', 'slg', 'SLG Quadro 4');
 
 -- 6th SLG board must fail with limit error
 SELECT throws_ok(

@@ -7123,35 +7123,7 @@ export function renderTemplate($v: Record<string, any>) {
                   <span>
                     {"Conta"}
                   </span>
-                  <select className={"cfg-select"} value={__val($v.tf?.conta)} onChange={$v.tf?.mudarConta} style={{"height":"40px"}}>
-                    <option value={__val("")}>
-                      {"Sem conta"}
-                    </option>
-                    <option value={__val("a1")}>
-                      {"Serra Azul Têxtil"}
-                    </option>
-                    <option value={__val("a2")}>
-                      {"Campo Belo Agro"}
-                    </option>
-                    <option value={__val("a3")}>
-                      {"Metalúrgica Ipê"}
-                    </option>
-                    <option value={__val("a4")}>
-                      {"Delta Saúde"}
-                    </option>
-                    <option value={__val("a5")}>
-                      {"Rio Claro Cosméticos"}
-                    </option>
-                    <option value={__val("a6")}>
-                      {"Norte Log Transportes"}
-                    </option>
-                    <option value={__val("a7")}>
-                      {"Grão Norte Alimentos"}
-                    </option>
-                    <option value={__val("a8")}>
-                      {"Vértice Indústria"}
-                    </option>
-                  </select>
+                  <select className={"cfg-select"} value={__val($v.tf?.conta)} onChange={$v.tf?.mudarConta} style={{"height":"40px"}}><option value={__val("")}>{"Sem conta"}</option>{__arr($v.tf?.contasOpc).map((o, $index) => (<option key={$index} value={__val(o?.id)}>{__t(o?.nome)}</option>))}</select>
                 </label>
                 {"\n            "}
                 <div className={"cfg-campo"}>
@@ -7296,35 +7268,7 @@ export function renderTemplate($v: Record<string, any>) {
                   <span>
                     {"Conta"}
                   </span>
-                  <select className={"cfg-select"} value={__val($v.pd?.conta)} onChange={$v.pd?.mudarConta} style={{"height":"40px"}}>
-                    <option value={__val("")}>
-                      {"Escolha a conta"}
-                    </option>
-                    <option value={__val("a1")}>
-                      {"Serra Azul Têxtil"}
-                    </option>
-                    <option value={__val("a2")}>
-                      {"Campo Belo Agro"}
-                    </option>
-                    <option value={__val("a3")}>
-                      {"Metalúrgica Ipê"}
-                    </option>
-                    <option value={__val("a4")}>
-                      {"Delta Saúde"}
-                    </option>
-                    <option value={__val("a5")}>
-                      {"Rio Claro Cosméticos"}
-                    </option>
-                    <option value={__val("a6")}>
-                      {"Norte Log Transportes"}
-                    </option>
-                    <option value={__val("a7")}>
-                      {"Grão Norte Alimentos"}
-                    </option>
-                    <option value={__val("a8")}>
-                      {"Vértice Indústria"}
-                    </option>
-                  </select>
+                  <select className={"cfg-select"} value={__val($v.pd?.conta)} onChange={$v.pd?.mudarConta} style={{"height":"40px"}}><option value={__val("")}>{"Escolha a conta"}</option>{__arr($v.pd?.contasOpc).map((o, $index) => (<option key={$index} value={__val(o?.id)}>{__t(o?.nome)}</option>))}</select>
                 </label>
                 {"\n            "}
                 <label className={"cfg-campo"}>
