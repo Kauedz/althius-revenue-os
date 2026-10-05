@@ -43,12 +43,12 @@ function partes(d: Date): Record<string, string> {
   for (const p of f.formatToParts(d)) o[p.type] = p.value;
   return o;
 }
-const diaCivil = (d: Date) => { const p = partes(d); return Date.UTC(+p.year, +p.month - 1, +p.day) / 86400000; };
+export const diaCivil = (d: Date) => { const p = partes(d); return Date.UTC(+p.year, +p.month - 1, +p.day) / 86400000; };
 const hora = (d: Date) => { const p = partes(d); return `${p.hour}:${p.minute}`; };
 const diaMes = (d: Date) => { const p = partes(d); return `${p.day}/${p.month}`; };
 
 /** Prazo de uma tarefa em linguagem da tela, no horário de Brasília. */
-function prazoTexto(iso: string | null, agora: Date): { texto: string; dias: number | null } {
+export function prazoTexto(iso: string | null, agora: Date): { texto: string; dias: number | null } {
   if (!iso) return { texto: 'Sem prazo', dias: null };
   const d = new Date(iso);
   const dias = diaCivil(d) - diaCivil(agora);
