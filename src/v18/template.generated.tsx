@@ -267,7 +267,7 @@ export function renderTemplate($v: Record<string, any>) {
                   {"\n              "}
                   <a className={"navrow"} href={a?.href} onClick={$v.fecharDrawer} style={__css(`min-height: 38px; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 0 10px; font-size: 14px; background: ${__s(a?.bg)}; color: ${__s(a?.cor)};`)}>
                     {"\n                "}
-                    <span style={{"position":"relative","flex":"none","width":"24px","height":"24px","display":"grid","placeItems":"center","background":"var(--ink)","color":"var(--paper)","fontSize":"11px","borderRadius":"7px"}}>
+                    <span className={"ag-tile"} style={{"position":"relative","flex":"none","width":"24px","height":"24px","display":"grid","placeItems":"center","background":"var(--ink)","color":"var(--paper)","fontSize":"11px","borderRadius":"7px"}}>
                       {__t(a?.sigla)}
                       <span style={__css(`position: absolute; right: -3px; bottom: -3px; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--mist); background: ${__s(a?.status)};`)}></span>
                     </span>
@@ -1392,6 +1392,10 @@ export function renderTemplate($v: Record<string, any>) {
                         {"\n                  "}
                       </div>
                       {"\n                  "}
+                      <p className={"ag4-latim"}>
+                        {__t(a?.latimSentido)}
+                      </p>
+                      {"\n                  "}
                       <p style={{"margin":"0","fontSize":"14px","color":"var(--text-2)","textWrap":"pretty"}}>
                         {__t(a?.objetivo)}
                       </p>
@@ -1464,7 +1468,7 @@ export function renderTemplate($v: Record<string, any>) {
                 {"\n            "}
                 <div style={{"display":"flex","alignItems":"center","gap":"16px","flexWrap":"wrap"}}>
                   {"\n              "}
-                  <span style={{"flex":"none","width":"56px","height":"56px","display":"grid","placeItems":"center","background":"var(--ink)","color":"var(--paper)","fontSize":"16px"}}>
+                  <span className={"ag-tile"} style={{"flex":"none","width":"56px","height":"56px","display":"grid","placeItems":"center","background":"var(--ink)","color":"var(--paper)","fontSize":"16px","borderRadius":"14px"}}>
                     {__t($v.ag?.sigla)}
                   </span>
                   {"\n              "}
@@ -4224,7 +4228,7 @@ export function renderTemplate($v: Record<string, any>) {
                         {"\n                    "}
                         <a className={"cfg-row cfg-row-line cfg-ag"} href={a?.href}>
                           {"\n                      "}
-                          <span style={{"width":"32px","height":"32px","display":"grid","placeItems":"center","background":"var(--ink)","color":"var(--paper)","fontSize":"12px","borderRadius":"7px","flex":"none"}}>
+                          <span className={"ag-tile"} style={{"width":"32px","height":"32px","display":"grid","placeItems":"center","background":"var(--ink)","color":"var(--paper)","fontSize":"12px","borderRadius":"7px","flex":"none"}}>
                             {__t(a?.sigla)}
                           </span>
                           {"\n                      "}
@@ -4527,12 +4531,12 @@ export function renderTemplate($v: Record<string, any>) {
                     <div className={"cp-dono"}>
                       {"\n                  "}
                       <span className={"ag4-tile"} style={{"width":"40px","height":"40px","fontSize":"13px","borderRadius":"10px"}}>
-                        {"MK"}
+                        {"PR"}
                       </span>
                       {"\n                  "}
                       <span style={{"display":"flex","flexDirection":"column","gap":"2px","minWidth":"0","flex":"1 1 260px"}}>
                         <span style={{"fontSize":"15px","fontWeight":"500"}}>
-                          {"Agente de Marketing cuida de todos os canais"}
+                          {"Praeco cuida de todos os canais"}
                         </span>
                         <span style={{"fontSize":"13px","color":"var(--graphite)"}}>
                           {__t($v.cp?.donoTexto)}
@@ -4665,7 +4669,7 @@ export function renderTemplate($v: Record<string, any>) {
                     </div>
                     {"\n                "}
                     <p style={{"margin":"0","fontSize":"12px","color":"var(--graphite)"}}>
-                      {"Lógica: toda campanha pertence a um canal. O Agente de Marketing planeja e lê os números pelos conectores do canal, o Agente de Copy escreve os anúncios e posts, e o Agente de RevOps liga o lead ao negócio no Pipeline. Mudança de orçamento sempre passa por Aprovações."}
+                      {"Lógica: toda campanha pertence a um canal. O Praeco planeja e lê os números pelos conectores do canal, o Stilus escreve os anúncios e posts, e o Ratio liga o lead ao negócio no Pipeline. Mudança de orçamento sempre passa por Aprovações."}
                     </p>
                     {"\n                "}
                     <h2 style={{"fontFamily":"var(--f-display)","margin":"4px 0 0","fontWeight":"400","fontSize":"18px"}}>
@@ -6184,7 +6188,7 @@ export function renderTemplate($v: Record<string, any>) {
                           {__t(g?.vazioTexto)}
                         </span>
                         <button className={"b-sec mini-btn"} onClick={$v.cta?.mapear}>
-                          {"Mapear com Agente Comercial"}
+                          {"Mapear com Venator"}
                         </button>
                       </div>
                       {"\n                "}
@@ -6208,7 +6212,7 @@ export function renderTemplate($v: Record<string, any>) {
                       {"A cadência é criada por pessoa. Mapeie o comitê primeiro."}
                     </span>
                     <button className={"b-pri mini-btn"} style={{"background":"var(--ink)","color":"var(--paper)","borderColor":"var(--ink)"}} onClick={$v.cta?.mapear}>
-                      {"Mapear com Agente Comercial"}
+                      {"Mapear com Venator"}
                     </button>
                   </div>
                   {"\n            "}

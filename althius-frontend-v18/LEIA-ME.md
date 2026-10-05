@@ -1,10 +1,10 @@
-# Althius — frontend v18 (pacote para o backend)
+# Althius — frontend v22 (pacote para o backend; a pasta mantém o nome v18)
 
 ## O que tem aqui
 
 | Arquivo | O que é |
 | --- | --- |
-| `Althius_Desktop_v18.html` | O front inteiro, em um arquivo só. Abra no navegador: funciona offline, com dados de demonstração. |
+| `Althius_Desktop_v22.html` | O front inteiro, em um arquivo só. Abra no navegador: funciona offline, com dados de demonstração. |
 | `fonte/template.html` | O HTML da interface (todas as telas), com os estilos. Legível. |
 | `fonte/component.js.html` | A lógica da interface: estado, rotas, permissões e o que cada tela mostra. Legível. |
 | `fonte/data.js` | Mocks e "services" de demonstração: papéis (`ROLES`), permissões (`PERMS`), navegação (`NAV`), workspaces, agentes, execuções, aprovações e notificações. |
