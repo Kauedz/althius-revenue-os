@@ -24,6 +24,7 @@ import { obterResumoHome, type HomeResumoTela } from './servicos/inicio';
 import { listarAgentes, pausarAgente, salvarCapacidades, type AgenteBase, type AgenteTela } from './servicos/agentes';
 import { alterarSenha, lerMinhaConta, removerFoto, sairDosOutrosDispositivos, salvarMinhaConta, salvarPreferencias, trocarFoto } from './servicos/conta';
 import { decidirAprendizado, lerPlaybooks, listarSugestoes, publicarPlaybook } from './servicos/aprendizados';
+import { desconectarConta, iniciarConexaoConta, provedorDoCanal } from './servicos/conexoes';
 import { excluirContatoDoCrm, listarCaixa, marcarLida, minhasConexoes, pedirSugestaoDeResposta, type CaixaTela, type ConexoesTela } from './servicos/caixa';
 import * as admin from './servicos/admin';
 import { arquivarCanal, criarCanal, editarMensagem, enviarNoCanal, lerMensagens, listarCanais, mudarCanal, reagir, type CanalTela } from './servicos/canais';
@@ -882,6 +883,30 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     } catch (falha) {
       console.error(falha);
     }
+  }
+
+  /** Conectar a PRÓPRIA conta de mensagem: pede o link ao backend e abre a janela segura do provedor. */
+  async conectarContaReal(canal: string, via?: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await iniciarConexaoConta(this.props.supabase, ws.uuid, ws.membroId, provedorDoCanal(canal, via));
+    this.setState({ ixCon: null });
+    if (!r.ok) return this.confirmar('Conta não conectada', r.mensagem, 'Entendi', () => {});
+    this.abrirJanelaDeConexao(r.url);
+  }
+
+  /** Sai para a janela segura do provedor (separado para os testes não navegarem de verdade). */
+  abrirJanelaDeConexao(url: string) {
+    window.location.assign(url);
+  }
+
+  async desconectarContaReal(canal: string, conexao: { via?: string } | null) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await desconectarConta(this.props.supabase, ws.uuid, ws.membroId, provedorDoCanal(canal, conexao?.via));
+    if (!r.ok) return this.confirmar('Conta não desconectada', r.mensagem, 'Entendi', () => {});
+    await this.carregarConexoes();
+    this.avisar('mod', 'Conta desconectada.');
   }
 
   /** Ganchos das listas genéricas do v18 (scripts/v18/patches.mjs). Devolve true quando a camada do banco tratou. */

@@ -1,6 +1,7 @@
 // Servidor HTTP do webhook da Unipile. Só recebe, confere o segredo, responde 200 e processa em seguida.
 import { createServer, type Server } from 'node:http';
-import { autenticado, CABECALHO_AUTH, interpretar, processar, type Banco } from './unipile.ts';
+import { assinaturaValida, iniciarConexao, type DepsConexoes } from './conexoes.ts';
+import { autenticado, CABECALHO_AUTH, interpretar, interpretarConexao, processar, type Banco, type EventoUnipile } from './unipile.ts';
 
 export interface OpcoesServidor {
   segredo: string;
@@ -10,6 +11,8 @@ export interface OpcoesServidor {
   limiteBytes?: number;
   tentativas?: number;
   esperaMs?: number;
+  /** Liga a rota de conexão de contas (PR 05). Sem isto, /conexoes/link responde 503. */
+  conexoes?: DepsConexoes;
 }
 
 export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: () => Promise<void> } {
@@ -19,8 +22,7 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
   const espera = o.esperaMs ?? 500;
   const pendentes = new Set<Promise<void>>();
 
-  async function tratar(payload: unknown): Promise<void> {
-    const evento = interpretar(payload);
+  async function tratar(evento: EventoUnipile): Promise<void> {
     for (let n = 1; n <= tentativas; n++) {
       try {
         const r = await processar(evento, o.banco);
@@ -39,15 +41,29 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
       res.writeHead(status, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(corpo));
     };
-    const url = (req.url ?? '').split('?')[0];
+    const [url, consulta = ''] = (req.url ?? '').split('?');
 
     if (url === '/saude') return responder(200, { ok: true });
-    if (url !== '/webhooks/unipile') return responder(404, { erro: 'nao_encontrado' });
+    const ehWebhook = url === '/webhooks/unipile';
+    const ehConta = url === '/webhooks/unipile/conta';
+    const ehLink = url === '/conexoes/link';
+    if (!ehWebhook && !ehConta && !ehLink) return responder(404, { erro: 'nao_encontrado' });
     if (req.method !== 'POST') return responder(405, { erro: 'metodo_nao_permitido' });
-    // Segredo antes de ler o corpo: quem não sabe o segredo não gasta memória nossa.
-    if (!autenticado(req.headers[CABECALHO_AUTH], o.segredo)) {
-      req.resume();
-      return responder(401, { erro: 'nao_autorizado' });
+
+    // Quem não prova quem é não gasta memória nossa: a prova vem ANTES de ler o corpo.
+    let pedidoId = '';
+    let jwt = '';
+    if (ehWebhook && !autenticado(req.headers[CABECALHO_AUTH], o.segredo)) { req.resume(); return responder(401, { erro: 'nao_autorizado' }); }
+    if (ehConta) {
+      // O aviso do assistente pode não carregar cabeçalho nosso: a prova é a assinatura do pedido no endereço de retorno.
+      const q = new URLSearchParams(consulta);
+      pedidoId = q.get('r') ?? '';
+      if (!assinaturaValida(o.segredo, pedidoId, q.get('t') ?? '')) { req.resume(); return responder(401, { erro: 'nao_autorizado' }); }
+    }
+    if (ehLink) {
+      const m = /^Bearer (.+)$/.exec(req.headers.authorization ?? '');
+      jwt = m?.[1] ?? '';
+      if (!jwt) { req.resume(); return responder(401, { erro: 'nao_autorizado' }); }
     }
 
     const partes: Buffer[] = [];
@@ -63,9 +79,14 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
       if (estourou) return;
       let payload: unknown;
       try { payload = JSON.parse(Buffer.concat(partes).toString('utf8')); } catch { return responder(400, { erro: 'json_invalido' }); }
+      if (ehLink) {
+        if (!o.conexoes) return responder(503, { erro: 'conexao_indisponivel' });
+        iniciarConexao(o.conexoes, jwt, payload).then(r => responder(r.status, r.corpo), () => responder(502, { erro: 'falha_ao_gerar_link' }));
+        return;
+      }
       // 200 já: a Unipile não espera o banco (e não reenvia por lentidão nossa).
       responder(200, { ok: true });
-      const trabalho = tratar(payload).finally(() => pendentes.delete(trabalho));
+      const trabalho = tratar(ehConta ? interpretarConexao(payload, pedidoId) : interpretar(payload)).finally(() => pendentes.delete(trabalho));
       pendentes.add(trabalho);
     });
   });
