@@ -152,6 +152,11 @@ services:
       SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
       # Vazio = recusa todo webhook (401) até configurar. Gerado por "npm run docker:env".
       UNIPILE_WEBHOOK_SECRET: ${UNIPILE_WEBHOOK_SECRET:-}
+      # Conexão de contas de mensagem (PR 05). Sem a chave, a tela avisa que a conexão está indisponível.
+      SITE_URL: ${SITE_URL}
+      ANON_KEY: ${ANON_KEY}
+      UNIPILE_DSN: ${UNIPILE_DSN:-}
+      UNIPILE_API_KEY: ${UNIPILE_API_KEY:-}
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/saude"]
       interval: 10s

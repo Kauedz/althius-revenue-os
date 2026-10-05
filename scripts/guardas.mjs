@@ -51,6 +51,13 @@ for (const a of preparados) {
   if (/^\.env(\.(local|production|staging))?$/.test(c)) {
     falhas.push(`${c}: arquivo de ambiente real não vai para o git (use .env.example como modelo).`);
   }
+  // O cliente não precisa saber qual provedor leva as mensagens: "Unipile" não aparece em tela (ADR 0017, PR 05).
+  // Vale para o front (src/app e src/v18, gerado inclusive). Comentários e testes ficam de fora.
+  if ((c.startsWith('src/app/') || c.startsWith('src/v18/')) && !c.includes('.test.')) {
+    const comentario = l => /^\s*(\/\/|\*|\/\*|--)/.test(l);
+    const achados = texto.split('\n').map((l, i) => [i + 1, l]).filter(([, l]) => /unipile/i.test(l) && !comentario(l));
+    for (const [n] of achados.slice(0, 3)) falhas.push(`${c}:${n}: cita "Unipile" no front. O nome do provedor de mensagens não aparece em tela; fale "sua conta" ou "conexão".`);
+  }
   // Créditos: o cliente nunca vê dólar (ADR 0021). Vale para as telas (src/app e src/v18 gerado).
   if ((c.startsWith('src/app/') || c.startsWith('src/v18/')) && !c.includes('.test.') && c !== 'src/v18/data.js' && c !== 'src/v18/module.js') {
     const comentario = l => /^\s*(\/\/|\*|\/\*|--)/.test(l);

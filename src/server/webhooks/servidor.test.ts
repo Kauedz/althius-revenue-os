@@ -16,6 +16,7 @@ async function subir(banco: Partial<Banco> = {}, extra: { limiteBytes?: number; 
     ingerirMensagem: async () => ({ action: 'persisted' }),
     definirStatus: async () => ({ action: 'updated' }),
     novaRelacao: async () => ({ action: 'connected' }),
+    concluirConexao: async () => ({ action: 'connected' }),
     ...banco
   };
   const { servidor, ocioso } = criarServidor({ segredo: SEGREDO, banco: completo, log: l => logs.push(l), esperaMs: 1, ...extra });
