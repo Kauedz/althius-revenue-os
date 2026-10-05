@@ -20,8 +20,8 @@ export interface AgentData {
 const CANONICAL_AGENTS: AgentData[] = [
   { 
     id: 'comercial', 
-    nome: 'Agente Comercial', 
-    sigla: 'CO', 
+    nome: 'Zoe', 
+    sigla: 'ZO', 
     funcao: 'ICP, contas e comitê', 
     estado: 'ativo', 
     autonomia: 'Assistido', 
@@ -36,8 +36,8 @@ const CANONICAL_AGENTS: AgentData[] = [
   },
   { 
     id: 'marketing', 
-    nome: 'Agente de Marketing', 
-    sigla: 'MK', 
+    nome: 'Jax', 
+    sigla: 'JA', 
     funcao: 'Mídia, SEO/GEO e eventos', 
     estado: 'ativo', 
     autonomia: 'Assistido', 
@@ -52,8 +52,8 @@ const CANONICAL_AGENTS: AgentData[] = [
   },
   { 
     id: 'copy', 
-    nome: 'Agente de Copy', 
-    sigla: 'CP', 
+    nome: 'Lia', 
+    sigla: 'LI', 
     funcao: 'Copy, mensagens e conteúdo', 
     estado: 'ativo', 
     autonomia: 'Supervisionado', 
@@ -68,8 +68,8 @@ const CANONICAL_AGENTS: AgentData[] = [
   },
   { 
     id: 'revops', 
-    nome: 'Agente de RevOps', 
-    sigla: 'RO', 
+    nome: 'Neo', 
+    sigla: 'NE', 
     funcao: 'CRM, pipeline e relatórios', 
     estado: 'ativo', 
     autonomia: 'Supervisionado', 

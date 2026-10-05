@@ -343,7 +343,7 @@ INSERT INTO public.chat_channel_agents (workspace_id, channel_id, agent_id) VALU
 ON CONFLICT DO NOTHING;
 INSERT INTO public.chat_messages (workspace_id, channel_id, sender_type, sender_member_id, sender_agent_id, content, created_at) VALUES
   ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000001', 'agent', NULL, 'comercial', 'Encontrei 6 contas novas dentro do ICP desde ontem. A de maior fit é a Serra Azul Têxtil.', now() - interval '3 hours'),
-  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000001', 'member', 'd0000000-0000-0000-0000-000000000005', NULL, '@Agente Comercial mapeia quem decide importação na Serra Azul?', now() - interval '2 hours 50 minutes'),
+  ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000001', 'member', 'd0000000-0000-0000-0000-000000000005', NULL, '@Zoe mapeia quem decide importação na Serra Azul?', now() - interval '2 hours 50 minutes'),
   ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000001', 'agent', NULL, 'comercial', 'Decisora: Aline Xavier, Diretora de Supply Chain. Campeão provável: Jonas Ribeiro, Comprador Sênior. Fontes no dossiê.', now() - interval '2 hours 49 minutes'),
   ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000001', 'member', 'd0000000-0000-0000-0000-000000000004', NULL, 'Perfeito. Sobe para a cadência T1 hoje à tarde.', now() - interval '2 hours 30 minutes'),
   ('a0000000-0000-0000-0000-000000000001', 'c4000000-0000-0000-0000-000000000002', 'agent', NULL, 'comercial', 'Lista do Sudeste pronta: 512 contas com fit acima de 70. Aguardando aprovação para entrar na cadência.', now() - interval '2 hours'),

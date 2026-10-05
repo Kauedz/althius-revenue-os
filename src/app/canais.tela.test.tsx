@@ -21,7 +21,7 @@ describe.skipIf(!bancoLocalNoAr)('Canais (banco local)', () => {
   afterAll(async () => {
     const admin = adminLocal();
     await admin.from('chat_messages').delete().like('content', '%' + MARCA + '%');
-    await admin.from('chat_messages').delete().eq('sender_type', 'system').like('content', 'Pedido enviado ao Agente Comercial%');
+    await admin.from('chat_messages').delete().eq('sender_type', 'system').like('content', 'Pedido enviado para %');
     await admin.from('executions').delete().like('title', '%' + MARCA + '%');
   });
 
@@ -34,12 +34,25 @@ describe.skipIf(!bancoLocalNoAr)('Canais (banco local)', () => {
     cleanup();
     await abrirCanal('lucas@evolut.com.br', 'sinais-de-compra', 'Perfeito. Sobe para a cadência T1 hoje à tarde.');
     const caixa = screen.getByPlaceholderText(/Mensagem em # sinais-de-compra/);
-    fireEvent.change(caixa, { target: { value: '@Agente Comercial resume a Serra Azul ' + MARCA } });
+    fireEvent.change(caixa, { target: { value: '@Zoe resume a Serra Azul ' + MARCA } });
     fireEvent.keyDown(caixa, { key: 'Enter' });
-    expect(await screen.findByText('Pedido enviado ao Agente Comercial. A resposta chega aqui quando ele terminar.', {}, { timeout: 8000 })).toBeInTheDocument();
+    expect(await screen.findByText('Pedido enviado para Zoe. A resposta chega aqui quando terminar.', {}, { timeout: 8000 })).toBeInTheDocument();
     await new Promise(ok => setTimeout(ok, 1800));
     expect(screen.queryByText('Recebido. Levanto isso agora e respondo aqui com as fontes.')).not.toBeInTheDocument();
     cleanup();
-    await abrirCanal('lucas@evolut.com.br', 'sinais-de-compra', '@Agente Comercial resume a Serra Azul ' + MARCA);
+    await abrirCanal('lucas@evolut.com.br', 'sinais-de-compra', '@Zoe resume a Serra Azul ' + MARCA);
+  });
+  it('mencionar um agente que NÃO é o primeiro do canal chama exatamente ele (@Neo em #geral vai para o revops)', async () => {
+    cleanup();
+    // #geral tem os quatro agentes. A C-level menciona o último: antes da correção o app procurava o nome antigo
+    // ("@Agente de RevOps"), não achava e chamava o primeiro agente do canal (o comercial).
+    await abrirCanal('aline@evolut.com.br', 'geral', 'Semana de foco em importadores do Sudeste. Qualquer dúvida sobre o ICP, me chamem aqui.');
+    const caixa = screen.getByPlaceholderText(/Mensagem em # geral/);
+    fireEvent.change(caixa, { target: { value: '@Neo fecha o relatório do ciclo ' + MARCA } });
+    fireEvent.keyDown(caixa, { key: 'Enter' });
+    expect(await screen.findByText('Pedido enviado para Neo. A resposta chega aqui quando terminar.', {}, { timeout: 8000 })).toBeInTheDocument();
+    const { data, error } = await adminLocal().from('executions').select('agent_code').like('title', '%fecha o relatório do ciclo ' + MARCA + '%');
+    expect(error).toBeNull();
+    expect(data).toEqual([{ agent_code: 'revops' }]);
   });
 });

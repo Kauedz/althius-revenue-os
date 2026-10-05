@@ -1,6 +1,7 @@
 // Sinais da página signals: catálogo e eventos que o banco devolve.
 // O que não existe no banco aparece como "Sem dados ainda". Nunca dólar. Nada é gravado.
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { AGENTES_EXIBICAO } from '../agentes-exibicao';
 
 export const SEM_DADOS = 'Sem dados ainda';
 
@@ -43,12 +44,7 @@ export interface SinaisTela {
 const ERRO_SINAIS = 'Não foi possível carregar os sinais de compra.';
 const SEMANA_MS = 7 * 24 * 60 * 60 * 1000;
 
-const AGENTES: Record<string, { nome: string; sigla: string }> = {
-  comercial: { nome: 'Agente Comercial', sigla: 'CO' },
-  marketing: { nome: 'Agente de Marketing', sigla: 'MK' },
-  copy: { nome: 'Agente de Copy', sigla: 'CP' },
-  revops: { nome: 'Agente de RevOps', sigla: 'RO' }
-};
+const AGENTES: Record<string, { nome: string; sigla: string }> = AGENTES_EXIBICAO;
 
 const ORDEM_AGENTES = ['comercial', 'marketing', 'copy', 'revops'];
 

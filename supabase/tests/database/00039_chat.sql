@@ -41,10 +41,10 @@ SELECT results_eq(
   $$ SELECT agent_code, requested_by_member_id::text FROM public.executions WHERE id = (SELECT (r->>'execution_id')::uuid FROM mencao) $$,
   $$ VALUES ('comercial'::text, 'd0000000-0000-0000-0000-000000000004'::text) $$, 'Pedido fica na fila do agente, em nome de quem chamou (política Hermes)');
 SELECT is((SELECT content FROM public.chat_messages m JOIN public.chat_channels c ON c.id = m.channel_id WHERE c.slug = 'dupla-bdr' AND m.sender_type = 'system' ORDER BY m.created_at DESC LIMIT 1),
-  'Pedido enviado ao Agente Comercial. A resposta chega aqui quando ele terminar.', 'Canal avisa que o pedido foi enviado (sem resposta inventada)');
+  'Pedido enviado para Zoe. A resposta chega aqui quando terminar.', 'Canal avisa que o pedido foi enviado (sem resposta inventada)');
 SET LOCAL ROLE authenticated;
 SELECT is(public.chat_send('a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000004', 'dupla-bdr', '@Agente de RevOps relatório?', NULL, 'revops')->>'erro',
-  'O Agente de RevOps não participa de #dupla-bdr.', 'Agente fora do canal não é chamado');
+  'Neo não participa de #dupla-bdr.', 'Agente fora do canal não é chamado');
 SET LOCAL "request.jwt.claims" = '{"sub": "e0000000-0000-0000-0000-000000000006", "role": "authenticated"}';
 SELECT is(public.chat_send('a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000006', 'cadencia-t1-t7', 'oi', NULL, NULL)->>'erro',
   'Canal não encontrado.', 'Bruna não escreve em canal de que não participa');

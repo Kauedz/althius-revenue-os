@@ -31,12 +31,12 @@ describe.skipIf(!bancoLocalNoAr)('Caixa de entrada (banco local)', () => {
     expect(screen.getByText('Recebi. Me liga amanhã depois das 10h?')).toBeInTheDocument();
   });
 
-  it('pedir sugestão de resposta avisa que foi para o Agente de Copy', async () => {
+  it('pedir sugestão de resposta avisa que foi para a Lia', async () => {
     cleanup();
     await entrarNaCaixa('lucas@evolut.com.br');
     fireEvent.click(screen.getByText('Tenho interesse, mas só no mês que vem.'));
     fireEvent.click(await screen.findByRole('button', { name: 'Sugerir resposta' }));
-    expect(await screen.findByText(/Pedido enviado ao Agente de Copy/, {}, { timeout: 8000 })).toBeInTheDocument();
+    expect(await screen.findByText(/Pedido enviado para Lia/, {}, { timeout: 8000 })).toBeInTheDocument();
     expect(screen.queryByText(/rascunhou uma resposta/)).not.toBeInTheDocument();
   });
 

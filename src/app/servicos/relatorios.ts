@@ -1,6 +1,7 @@
 // Relatórios da página analytics: só números que o banco devolve.
 // O que não existe no banco aparece como "Sem dados ainda". Nunca dólar.
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { AGENTES_EXIBICAO } from '../agentes-exibicao';
 
 export const SEM_DADOS = 'Sem dados ainda';
 
@@ -44,12 +45,7 @@ export interface RelatoriosTela {
 const MOTIONS = ['slg', 'mlg', 'plg'] as const;
 const ROTULOS_MOTION = ['SLG', 'MLG', 'PLG'];
 
-const NOMES_AGENTE: Record<string, string> = {
-  comercial: 'Agente Comercial',
-  marketing: 'Agente de Marketing',
-  copy: 'Agente de Copy',
-  revops: 'Agente de RevOps'
-};
+const NOMES_AGENTE: Record<string, string> = Object.fromEntries(Object.entries(AGENTES_EXIBICAO).map(([codigo, a]) => [codigo, a.nome]));
 
 const NOMES_CANAL: Record<string, string> = {
   linkedin_ads: 'LinkedIn Ads',

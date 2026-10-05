@@ -4,7 +4,7 @@
 
 | Arquivo | O que é |
 | --- | --- |
-| `Althius_Desktop_v22.html` | O front inteiro, em um arquivo só. Abra no navegador: funciona offline, com dados de demonstração. |
+| `Althius_Desktop_v22.html` | O front inteiro, em um arquivo só. Abra no navegador: funciona offline, com dados de demonstração. **É a exportação do design e está desatualizada:** ainda mostra Venator, Praeco, Stilus e Ratio e os avatares antigos. O app de verdade é o de `src/` (Zoe, Jax, Lia e Neo). Para atualizar este arquivo, reexporte do Claude Design. |
 | `fonte/template.html` | O HTML da interface (todas as telas), com os estilos. Legível. |
 | `fonte/component.js.html` | A lógica da interface: estado, rotas, permissões e o que cada tela mostra. Legível. |
 | `fonte/data.js` | Mocks e "services" de demonstração: papéis (`ROLES`), permissões (`PERMS`), navegação (`NAV`), workspaces, agentes, execuções, aprovações e notificações. |

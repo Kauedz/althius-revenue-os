@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { AGENTES_EXIBICAO } from '../agentes-exibicao';
 
 export interface MovimentoCredito {
   id: string;
@@ -20,12 +21,7 @@ export interface CreditosTela {
   extrato: MovimentoCredito[];
   politica: PoliticaCredito;
 }
-const AGENTES: Record<string, string> = {
-  comercial: 'Agente Comercial',
-  marketing: 'Agente de Marketing',
-  copy: 'Agente de Copy',
-  revops: 'Agente de RevOps'
-};
+const AGENTES: Record<string, string> = Object.fromEntries(Object.entries(AGENTES_EXIBICAO).map(([codigo, a]) => [codigo, a.nome]));
 const diaSp = (iso: string) =>
   new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
 

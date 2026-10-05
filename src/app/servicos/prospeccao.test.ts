@@ -43,7 +43,7 @@ describe('listarProspeccao (unitário / mapeamento)', () => {
     expect(texto).not.toMatch(/US\$|dólar|dolar|1\.946|2\.050|81%/);
     expect(tela.kpis.map(k => k.valor)).toEqual(['2', SEM_DADOS, SEM_DADOS, SEM_DADOS]);
     expect(tela.kpis.every(k => k.delta === SEM_DADOS)).toBe(true);
-    expect(tela.listas[0]).toEqual({ id: 'l1', nome: 'Lista do banco', origem: 'Agente Comercial', contas: '10', validos: '7', status: 'Em execução' });
+    expect(tela.listas[0]).toEqual({ id: 'l1', nome: 'Lista do banco', origem: 'Zoe', contas: '10', validos: '7', status: 'Em execução' });
     expect(tela.listas[1]).toEqual({ id: 'l2', nome: SEM_DADOS, origem: SEM_DADOS, contas: SEM_DADOS, validos: SEM_DADOS, status: SEM_DADOS });
   });
 
@@ -79,7 +79,7 @@ describe.skipIf(!bancoLocalNoAr)('Prospecção (banco local)', () => {
       'Qualificar 1.200 importadores do Sudeste'
     ]);
     const qualificar = tela.listas.find(l => l.nome.startsWith('Qualificar'));
-    expect(qualificar).toMatchObject({ origem: 'Agente Comercial', contas: '768', validos: '512', status: 'Em execução' });
+    expect(qualificar).toMatchObject({ origem: 'Zoe', contas: '768', validos: '512', status: 'Em execução' });
     expect(tela.listas.find(l => l.nome.startsWith('Mapear'))).toMatchObject({ contas: '48', validos: '39', status: 'Concluída parcialmente' });
     expect(tela.listas.find(l => l.nome.startsWith('Lista de 300'))).toMatchObject({ contas: '0', validos: '0', status: 'Agendada' });
     expect(tela.listas.find(l => l.nome.startsWith('Enriquecer'))).toMatchObject({ contas: '0', validos: '0', status: 'Na fila' });

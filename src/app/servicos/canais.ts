@@ -2,6 +2,7 @@
 // O agente chamado no canal vira pedido na fila (política Hermes); a resposta dele chega quando o motor terminar.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { nomesDosMembros } from './nomes';
+import { AGENTES_EXIBICAO } from '../agentes-exibicao';
 
 /** Formato que a tela de Canais do v18 lê (this.canais()). */
 export interface CanalTela {
@@ -28,9 +29,7 @@ export interface MensagemTela {
   reacoes: Record<string, Reacao>;
 }
 
-const AGENTE: Record<string, [nome: string, sigla: string]> = {
-  comercial: ['Agente Comercial', 'CO'], marketing: ['Agente de Marketing', 'MK'], copy: ['Agente de Copy', 'CP'], revops: ['Agente de RevOps', 'RO']
-};
+const AGENTE: Record<string, [nome: string, sigla: string]> = Object.fromEntries(Object.entries(AGENTES_EXIBICAO).map(([codigo, ag]) => [codigo, [ag.nome, ag.sigla]]));
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 const sigla = (nome: string) => nome.trim().split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
 

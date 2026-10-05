@@ -1,6 +1,7 @@
 // Listas da página prospecting: só Lista e Enriquecimento que o banco devolve.
 // O que não existe aparece como "Sem dados ainda". Nunca dólar. Nada é gravado.
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { AGENTES_EXIBICAO } from '../agentes-exibicao';
 
 export const SEM_DADOS = 'Sem dados ainda';
 
@@ -39,12 +40,7 @@ const STATUS: Record<string, string> = {
   cancelled: 'Cancelada'
 };
 
-const AGENTES: Record<string, string> = {
-  comercial: 'Agente Comercial',
-  marketing: 'Agente de Marketing',
-  copy: 'Agente de Copy',
-  revops: 'Agente de RevOps'
-};
+const AGENTES: Record<string, string> = Object.fromEntries(Object.entries(AGENTES_EXIBICAO).map(([codigo, a]) => [codigo, a.nome]));
 
 const ROTULOS = ['Listas', 'Contas', 'Válidos', 'Créditos'];
 
