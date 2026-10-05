@@ -3,7 +3,8 @@
 -- PR 04: receptor de webhook da Unipile. Funções que o serviço `webhooks` chama (só service_role).
 --
 -- 1. unipile_set_account_status: a conexão de uma conta caiu, pede atenção ou voltou.
---    Atualiza messaging_accounts e audita só quando o status MUDA (avisos repetidos não geram linha).
+--    Atualiza messaging_accounts, audita e avisa o dono da conta (notificação) só quando o status MUDA
+--    para atenção/desconectada (avisos repetidos não geram linha nem aviso).
 -- 2. unipile_handle_new_relation: o LinkedIn aceitou um convite. O workspace vem da CONTA de mensagem
 --    (nunca de parâmetro), então o mesmo perfil em outro cliente não é tocado.
 -- 3. Endurecimento (ADR 0023): as duas funções antigas da 0014 ganham search_path fixo.
@@ -35,6 +36,18 @@ BEGIN
     v_conta.workspace_id, NULL, 'messaging_account.status_changed', 'messaging_account', v_conta.id::text,
     jsonb_build_object('provider', v_conta.provider, 'de', v_conta.status, 'para', p_status)
   );
+
+  -- Avisa o dono da conta quando a conexão deixa de funcionar (voltar ao normal não precisa de aviso).
+  IF p_status <> 'connected' THEN
+    INSERT INTO public.notifications (workspace_id, recipient_member_id, type, title, body, entity_type, entity_id)
+    VALUES (
+      v_conta.workspace_id, v_conta.member_id, 'conexao_atencao',
+      'Sua conta de mensagens precisa ser reconectada',
+      CASE WHEN p_status = 'attention' THEN 'A conexão pede uma nova autorização. Reconecte na Caixa de entrada para voltar a receber respostas.'
+           ELSE 'A conexão foi desligada. Reconecte na Caixa de entrada para voltar a receber respostas.' END,
+      'messaging_account', v_conta.id
+    );
+  END IF;
 
   RETURN jsonb_build_object('action', 'updated', 'status', p_status);
 END;
