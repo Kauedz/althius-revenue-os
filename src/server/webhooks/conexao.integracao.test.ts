@@ -4,13 +4,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import { adminLocal, ANON_LOCAL, bancoLocalNoAr, entrarComoLocal, SERVICE_LOCAL, URL_LOCAL } from '../../test/supabaseLocal';
 import { bancoViaApi } from './banco';
+import { assinarCorpo } from './unipile';
 import { criarServidor } from './servidor';
 
 const WS = 'a0000000-0000-0000-0000-000000000001';
 const LUCAS = 'd0000000-0000-0000-0000-000000000004';
 const BRUNA = 'd0000000-0000-0000-0000-000000000006';
 const SEGREDO = 'segredo-integracao';
-const DSN = 'https://api-falsa.exemplo.test:1111';
+const URL_API = 'https://api-falsa.exemplo.test';
 
 describe.skipIf(!bancoLocalNoAr)('conexão de conta com o banco local', () => {
   let url: string;
@@ -32,16 +33,16 @@ describe.skipIf(!bancoLocalNoAr)('conexão de conta com o banco local', () => {
     pedidosAoProvedor = [];
     // Só o endereço do provedor é falso; o banco local é real.
     const buscar = (async (alvo: string, init?: RequestInit) => {
-      if (alvo.startsWith(DSN)) {
+      if (alvo.startsWith(URL_API)) {
         pedidosAoProvedor.push(JSON.parse(init!.body as string));
-        return { ok: true, status: 200, json: async () => ({ url: 'https://conectar.exemplo.test/abc' }) } as Response;
+        return { ok: true, status: 200, json: async () => ({ link: 'https://conectar.exemplo.test/abc' }) } as Response;
       }
       return fetch(alvo, init);
     }) as typeof fetch;
     const base = `${URL_LOCAL}/rest/v1`;
     const { servidor, ocioso: o } = criarServidor({
       segredo: SEGREDO, banco: bancoViaApi(base, SERVICE_LOCAL), log: () => {}, esperaMs: 1,
-      conexoes: { segredo: SEGREDO, siteUrl: 'https://app.exemplo.com.br', unipile: { dsn: DSN, apiKey: 'chave-falsa' }, baseBanco: base, chaveAnon: ANON_LOCAL, buscar }
+      conexoes: { siteUrl: 'https://app.exemplo.com.br', obterConfig: () => ({ apiKey: 'chave-falsa', url: URL_API }), baseBanco: base, chaveAnon: ANON_LOCAL, buscar }
     });
     await new Promise<void>(r => servidor.listen(0, '127.0.0.1', r));
     url = `http://127.0.0.1:${(servidor.address() as AddressInfo).port}`;
@@ -54,25 +55,27 @@ describe.skipIf(!bancoLocalNoAr)('conexão de conta com o banco local', () => {
 
   const pedirLink = (corpo: unknown, jwt = jwtLucas) =>
     fetch(url + '/conexoes/link', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${jwt}` }, body: JSON.stringify(corpo) });
-  const avisar = (notifyUrl: string, corpo: unknown) => {
-    const u = new URL(notifyUrl);
-    return fetch(url + u.pathname + u.search, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
+  /** aviso de conta como a Unipile manda: envelope v2, assinado com o segredo do endpoint */
+  const avisar = (tipo: 'account.add' | 'account.reconnect', conta: string, pedido: string, segredo = SEGREDO) => {
+    const corpo = JSON.stringify({ id: `ev-${Math.random()}`, type: tipo, account_id: conta, payload: { state: pedido } });
+    const t = String(Math.floor(Date.now() / 1000));
+    return fetch(url + '/webhooks/unipile', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Unipile-Signature': `t=${t},v0=${assinarCorpo(corpo, t, segredo)}` }, body: corpo });
   };
 
   it('BDR conecta a própria conta: link gerado, aviso conclui, conta fica no membro dele', async () => {
     const r = await pedirLink({ workspace_id: WS, member_id: LUCAS, provider: 'instagram' });
     expect(r.status).toBe(200);
     expect((await r.json()).url).toBe('https://conectar.exemplo.test/abc');
-    expect(pedidosAoProvedor[0]).toMatchObject({ type: 'create', providers: ['INSTAGRAM'] });
+    expect(pedidosAoProvedor[0]).toMatchObject({ providers: ['instagram'] });
 
-    const ok = await avisar(pedidosAoProvedor[0].notify_url, { status: 'CREATION_SUCCESS', account_id: 'ig-lucas-int', name: pedidosAoProvedor[0].name });
+    const ok = await avisar('account.add', 'ig-lucas-int', pedidosAoProvedor[0].state);
     expect(ok.status).toBe(200);
     await ocioso();
     const { data } = await adminLocal().from('messaging_accounts').select('member_id, workspace_id, provider, status').eq('unipile_account_id', 'ig-lucas-int').single();
     expect(data).toEqual({ member_id: LUCAS, workspace_id: WS, provider: 'instagram', status: 'connected' });
 
     // O mesmo aviso de novo não duplica
-    await avisar(pedidosAoProvedor[0].notify_url, { status: 'CREATION_SUCCESS', account_id: 'ig-lucas-int', name: pedidosAoProvedor[0].name });
+    await avisar('account.add', 'ig-lucas-int', pedidosAoProvedor[0].state);
     await ocioso();
     const { count } = await adminLocal().from('messaging_accounts').select('id', { count: 'exact', head: true }).eq('unipile_account_id', 'ig-lucas-int');
     expect(count).toBe(1);
@@ -94,8 +97,8 @@ describe.skipIf(!bancoLocalNoAr)('conexão de conta com o banco local', () => {
     await adminLocal().from('messaging_accounts').update({ status: 'attention' }).eq('id', 'ca500000-0000-0000-0000-000000000002');
     const r = await pedirLink({ workspace_id: WS, member_id: LUCAS, provider: 'linkedin' });
     expect(r.status).toBe(200);
-    expect(pedidosAoProvedor[0]).toMatchObject({ type: 'reconnect', providers: ['LINKEDIN'], reconnect_account: 'demo-lucas-linkedin' });
-    await avisar(pedidosAoProvedor[0].notify_url, { status: 'RECONNECTED', account_id: 'demo-lucas-linkedin', name: pedidosAoProvedor[0].name });
+    expect(pedidosAoProvedor[0]).toMatchObject({ account_id: 'demo-lucas-linkedin' });
+    await avisar('account.reconnect', 'demo-lucas-linkedin', pedidosAoProvedor[0].state);
     await ocioso();
     const { data } = await adminLocal().from('messaging_accounts').select('id, status').eq('member_id', LUCAS).eq('provider', 'linkedin');
     expect(data).toEqual([{ id: 'ca500000-0000-0000-0000-000000000002', status: 'connected' }]);
@@ -103,8 +106,7 @@ describe.skipIf(!bancoLocalNoAr)('conexão de conta com o banco local', () => {
 
   it('aviso com assinatura errada não conecta nada', async () => {
     await pedirLink({ workspace_id: WS, member_id: LUCAS, provider: 'instagram' });
-    const u = new URL(pedidosAoProvedor[0].notify_url);
-    const r = await fetch(`${url}${u.pathname}?r=${u.searchParams.get('r')}&t=falsa`, { method: 'POST', body: JSON.stringify({ status: 'CREATION_SUCCESS', account_id: 'ig-lucas-int', name: pedidosAoProvedor[0].name }) });
+    const r = await avisar('account.add', 'ig-lucas-int', pedidosAoProvedor[0].state, 'segredo-falso');
     expect(r.status).toBe(401);
     await ocioso();
     const { count } = await adminLocal().from('messaging_accounts').select('id', { count: 'exact', head: true }).eq('unipile_account_id', 'ig-lucas-int');

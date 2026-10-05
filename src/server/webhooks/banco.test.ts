@@ -5,13 +5,14 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import { adminLocal, bancoLocalNoAr, SERVICE_LOCAL, URL_LOCAL } from '../../test/supabaseLocal';
 import { bancoViaApi } from './banco';
+import { assinarCorpo } from './unipile';
 import { criarServidor } from './servidor';
 
 const SEGREDO = 'segredo-integracao';
 const EXTERNOS = ['demo-lucas-google:mail-int-1', 'demo-lucas-google:mail-int-2', 'demo-lucas-google:mail-int-spam'];
 
 describe.skipIf(!bancoLocalNoAr)('webhook da Unipile com o banco local', () => {
-  let enviar: (corpo: unknown, auth?: string) => Promise<Response>;
+  let enviar: (corpo: unknown, segredo?: string) => Promise<Response>;
   let ocioso: () => Promise<void>;
   let fechar: () => Promise<void>;
 
@@ -32,14 +33,20 @@ describe.skipIf(!bancoLocalNoAr)('webhook da Unipile com o banco local', () => {
     const { servidor, ocioso: o } = criarServidor({ segredo: SEGREDO, banco: bancoViaApi(`${URL_LOCAL}/rest/v1`, SERVICE_LOCAL), log: () => {}, esperaMs: 1 });
     await new Promise<void>(r => servidor.listen(0, '127.0.0.1', r));
     const url = `http://127.0.0.1:${(servidor.address() as AddressInfo).port}/webhooks/unipile`;
-    enviar = (corpo, auth = SEGREDO) => fetch(url, { method: 'POST', headers: { 'Unipile-Auth': auth, 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
+    // Aviso como a Unipile v2 manda: envelope { id, type, account_id, payload } assinado com HMAC sobre "<t>.<corpo>".
+    enviar = (corpo, segredo = SEGREDO) => {
+      const texto = JSON.stringify(corpo);
+      const t = String(Math.floor(Date.now() / 1000));
+      return fetch(url, { method: 'POST', headers: { 'Unipile-Signature': `t=${t},v0=${assinarCorpo(texto, t, segredo)}`, 'Content-Type': 'application/json' }, body: texto });
+    };
     ocioso = o;
     fechar = () => new Promise<void>(r => servidor.close(() => r()));
   });
   afterEach(async () => { await fechar(); await limpar(); });
 
-  const email = (id: string, de: string, extra: Record<string, unknown> = {}) =>
-    ({ event: 'mail_received', account_id: 'demo-lucas-google', email_id: id, thread_id: 'thread-int', subject: 'Re: proposta', body_plain: 'Pode ser terça?', from_attendee: { identifier: de }, folders: ['INBOX'], ...extra });
+  const email = (id: string, de: string, envelope: Record<string, unknown> = {}) =>
+    ({ id: `ev-${id}`, type: 'email.new', account_id: 'demo-lucas-google', account_name: 'lucas@evolut.com.br', ...envelope,
+      payload: { email: { id, thread_id: 'thread-int', subject: 'Re: proposta', plain_text: 'Pode ser terça?', from: [{ email: de }] } } });
 
   const contar = async (externo: string) => {
     const { count } = await adminLocal().from('messages').select('id', { count: 'exact', head: true }).eq('external_message_id', externo);
@@ -72,30 +79,30 @@ describe.skipIf(!bancoLocalNoAr)('webhook da Unipile com o banco local', () => {
     expect((await adm.from('notifications').select('id', { count: 'exact', head: true })).count).toBe(antesNotif);
   });
 
-  it('e-mail enviado (fora da caixa de entrada) não grava nada', async () => {
-    await enviar(email('mail-int-1', 'aline.xavier@serraazul.com.br', { folders: ['SENT'] }));
+  it('e-mail do próprio titular (eco do envio) não grava nada', async () => {
+    await enviar(email('mail-int-1', 'Lucas@Evolut.com.br'));
     await ocioso();
     expect(await contar('demo-lucas-google:mail-int-1')).toBe(0);
   });
 
-  it('segredo errado: 401 e nada gravado', async () => {
-    expect((await enviar(email('mail-int-1', 'aline.xavier@serraazul.com.br'), 'errado')).status).toBe(401);
+  it('assinatura errada: 401 e nada gravado', async () => {
+    expect((await enviar(email('mail-int-1', 'aline.xavier@serraazul.com.br'), 'segredo-errado')).status).toBe(401);
     await ocioso();
     expect(await contar('demo-lucas-google:mail-int-1')).toBe(0);
   });
 
   it('conexão que pede credencial vira "attention" e volta a "connected"', async () => {
     const status = async () => (await adminLocal().from('messaging_accounts').select('status').eq('unipile_account_id', 'demo-bruna-google').single()).data?.status;
-    await enviar({ AccountStatus: { account_id: 'demo-bruna-google', account_type: 'GOOGLE', message: 'CREDENTIALS' } });
+    await enviar({ id: 'ev-s1', type: 'account.status.disconnected', account_id: 'demo-bruna-google', payload: {} });
     await ocioso();
     expect(await status()).toBe('attention');
-    await enviar({ AccountStatus: { account_id: 'demo-bruna-google', account_type: 'GOOGLE', message: 'OK' } });
+    await enviar({ id: 'ev-s2', type: 'account.status.running', account_id: 'demo-bruna-google', payload: {} });
     await ocioso();
     expect(await status()).toBe('connected');
   });
 
   it('conta desconhecida não gera erro nem dado', async () => {
-    expect((await enviar({ AccountStatus: { account_id: 'conta-que-nao-existe', message: 'ERROR' } })).status).toBe(200);
+    expect((await enviar({ id: 'ev-s3', type: 'account.status.errored', account_id: 'conta-que-nao-existe', payload: {} })).status).toBe(200);
     await ocioso();
   });
 });

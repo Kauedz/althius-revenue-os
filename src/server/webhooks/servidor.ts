@@ -1,9 +1,10 @@
-// Servidor HTTP do webhook da Unipile. Só recebe, confere o segredo, responde 200 e processa em seguida.
+// Servidor HTTP do webhook da Unipile. Só recebe, confere a assinatura do corpo, responde 200 e processa em seguida.
 import { createServer, type Server } from 'node:http';
-import { assinaturaValida, iniciarConexao, type DepsConexoes } from './conexoes.ts';
-import { autenticado, CABECALHO_AUTH, interpretar, interpretarConexao, processar, type Banco, type EventoUnipile } from './unipile.ts';
+import { iniciarConexao, type DepsConexoes } from './conexoes.ts';
+import { assinaturaValida, CABECALHO_ASSINATURA, interpretar, processar, type Banco, type EventoUnipile } from './unipile.ts';
 
 export interface OpcoesServidor {
+  /** segredo do endpoint de webhook (a própria Unipile o gera); assina cada aviso */
   segredo: string;
   banco: Banco;
   /** Linha de log (JSON). Nunca recebe remetente nem texto de mensagem. */
@@ -41,25 +42,17 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
       res.writeHead(status, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify(corpo));
     };
-    const [url, consulta = ''] = (req.url ?? '').split('?');
+    const [url] = (req.url ?? '').split('?');
 
     if (url === '/saude') return responder(200, { ok: true });
     const ehWebhook = url === '/webhooks/unipile';
-    const ehConta = url === '/webhooks/unipile/conta';
     const ehLink = url === '/conexoes/link';
-    if (!ehWebhook && !ehConta && !ehLink) return responder(404, { erro: 'nao_encontrado' });
+    if (!ehWebhook && !ehLink) return responder(404, { erro: 'nao_encontrado' });
     if (req.method !== 'POST') return responder(405, { erro: 'metodo_nao_permitido' });
 
-    // Quem não prova quem é não gasta memória nossa: a prova vem ANTES de ler o corpo.
-    let pedidoId = '';
+    // A prova do link de conexão é o login da pessoa, conferido ANTES de ler o corpo. A do webhook é a assinatura do
+    // corpo bruto: só dá para conferir depois de ler (o limite de tamanho protege a memória).
     let jwt = '';
-    if (ehWebhook && !autenticado(req.headers[CABECALHO_AUTH], o.segredo)) { req.resume(); return responder(401, { erro: 'nao_autorizado' }); }
-    if (ehConta) {
-      // O aviso do assistente pode não carregar cabeçalho nosso: a prova é a assinatura do pedido no endereço de retorno.
-      const q = new URLSearchParams(consulta);
-      pedidoId = q.get('r') ?? '';
-      if (!assinaturaValida(o.segredo, pedidoId, q.get('t') ?? '')) { req.resume(); return responder(401, { erro: 'nao_autorizado' }); }
-    }
     if (ehLink) {
       const m = /^Bearer (.+)$/.exec(req.headers.authorization ?? '');
       jwt = m?.[1] ?? '';
@@ -77,8 +70,10 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
     });
     req.on('end', () => {
       if (estourou) return;
+      const bruto = Buffer.concat(partes).toString('utf8');
+      if (ehWebhook && !assinaturaValida(bruto, req.headers[CABECALHO_ASSINATURA], o.segredo)) return responder(401, { erro: 'nao_autorizado' });
       let payload: unknown;
-      try { payload = JSON.parse(Buffer.concat(partes).toString('utf8')); } catch { return responder(400, { erro: 'json_invalido' }); }
+      try { payload = JSON.parse(bruto); } catch { return responder(400, { erro: 'json_invalido' }); }
       if (ehLink) {
         if (!o.conexoes) return responder(503, { erro: 'conexao_indisponivel' });
         iniciarConexao(o.conexoes, jwt, payload).then(r => responder(r.status, r.corpo), () => responder(502, { erro: 'falha_ao_gerar_link' }));
@@ -86,7 +81,7 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
       }
       // 200 já: a Unipile não espera o banco (e não reenvia por lentidão nossa).
       responder(200, { ok: true });
-      const trabalho = tratar(ehConta ? interpretarConexao(payload, pedidoId) : interpretar(payload)).finally(() => pendentes.delete(trabalho));
+      const trabalho = tratar(interpretar(payload)).finally(() => pendentes.delete(trabalho));
       pendentes.add(trabalho);
     });
   });

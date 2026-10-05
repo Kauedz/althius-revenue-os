@@ -2,10 +2,13 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import { criarServidor } from './servidor';
-import type { Banco } from './unipile';
+import { assinarCorpo, type Banco } from './unipile';
 
 const SEGREDO = 'segredo-de-teste-123';
-const msg = { event: 'message_received', account_id: 'acc1', account_type: 'WHATSAPP', chat_id: 'c1', message_id: 'm1', message: 'Texto secreto do contato', is_sender: 0, attendees: [{}, {}], sender: { attendee_provider_id: '5511900000001@s.whatsapp.net' } };
+const evento = (type: string, payload: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ id: 'ev1', type, account_id: 'acc1', ...extra, payload });
+const msg = evento('message.new', { id: 'm1', chat_id: 'c1', text: 'Texto secreto do contato', is_sender: false, sender_id: '5511900000001@s.whatsapp.net' }, { account_provider: 'whatsapp' });
+/** cabeçalho de assinatura como a Unipile manda: t=<segundos>,v0=<hex do HMAC de "<t>.<corpo>"> */
+const assinado = (corpo: string, segredo = SEGREDO, t = String(Math.floor(Date.now() / 1000))) => ({ 'Unipile-Signature': `t=${t},v0=${assinarCorpo(corpo, t, segredo)}` });
 
 let abertos: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const f of abertos) await f(); abertos = []; });
@@ -23,17 +26,22 @@ async function subir(banco: Partial<Banco> = {}, extra: { limiteBytes?: number; 
   await new Promise<void>(r => servidor.listen(0, '127.0.0.1', r));
   abertos.push(() => new Promise<void>(r => servidor.close(() => r())));
   const url = `http://127.0.0.1:${(servidor.address() as AddressInfo).port}`;
-  const enviar = (corpo: unknown, cabecalhos: Record<string, string> = { 'Unipile-Auth': SEGREDO }, caminho = '/webhooks/unipile') =>
-    fetch(url + caminho, { method: 'POST', headers: { 'Content-Type': 'application/json', ...cabecalhos }, body: typeof corpo === 'string' ? corpo : JSON.stringify(corpo) });
+  const enviar = (corpo: unknown, cabecalhos?: Record<string, string>, caminho = '/webhooks/unipile') => {
+    const texto = typeof corpo === 'string' ? corpo : JSON.stringify(corpo);
+    return fetch(url + caminho, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(cabecalhos ?? assinado(texto)) }, body: texto });
+  };
   return { url, enviar, ocioso, logs };
 }
 
 describe('servidor do webhook da Unipile', () => {
-  it('cabeçalho errado ou ausente: 401 e nada vai ao banco', async () => {
+  it('assinatura errada, ausente, de aviso antigo ou de corpo alterado: 401 e nada vai ao banco', async () => {
     let chamou = 0;
     const s = await subir({ ingerirMensagem: async () => { chamou++; return { action: 'persisted' }; } });
-    expect((await s.enviar(msg, { 'Unipile-Auth': 'errado' })).status).toBe(401);
+    const texto = JSON.stringify(msg);
+    expect((await s.enviar(msg, assinado(texto, 'segredo-errado'))).status).toBe(401);
     expect((await s.enviar(msg, {})).status).toBe(401);
+    expect((await s.enviar(msg, assinado(texto, SEGREDO, String(Math.floor(Date.now() / 1000) - 3600)))).status).toBe(401);
+    expect((await s.enviar(JSON.stringify({ ...msg, id: 'outro' }), assinado(texto))).status).toBe(401);
     await s.ocioso();
     expect(chamou).toBe(0);
   });
@@ -61,15 +69,15 @@ describe('servidor do webhook da Unipile', () => {
   it('grupo e mensagem própria não chegam ao banco', async () => {
     let chamou = 0;
     const s = await subir({ ingerirMensagem: async () => { chamou++; return { action: 'persisted' }; } });
-    await s.enviar({ ...msg, is_group: true }); await s.enviar({ ...msg, is_sender: 1 }); await s.ocioso();
+    await s.enviar({ ...msg, payload: { ...msg.payload, is_group: true } }); await s.enviar({ ...msg, payload: { ...msg.payload, is_sender: true } }); await s.ocioso();
     expect(chamou).toBe(0);
   });
 
   it('evento de status e de relação chegam às funções certas', async () => {
     const vistos: string[] = [];
     const s = await subir({ definirStatus: async (c, st) => { vistos.push(`status:${c}:${st}`); return { action: 'updated' }; }, novaRelacao: async (c, i) => { vistos.push(`relacao:${c}:${i}`); return { action: 'connected' }; } });
-    await s.enviar({ AccountStatus: { account_id: 'acc1', message: 'CREDENTIALS' } });
-    await s.enviar({ event: 'new_relation', account_id: 'acc2', user_public_identifier: 'fulano' });
+    await s.enviar(evento('account.status.disconnected', {}));
+    await s.enviar(evento('relation.new', { public_identifier: 'fulano' }, { account_id: 'acc2' }));
     await s.ocioso();
     expect(vistos).toEqual(['status:acc1:attention', 'relacao:acc2:fulano']);
   });
@@ -101,10 +109,10 @@ describe('servidor do webhook da Unipile', () => {
 
   it('JSON inválido: 400. Corpo grande demais: 413. Rota e método errados: 404 e 405', async () => {
     const s = await subir({}, { limiteBytes: 200 });
-    expect((await s.enviar('{nao e json')).status).toBe(400);
+    expect((await s.enviar('{nao e json')).status).toBe(400); // assinado certo, mas não é JSON
     expect((await s.enviar({ lixo: 'x'.repeat(500) })).status).toBe(413);
-    expect((await s.enviar(msg, { 'Unipile-Auth': SEGREDO }, '/outra')).status).toBe(404);
-    expect((await fetch(s.url + '/webhooks/unipile', { headers: { 'Unipile-Auth': SEGREDO } })).status).toBe(405);
+    expect((await s.enviar(msg, undefined, '/outra')).status).toBe(404);
+    expect((await fetch(s.url + '/webhooks/unipile')).status).toBe(405);
   });
 
   it('/saude responde sem segredo', async () => {

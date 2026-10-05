@@ -1,15 +1,18 @@
-// Receptor de webhook da Unipile: a parte pura (sem rede, sem banco), fácil de testar.
+// Receptor de webhook da Unipile v2: a parte pura (sem rede, sem banco), fácil de testar.
 //
-// ATENÇÃO, NÃO VERIFICADO: o formato dos payloads abaixo veio de memória da documentação da Unipile,
-// não da documentação oficial (o site estava bloqueado na rede onde isto foi escrito). Toda a leitura do
-// payload está em `interpretar`. Se a Unipile mandar nomes diferentes, é SÓ esta função que muda.
-// Confira com um webhook de teste real antes de ligar em produção.
+// CONFERIDO no protótipo do dono (rodando com e-mail em conta real): assinatura `unipile-signature: t=<s>,v0=<hex>`
+// (HMAC-SHA256 de "<t>.<corpo>" com o segredo que a própria Unipile gera ao criar o endpoint de webhook), envelope
+// { id, type, account_id, payload }, eventos de conta (account.add / account.reconnect com `payload.state`,
+// account.status.*, account.initial_sync.completed, account.remove) e e-mail (email.new com `payload.email`).
+// NÃO CONFIRMADO (WhatsApp e LinkedIn ainda não foram testados lá): `message.new` e o evento de nova relação; os nomes
+// dos campos ficam na leitura abaixo, e se a Unipile mandar nomes diferentes só `interpretar` muda.
 //
 // Regras de privacidade (migration 0014): quem não é contato do CRM é descartado sem gravar nada.
 // Por isso este arquivo NUNCA registra em log o remetente nem o texto de uma mensagem.
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 
-export const CABECALHO_AUTH = 'unipile-auth';
+export const CABECALHO_ASSINATURA = 'unipile-signature';
+const JANELA_MS = 5 * 60 * 1000;
 
 export type Canal = 'whatsapp' | 'linkedin' | 'instagram' | 'email';
 export type StatusConexao = 'connected' | 'attention' | 'disconnected';
@@ -32,13 +35,27 @@ export interface Banco {
   concluirConexao(pedidoId: string, conta: string): Promise<{ action: string; reason?: string }>;
 }
 
-/** Compara o cabeçalho com o segredo em tempo constante. Sem segredo configurado, recusa tudo. */
-export function autenticado(recebido: string | string[] | undefined, segredo: string): boolean {
-  if (!segredo || typeof recebido !== 'string') return false;
-  // Comparar os hashes (tamanho fixo) evita vazar o tamanho do segredo e o erro do timingSafeEqual.
-  const a = createHash('sha256').update(recebido).digest();
-  const b = createHash('sha256').update(segredo).digest();
-  return timingSafeEqual(a, b);
+/** O hex que a Unipile põe em `v0`: HMAC-SHA256("<t>.<corpo>") com o segredo do endpoint. */
+export const assinarCorpo = (corpoBruto: string, t: string, segredo: string): string => createHmac('sha256', segredo).update(`${t}.${corpoBruto}`).digest('hex');
+
+/**
+ * Confere a assinatura sobre o corpo BRUTO (antes de qualquer JSON.parse), em tempo constante e dentro de 5 minutos
+ * (repetir um aviso antigo não vale). Sem segredo configurado, recusa tudo.
+ */
+export function assinaturaValida(corpoBruto: string, cabecalho: string | string[] | undefined, segredo: string, agoraMs = Date.now()): boolean {
+  if (!segredo || typeof cabecalho !== 'string') return false;
+  const partes = new Map<string, string>();
+  for (const parte of cabecalho.split(',')) {
+    const i = parte.indexOf('=');
+    if (i > 0) partes.set(parte.slice(0, i).trim(), parte.slice(i + 1).trim());
+  }
+  const t = partes.get('t');
+  const v0 = partes.get('v0');
+  if (!t || !v0 || !/^\d+$/.test(t)) return false;
+  if (Math.abs(agoraMs - Number(t) * 1000) > JANELA_MS) return false;
+  const esperada = Buffer.from(assinarCorpo(corpoBruto, t, segredo));
+  const recebida = Buffer.from(v0);
+  return esperada.length === recebida.length && timingSafeEqual(esperada, recebida);
 }
 
 const texto = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
@@ -46,89 +63,83 @@ const lista = (...v: unknown[]): string[] => v.map(texto).filter(Boolean);
 const verdadeiro = (v: unknown): boolean => v === true || v === 1 || v === '1' || v === 'true';
 const LIMITE_TEXTO = 20_000;
 const SEM_TEXTO = '[mensagem sem texto]';
-
-const CANAL_POR_TIPO_DE_CONTA: Record<string, Canal> = {
-  whatsapp: 'whatsapp', linkedin: 'linkedin', instagram: 'instagram',
-  google: 'email', gmail: 'email', google_oauth: 'email', microsoft: 'email', outlook: 'email', mail: 'email', imap: 'email'
-};
-
-// O banco só guarda 3 estados. "CONNECTING" e afins são passageiros: não mudam nada.
-const STATUS_POR_MENSAGEM: Record<string, StatusConexao | undefined> = {
-  OK: 'connected', SYNC_SUCCESS: 'connected', RECONNECTED: 'connected', CREATION_SUCCESS: 'connected',
-  CREDENTIALS: 'attention', ERROR: 'attention',
-  STOPPED: 'disconnected', DELETED: 'disconnected'
-};
-
 const objeto = (v: unknown): Record<string, unknown> | null => (v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/**
- * Aviso de que o assistente hospedado terminou (notify_url). NÃO VERIFICADO: assumo { status, account_id, name },
- * com `name` igual ao id do pedido que enviamos ao gerar o link. Quem decide o dono da conta é o pedido, nunca este aviso.
- */
-export function interpretarConexao(payload: unknown, pedidoId: string): EventoUnipile {
-  const p = objeto(payload);
-  if (!p) return { tipo: 'ignorar', motivo: 'payload_invalido' };
-  const status = texto(p.status).toUpperCase();
-  if (status !== 'CREATION_SUCCESS' && status !== 'RECONNECTED') return { tipo: 'ignorar', motivo: 'conexao_sem_efeito' };
-  const conta = texto(p.account_id);
-  if (!conta || texto(p.name) !== pedidoId) return { tipo: 'ignorar', motivo: 'payload_incompleto' };
-  return { tipo: 'conexao', pedidoId, conta };
-}
+const CANAL_POR_PROVEDOR: Record<string, Canal> = { whatsapp: 'whatsapp', linkedin: 'linkedin', instagram: 'instagram' };
 
-export function interpretar(payload: unknown): EventoUnipile {
-  const p = objeto(payload);
-  if (!p) return { tipo: 'ignorar', motivo: 'payload_invalido' };
+// O banco só guarda 3 estados. Eventos passageiros não mudam nada.
+const STATUS_POR_EVENTO: Record<string, StatusConexao> = {
+  'account.initial_sync.completed': 'connected',
+  'account.status.running': 'connected',
+  'account.status.disconnected': 'attention',
+  'account.status.errored': 'attention',
+  'account.remove': 'disconnected'
+};
 
-  // Status da conta: pode vir embrulhado em AccountStatus.
-  const st = objeto(p.AccountStatus) ?? (p.event === 'account_status' ? p : null);
-  if (st) {
-    const conta = texto(st.account_id);
-    const status = STATUS_POR_MENSAGEM[texto(st.message).toUpperCase()];
-    if (!conta) return { tipo: 'ignorar', motivo: 'payload_incompleto' };
-    return status ? { tipo: 'status', conta, status } : { tipo: 'ignorar', motivo: 'status_sem_efeito' };
+const semTags = (html: string) => html.replace(/<(style|script)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+
+/** Um evento do envelope v2 ({ id, type, account_id, payload }) vira uma ação nossa. Nunca estoura. */
+export function interpretar(evento: unknown): EventoUnipile {
+  const e = objeto(evento);
+  if (!e) return { tipo: 'ignorar', motivo: 'payload_invalido' };
+  const tipo = texto(e.type);
+  const conta = texto(e.account_id);
+  if (!tipo || !conta) return { tipo: 'ignorar', motivo: 'payload_incompleto' };
+  const payload = objeto(e.payload) ?? {};
+
+  if (tipo === 'account.add' || tipo === 'account.reconnect') {
+    const pedidoId = texto(payload.state);
+    return UUID.test(pedidoId) ? { tipo: 'conexao', pedidoId, conta } : { tipo: 'ignorar', motivo: 'conexao_sem_pedido' };
   }
 
-  const conta = texto(p.account_id);
-  if (!conta) return { tipo: 'ignorar', motivo: 'payload_incompleto' };
+  const status = STATUS_POR_EVENTO[tipo];
+  if (status) return { tipo: 'status', conta, status };
+  if (tipo.startsWith('account.')) return { tipo: 'ignorar', motivo: 'status_sem_efeito' };
 
-  if (p.event === 'new_relation') {
-    const identificadores = lista(p.user_public_identifier, p.user_profile_url, p.user_provider_id);
+  if (tipo === 'relation.new' || tipo === 'new_relation') {
+    const identificadores = lista(payload.public_identifier, payload.profile_url, payload.provider_id, payload.user_id,
+      payload.user_public_identifier, payload.user_profile_url, payload.user_provider_id);
     return identificadores.length ? { tipo: 'relacao', conta, identificadores } : { tipo: 'ignorar', motivo: 'payload_incompleto' };
   }
 
-  if (p.event === 'message_received') {
-    const canal = CANAL_POR_TIPO_DE_CONTA[texto(p.account_type).toLowerCase()];
-    if (!canal || canal === 'email') return { tipo: 'ignorar', motivo: 'canal_nao_suportado' };
+  if (tipo === 'email.new') {
+    // O payload traz o Email dentro de `email` (alguns envelopes trazem o Email direto no payload).
+    const email = objeto(payload.email) ?? (typeof payload.id === 'string' ? payload : null);
+    if (!email) return { tipo: 'ignorar', motivo: 'payload_incompleto' };
+    const emailId = texto(email.id);
+    const de = Array.isArray(email.from) ? objeto(email.from[0]) : objeto(email.from);
+    const remetente = texto(de?.email);
+    if (!emailId || !remetente) return { tipo: 'ignorar', motivo: 'payload_incompleto' };
+    // E-mail que o próprio titular enviou (eco do nosso envio) não é resposta de contato.
+    const titular = texto(e.account_name).toLowerCase();
+    if (titular && remetente.toLowerCase() === titular) return { tipo: 'ignorar', motivo: 'mensagem_propria' };
+    const assunto = texto(email.subject);
+    const corpo = texto(email.plain_text) || texto(email.body_plain) || semTags(texto(email.body)) || texto(email.snippet);
+    const junto = [assunto, corpo].filter(Boolean).join('\n\n').slice(0, LIMITE_TEXTO) || SEM_TEXTO;
+    // O id do e-mail só é único dentro da conta: prefixar evita colisão entre clientes (a coluna é única no banco inteiro).
+    return { tipo: 'mensagem', conta, canal: 'email', remetentes: [remetente], chat: texto(email.thread_id) || emailId, mensagemId: `${conta}:${emailId}`, texto: junto };
+  }
+  if (tipo === 'email.new.bounce') return { tipo: 'ignorar', motivo: 'email_devolvido_nao_tratado' };
+
+  if (tipo === 'message.new') {
+    const canal = CANAL_POR_PROVEDOR[(texto(e.account_provider) || texto(payload.account_provider)).toLowerCase()];
+    if (!canal) return { tipo: 'ignorar', motivo: 'canal_nao_suportado' };
     // Mensagem enviada pela própria pessoa (do celular, por exemplo) não é resposta de contato.
-    if (verdadeiro(p.is_sender)) return { tipo: 'ignorar', motivo: 'mensagem_propria' };
+    if (verdadeiro(payload.is_sender)) return { tipo: 'ignorar', motivo: 'mensagem_propria' };
+    if (verdadeiro(payload.is_event) || verdadeiro(payload.deleted)) return { tipo: 'ignorar', motivo: 'evento_sem_texto' };
     // Grupo nunca entra. Mais de 2 participantes também conta como grupo (na dúvida, descarta).
-    const participantes = Array.isArray(p.attendees) ? p.attendees.length : 0;
-    if (verdadeiro(p.is_group) || participantes > 2) return { tipo: 'ignorar', motivo: 'grupo' };
-    const s = objeto(p.sender) ?? {};
+    const participantes = Array.isArray(payload.attendees) ? payload.attendees.length : 0;
+    if (verdadeiro(payload.is_group) || participantes > 2) return { tipo: 'ignorar', motivo: 'grupo' };
     // No LinkedIn o CRM guarda o identificador público; nos demais, o id do provedor (telefone, @usuário).
     const remetentes = canal === 'linkedin'
-      ? lista(s.attendee_public_identifier, s.attendee_profile_url, s.attendee_provider_id)
-      : lista(s.attendee_provider_id, s.attendee_public_identifier);
-    const mensagemId = texto(p.message_id);
-    const chat = texto(p.chat_id);
+      ? lista(payload.sender_public_identifier, payload.sender_profile_url, payload.sender_id, payload.sender_provider_id)
+      : lista(payload.sender_id, payload.sender_provider_id);
+    const mensagemId = texto(payload.id) || texto(payload.message_id);
+    const chat = texto(payload.chat_id) || texto(payload.chat_provider_id);
     if (!remetentes.length || !mensagemId || !chat) return { tipo: 'ignorar', motivo: 'payload_incompleto' };
-    const corpo = texto(p.message).slice(0, LIMITE_TEXTO) || SEM_TEXTO;
-    // O id da mensagem só é único dentro da conta: prefixar evita colisão entre clientes (a coluna é única no banco inteiro).
+    const corpo = (texto(payload.text) || texto(payload.body)).slice(0, LIMITE_TEXTO) || SEM_TEXTO;
     return { tipo: 'mensagem', conta, canal, remetentes, chat, mensagemId: `${conta}:${mensagemId}`, texto: corpo };
-  }
-
-  if (p.event === 'mail_received') {
-    // E-mail que não está na caixa de entrada (enviados, rascunhos, lixo) não é resposta.
-    const pastas = Array.isArray(p.folders) ? p.folders.map(texto) : null;
-    if (pastas && !pastas.includes('INBOX')) return { tipo: 'ignorar', motivo: 'email_fora_da_caixa_de_entrada' };
-    const de = objeto(p.from_attendee) ?? {};
-    const remetentes = lista(de.identifier);
-    const emailId = texto(p.email_id);
-    if (!remetentes.length || !emailId) return { tipo: 'ignorar', motivo: 'payload_incompleto' };
-    const assunto = texto(p.subject);
-    const corpo = texto(p.body_plain) || texto(p.body);
-    const junto = [assunto, corpo].filter(Boolean).join('\n\n').slice(0, LIMITE_TEXTO) || SEM_TEXTO;
-    return { tipo: 'mensagem', conta, canal: 'email', remetentes, chat: texto(p.thread_id) || emailId, mensagemId: `${conta}:${emailId}`, texto: junto };
   }
 
   return { tipo: 'ignorar', motivo: 'evento_desconhecido' };

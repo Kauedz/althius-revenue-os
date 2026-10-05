@@ -1,27 +1,17 @@
 // Rota que a tela chama para conectar a PRÓPRIA conta de mensagem. O login da pessoa vai junto e é repassado ao banco:
 // quem confere "é você mesmo, no seu workspace, com permissão" é o Postgres (messaging_connect_start), não este código.
-import { createHmac, timingSafeEqual } from 'node:crypto';
-import { criarLinkHospedado, PROVEDORES, type ConfigUnipile, type ProvedorNosso } from './hospedado.ts';
+import { criarLinkHospedado, PROVEDORES, type ProvedorNosso } from './hospedado.ts';
+import type { ObterConfig } from '../unipile/config.ts';
 
 export interface DepsConexoes {
-  /** mesmo segredo do webhook: assina o endereço de retorno de cada pedido */
-  segredo: string;
   /** endereço público do sistema (SITE_URL) */
   siteUrl: string;
-  unipile: ConfigUnipile;
+  /** chave e endereço do canal, relidos a cada pedido (trocar a chave vale na hora) */
+  obterConfig: ObterConfig;
   baseBanco: string;
   chaveAnon: string;
   buscar?: typeof fetch;
   agora?: () => Date;
-}
-
-export const assinarPedido = (segredo: string, pedidoId: string): string => createHmac('sha256', segredo).update(pedidoId).digest('hex');
-
-export function assinaturaValida(segredo: string, pedidoId: string, recebida: string): boolean {
-  if (!segredo || !recebida) return false;
-  const a = Buffer.from(assinarPedido(segredo, pedidoId));
-  const b = Buffer.from(recebida);
-  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -35,8 +25,8 @@ export async function iniciarConexao(d: DepsConexoes, jwt: string, corpo: unknow
     || typeof c.provider !== 'string' || !PROVEDORES.includes(c.provider as ProvedorNosso)) {
     return resposta(400, { erro: 'pedido_invalido' });
   }
-  // Sem chave do provedor ou sem segredo, não há como conectar: avisa claro, sem simular.
-  if (!d.unipile.apiKey || !d.segredo) return resposta(503, { erro: 'conexao_indisponivel' });
+  // Sem chave do provedor não há como conectar: avisa claro, sem simular.
+  if (!d.obterConfig().apiKey) return resposta(503, { erro: 'conexao_indisponivel' });
 
   const r = await buscar(`${d.baseBanco.replace(/\/$/, '')}/rpc/messaging_connect_start`, {
     method: 'POST',
@@ -55,13 +45,11 @@ export async function iniciarConexao(d: DepsConexoes, jwt: string, corpo: unknow
   const site = d.siteUrl.replace(/\/$/, '');
   const agora = (d.agora ?? (() => new Date()))();
   try {
-    const url = await criarLinkHospedado(d.unipile, {
+    const url = await criarLinkHospedado(d.obterConfig, {
       tipo: pedido.type,
       provedor: c.provider as ProvedorNosso,
-      nome: pedido.request_id,
-      notifyUrl: `${site}/webhooks/unipile/conta?r=${pedido.request_id}&t=${assinarPedido(d.segredo, pedido.request_id)}`,
-      sucessoUrl: `${site}/#/inbox`,
-      falhaUrl: `${site}/#/inbox`,
+      pedidoId: pedido.request_id,
+      retornoUrl: `${site}/#/inbox`,
       expiraEm: new Date(agora.getTime() + 30 * 60_000),
       reconnectAccount: pedido.reconnect_account_id
     }, buscar);
