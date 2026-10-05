@@ -1163,19 +1163,34 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     return this.modoDemo === false ? [] : (AlthiusLogic.prototype as any).copHist.call(this);
   }
 
+  /** Pedido em andamento: repetir o mesmo texto reaproveita a chave, então nova tentativa não duplica nem cobra de novo. */
+  private copPedido: { texto: string; chave: string } | null = null;
+  private copEnviando = false;
+
   async pedirAoCopilotoReal(texto: string) {
+    if (this.copEnviando) return;
     const ws = this.workspaceAtual();
-    if (!ws?.membroId) return;
-    this.setState({ copTexto: '' });
-    const r = await pedirAoCopiloto(this.props.supabase, ws.uuid, ws.membroId, texto);
-    if (!this.vivo) return;
-    if (!r.ok) {
-      this.setState({ copTexto: texto });
-      return this.confirmar('Pedido não enviado', r.mensagem, 'Entendi', () => {});
+    if (!ws?.membroId) return this.confirmar('Pedido não enviado', 'Você não participa deste workspace como membro.', 'Entendi', () => {});
+    if (this.copPedido?.texto !== texto) this.copPedido = { texto, chave: crypto.randomUUID() };
+    this.copEnviando = true;
+    let r;
+    try {
+      r = await pedirAoCopiloto(this.props.supabase, ws.uuid, ws.membroId, texto, this.copPedido.chave);
+    } finally {
+      this.copEnviando = false;
     }
+    if (!this.vivo) return;
+    if (!r.ok) return this.confirmar('Pedido não enviado', r.mensagem, 'Entendi', () => {});
+    this.copPedido = null;
+    if (this.state.copTexto === texto) this.setState({ copTexto: '' });
     const slug = (this.state.rota || {}).ws;
-    this.confirmar('Pedido enviado ao Copiloto',
-      'O Hermes conferiu papel e créditos e colocou o pedido na fila. O plano e o resultado aparecem em Execuções.',
+    if (r.paraAprovacao) {
+      return this.confirmar('Pedido enviado para Aprovações',
+        (r.motivo || 'O pedido precisa de aprovação antes de rodar.') + ' Quem decide o gasto foi avisado.',
+        'Ver aprovações', () => { this.setState({ cop: false }); this.ir('app/' + slug + '/approvals'); });
+    }
+    this.confirmar('Pedido registrado na fila',
+      'O Hermes conferiu papel e créditos e registrou o pedido em Execuções. Ele ainda aguarda processamento: nada foi feito até agora.',
       'Ver execuções', () => { this.setState({ cop: false }); this.ir('app/' + slug + '/executions'); });
   }
 }
