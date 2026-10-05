@@ -1,6 +1,7 @@
 // Contas e leads: base qualificada do workspace no formato que a tela do v18 lê
 // (fonte/module.js -> ALTHIUS_MOD.accounts e ALTHIUS_COMITES).
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { lerCsv, normalizarDominio } from '../normalizacao';
 
 /** Pessoa do comitê de compras vinculada a uma conta. */
 export interface ContatoComiteTela {
@@ -235,4 +236,72 @@ export async function importarContas(
   }
 
   return data as ResultadoImportacao;
+}
+
+// ───────────────────────── Importação por CSV (base; ainda sem tela) ─────────────────────────
+
+export interface ResultadoLeituraContasCsv {
+  /** só as linhas boas, já com o site normalizado: é o que `importarContas` recebe */
+  contas: ContaImportacaoItem[];
+  /** uma frase por problema, apontando a linha do arquivo ("linha 4: site inválido") */
+  problemas: string[];
+}
+
+const CABECALHOS_NOME = ['nome', 'name'];
+const CABECALHOS_SITE = ['site', 'dominio', 'domain'];
+const CABECALHOS_UF = ['uf', 'estado'];
+const CABECALHOS_CIDADE = ['cidade'];
+
+// "Domínio" e "domínio " viram "dominio": minúsculas, sem acento e sem espaço nas pontas.
+const limparCabecalho = (texto: string) => texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
+/**
+ * Lê um CSV de contas (cabeçalhos `nome`/`name`, `dominio`/`site`/`domain`, `uf`/`estado`, `cidade`; separador `,` ou `;`).
+ * O site passa por `normalizarDominio` (igual ao banco). Linha com problema NÃO entra e o problema aponta a linha do arquivo.
+ * Nunca inventa dado: UF e cidade em branco ficam de fora. Quem importa de verdade é `importarContas` (o banco confere de novo).
+ */
+export function contasDeCsv(texto: string): ResultadoLeituraContasCsv {
+  const { linhas, aspasNaoFechadasNaLinha } = lerCsv(texto);
+  if (linhas.length === 0) return { contas: [], problemas: ['arquivo vazio'] };
+
+  const [cabecalho, ...registros] = linhas;
+  const nomes = cabecalho.celulas.map(limparCabecalho);
+  const colunaNome = nomes.findIndex(n => CABECALHOS_NOME.includes(n));
+  const colunaSite = nomes.findIndex(n => CABECALHOS_SITE.includes(n));
+  const colunaUf = nomes.findIndex(n => CABECALHOS_UF.includes(n));
+  const colunaCidade = nomes.findIndex(n => CABECALHOS_CIDADE.includes(n));
+
+  const problemas: string[] = [];
+  if (colunaNome < 0) problemas.push('cabeçalho: falta a coluna do nome (nome ou name)');
+  if (colunaSite < 0) problemas.push('cabeçalho: falta a coluna do site (site, dominio ou domain)');
+  if (aspasNaoFechadasNaLinha !== null) problemas.push(`linha ${aspasNaoFechadasNaLinha}: aspas sem fechar`);
+  if (colunaNome < 0 || colunaSite < 0) return { contas: [], problemas };
+
+  const contas: ContaImportacaoItem[] = [];
+  for (const { numero, celulas } of registros) {
+    const valor = (coluna: number) => (coluna >= 0 ? (celulas[coluna] ?? '').trim() : '');
+    const nome = valor(colunaNome);
+    const site = valor(colunaSite);
+    const uf = valor(colunaUf);
+    const cidade = valor(colunaCidade);
+    const doLinha: string[] = [];
+
+    if (nome === '') doLinha.push('nome em branco');
+    if (site === '') doLinha.push('site em branco');
+    else if (normalizarDominio(site) === null) doLinha.push('site inválido');
+    if (uf !== '' && !/^[A-Za-z]{2}$/.test(uf)) doLinha.push('UF inválida (use a sigla com 2 letras)');
+
+    if (doLinha.length > 0) {
+      problemas.push(...doLinha.map(p => `linha ${numero}: ${p}`));
+      continue;
+    }
+
+    const conta: ContaImportacaoItem = { name: nome, domain: normalizarDominio(site) as string };
+    if (uf !== '') conta.state_uf = uf.toUpperCase();
+    if (cidade !== '') conta.city = cidade;
+    contas.push(conta);
+  }
+
+  if (registros.length === 0) problemas.push('nenhuma conta no arquivo');
+  return { contas, problemas };
 }
