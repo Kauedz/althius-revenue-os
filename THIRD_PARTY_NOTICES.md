@@ -228,3 +228,72 @@ Copyright 2026 Block, Inc.
    See the License for the specific language governing permissions and
    limitations under the License.
 ```
+
+## 2. Twenty - normalização de domínio, e-mail e CSV (TypeScript)
+
+| Campo | Valor |
+|---|---|
+| Projeto | Twenty - https://github.com/twentyhq/twenty |
+| Pacote de origem | `packages/twenty-shared` (campo `license` do `package.json`: `MIT`; arquivo `LICENSE` na raiz do pacote) |
+| Commit | `fa512ae4d42d45d05e8907211709e9d614f447b7` |
+| Licença | MIT |
+| Copyright | Copyright (c) 2023-present Twenty.com, PBC |
+| Destino | `src/app/normalizacao.ts` (testes: `src/app/normalizacao.test.ts` e `src/app/normalizacao.banco.test.ts`) |
+
+**Conferência de licença (feita no commit acima, arquivo por arquivo):** nenhum dos arquivos abaixo tem `@license` (nem `@license Enterprise`) e o pacote `twenty-shared` é MIT. Nada fora de `twenty-shared` foi copiado.
+
+**Arquivos portados** (todos em `packages/twenty-shared/src/`):
+
+| Origem | Vira (em `normalizacao.ts`) |
+|---|---|
+| `utils/url/normalizeDomain.ts` | `normalizarDominio` |
+| `utils/url/isValidDomain.ts` | `dominioValido` |
+| `utils/url/isValidHostname.ts` | `hostnameValido` (interna) |
+| `utils/url/getUrlHostnameOrThrow.ts` | `hostDaUrl` |
+| `utils/url/absoluteUrlSchema.ts` | `urlAbsolutaOuNulo` (interna, sem `zod`) |
+| `utils/url/ensureAbsoluteUrl.ts` | `garantirUrlAbsoluta` (interna) |
+| `utils/url/normalizeUrl.ts` | `normalizarUrl` |
+| `utils/url/normalizeUrlOrigin.ts` | `tirarBarraFinal` (interna) |
+| `utils/getUrlSafely.ts` | usado dentro de `tirarBarraFinal` |
+| `utils/email/formatEmailAddress.ts` | `formatarEmail` (sem `@sniptt/guards`) |
+| `utils/email/parseEmailAddressList.ts` | `lerListaDeEmails` (**só o contrato**; ver abaixo) |
+| `utils/csv/formatValueForCSV.ts` | `valorParaCsv` (sem `@sniptt/guards`) |
+| `utils/csv/sanitizeValueForCSVExport.ts` | `higienizarValorCsv` |
+| `constants/CsvDangerousCharacters.ts` | constante interna do CSV |
+| `constants/CsvInjectionPreventionZwj.ts` | constante interna do CSV |
+
+**O que foi adaptado:**
+
+- Nomes em português; o nome original fica em comentário de origem em cada função.
+- `zod` e `@sniptt/guards` trocados por checagens simples (`typeof`): nenhuma dependência nova.
+- `lerListaDeEmails`: o original usa o pacote `addressparser`. Em vez de instalar uma dependência, foi escrito um leitor próprio (sem copiar código do `addressparser`) que cumpre o mesmo contrato (lista com `,` ou `;`, nome entre aspas, grupos achatados) e é testado com os mesmos casos dos testes do Twenty. Diferença conhecida: o `addressparser` perde uma barra invertida dupla ao reler um nome; o nosso devolve o nome exato.
+- `normalizarDominio` devolve `null` quando o texto não é um domínio de empresa (vazio, `localhost`, IP, sem terminação), igual à função `public.normalize_domain` do banco. O original devolve o texto como veio.
+- `normalizarDominio` também troca `\` por `/` antes de separar o caminho e aceita `//site.com` (sem protocolo), como a função do banco faz.
+- `garantirUrlAbsoluta` reconhece `http://` e `https://` em qualquer combinação de maiúsculas e minúsculas (o original só reconhece `http://`, `https://`, `HTTP://` e `HTTPS://`).
+- Não portados: `getAbsoluteUrlOrThrow`, `getSafeUrl`, `isSafeUrl`, `buildSignedPath`, `normalizeAllowedIframeOrigin`, `safeDecodeURIComponent` e tudo de `email/` ligado a contas conectadas.
+
+### Texto da licença (MIT, copiado do `LICENSE` de `packages/twenty-shared` no commit acima)
+
+```text
+MIT License
+
+Copyright (c) 2023-present Twenty.com, PBC
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
