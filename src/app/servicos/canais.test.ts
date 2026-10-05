@@ -27,7 +27,7 @@ describe.skipIf(!bancoLocalNoAr)('Canais (banco local)', () => {
 
   it('mensagens vêm no formato da tela, com agente e autor', async () => {
     const msgs = await lerMensagens(await entrarComoLocal('lucas@evolut.com.br'), EVOLUT, 'sinais-de-compra', LUCAS);
-    expect(msgs[0]).toMatchObject({ autor: 'Agente Comercial', sigla: 'CO', agente: true });
+    expect(msgs[0]).toMatchObject({ autor: 'Zoe', sigla: 'ZO', agente: true });
     expect(msgs.find(m => m.autor === 'Lucas Teixeira')).toMatchObject({ texto: 'Perfeito. Sobe para a cadência T1 hoje à tarde.', agente: false, sigla: 'LT' });
   });
 
@@ -35,9 +35,9 @@ describe.skipIf(!bancoLocalNoAr)('Canais (banco local)', () => {
     const lucas = await entrarComoLocal('lucas@evolut.com.br');
     expect(await criarCanal(lucas, EVOLUT, LUCAS, { nome: SLUG, desc: 'teste', pessoas: [BRUNA], agentes: ['comercial'] })).toEqual({ ok: true, slug: SLUG });
     expect(await enviarNoCanal(lucas, EVOLUT, LUCAS, SLUG, 'Bom dia', null, null)).toEqual({ ok: true });
-    expect(await enviarNoCanal(lucas, EVOLUT, LUCAS, SLUG, '@Agente Comercial ajuda?', null, 'comercial')).toEqual({ ok: true });
+    expect(await enviarNoCanal(lucas, EVOLUT, LUCAS, SLUG, '@Zoe ajuda?', null, 'comercial')).toEqual({ ok: true });
     let msgs = await lerMensagens(lucas, EVOLUT, SLUG, LUCAS);
-    expect(msgs.at(-1)).toMatchObject({ autor: 'Althius', texto: 'Pedido enviado ao Agente Comercial. A resposta chega aqui quando ele terminar.' });
+    expect(msgs.at(-1)).toMatchObject({ autor: 'Althius', texto: 'Pedido enviado para Zoe. A resposta chega aqui quando terminar.' });
     const minha = msgs.find(m => m.texto === 'Bom dia')!;
     expect(await editarMensagem(lucas, EVOLUT, LUCAS, minha.id, 'Bom dia, Bruna')).toEqual({ ok: true });
     const bruna = await entrarComoLocal('bruna@evolut.com.br');

@@ -32,6 +32,7 @@ import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla 
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
 import { listarProspeccao, prospeccaoSemDados, type ProspeccaoTela } from './servicos/prospeccao';
+import { nomeDoAgente } from './agentes-exibicao';
 
 export interface AlthiusAppProps {
   dados: DadosAlthius;
@@ -912,7 +913,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     mod.inbox.linhas = caixa ? caixa.linhas : [];
     // "Criar tarefa" volta quando Tarefas estiver ligada aqui; nada de botão que não faz nada.
     mod.inbox.acoesLinha = caixa ? [
-      ['Sugerir resposta', 'Pedido enviado ao Agente de Copy. A sugestão aparece em Execuções.'],
+      ['Sugerir resposta', `Pedido enviado para ${nomeDoAgente('copy')}. A sugestão aparece em Execuções.`],
       ['Excluir contato do CRM', 'Contato excluído do CRM. A Althius parou de receber as mensagens dele.', null, true,
         '{x} sai do CRM. As mensagens dele param de entrar na Caixa de entrada na hora, e as conversas que já tinham entrado saem junto.']
     ] : [];
@@ -946,7 +947,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (acao === 'Sugerir resposta') {
       const r = await pedirSugestaoDeResposta(this.props.supabase, ws.uuid, ws.membroId, id);
       if (!r.ok) return this.confirmar('Pedido não enviado', r.mensagem, 'Entendi', () => {});
-      this.avisar('mod', 'Pedido enviado ao Agente de Copy. A sugestão aparece em Execuções.');
+      this.avisar('mod', `Pedido enviado para ${nomeDoAgente('copy')}. A sugestão aparece em Execuções.`);
       return;
     }
     if (acao === 'Excluir contato do CRM') {
@@ -1102,8 +1103,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   async enviarNoCanalReal(canal: CanalTela, texto: string) {
     const ws = this.workspaceAtual();
     if (!ws?.membroId) return;
-    const nomes: Record<string, string> = { comercial: 'Agente Comercial', marketing: 'Agente de Marketing', copy: 'Agente de Copy', revops: 'Agente de RevOps' };
-    const citado = /@/.test(texto) ? (canal.agentes.find(a => texto.includes('@' + nomes[a])) || canal.agentes[0] || null) : null;
+    const citado = /@/.test(texto) ? (canal.agentes.find(a => texto.includes('@' + nomeDoAgente(a))) || canal.agentes[0] || null) : null;
     const resposta = this.state.respondendo ? { autor: this.state.respondendo, texto: this.state.respondendoTexto || '' } : null;
     this.setState({ canalTexto: '', respondendo: null });
     const r = await enviarNoCanal(this.props.supabase, ws.uuid, ws.membroId, canal.id, texto, resposta, citado);

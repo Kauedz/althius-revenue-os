@@ -96,8 +96,8 @@ describe('listarRelatorios (unitário / mapeamento)', () => {
     expect(relatorio.cadencias[0]).toMatchObject({ nome: 'Importadores', contatos: '10 contatos', resposta: '40%' });
     expect(relatorio.canais[0]).toMatchObject({ nome: 'LinkedIn Ads', leads: '12 leads', inv: SEM_DADOS, cpl: SEM_DADOS });
     expect(relatorio.creditos.map(c => c.usd).every(u => u === '')).toBe(true);
-    expect(relatorio.creditos.find(c => c.nome === 'Agente Comercial')?.creditos).toBe('10');
-    expect(relatorio.creditos.find(c => c.nome === 'Agente de Copy')?.creditos).toBe('5');
+    expect(relatorio.creditos.find(c => c.nome === 'Zoe')?.creditos).toBe('10');
+    expect(relatorio.creditos.find(c => c.nome === 'Lia')?.creditos).toBe('5');
     expect(relatorio.custoReuniao).toBe(SEM_DADOS);
     expect(relatorio.linhas[0].nome).toBe(SEM_DADOS);
     const entrada = relatorio.etapas.find(e => e.nome === 'Prospecção');
@@ -139,10 +139,10 @@ describe.skipIf(!bancoLocalNoAr)('Relatórios (banco local)', () => {
     const relatorio = await listarRelatorios(await entrarComoLocal('aline@evolut.com.br'), EVOLUT);
     const texto = JSON.stringify(relatorio);
     expect(texto).not.toMatch(/US\$|4,8 mi|1\.304/);
-    expect(relatorio.creditos.find(c => c.nome === 'Agente Comercial')?.creditos).toBe('1.540');
-    expect(relatorio.creditos.find(c => c.nome === 'Agente de Copy')?.creditos).toBe('310');
-    expect(relatorio.creditos.find(c => c.nome === 'Agente de Marketing')?.creditos).toBe('120');
-    expect(relatorio.creditos.find(c => c.nome === 'Agente de RevOps')?.creditos).toBe('80');
+    expect(relatorio.creditos.find(c => c.nome === 'Zoe')?.creditos).toBe('1.540');
+    expect(relatorio.creditos.find(c => c.nome === 'Lia')?.creditos).toBe('310');
+    expect(relatorio.creditos.find(c => c.nome === 'Jax')?.creditos).toBe('120');
+    expect(relatorio.creditos.find(c => c.nome === 'Neo')?.creditos).toBe('80');
     expect(relatorio.creditos.every(c => c.usd === '')).toBe(true);
     expect(relatorio.kpis.find(k => k.label === 'Pipeline em aberto')?.valor).toBe('R$ 0,00');
     expect(relatorio.funil.find(f => f.label === 'Contas qualificadas')?.n).toBe('8');
@@ -163,6 +163,6 @@ describe.skipIf(!bancoLocalNoAr)('Relatórios (banco local)', () => {
 
   it('BDR lê os relatórios do próprio workspace', async () => {
     const relatorio = await listarRelatorios(await entrarComoLocal('lucas@evolut.com.br'), EVOLUT);
-    expect(relatorio.creditos.find(c => c.nome === 'Agente Comercial')?.creditos).toBe('1.540');
+    expect(relatorio.creditos.find(c => c.nome === 'Zoe')?.creditos).toBe('1.540');
   });
 });

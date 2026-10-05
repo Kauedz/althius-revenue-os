@@ -23,7 +23,7 @@ SELECT set_eq(
   'Estrategista e os dois C-level da Evolut são avisados');
 SELECT ok(NOT EXISTS (SELECT 1 FROM avisados WHERE membro = 'd0000000-0000-0000-0000-000000000004'), 'BDR não é avisado (não decide operação)');
 SELECT ok(NOT EXISTS (SELECT 1 FROM avisados WHERE workspace_id <> 'a0000000-0000-0000-0000-000000000001'), 'Ninguém de outro workspace é avisado');
-SELECT ok((SELECT bool_and(type = 'approval_required' AND title = 'Agente Comercial pede aprovação: Atualizar cargo de Aline Xavier (Serra Azul Têxtil)') FROM avisados),
+SELECT ok((SELECT bool_and(type = 'approval_required' AND title = 'Zoe pede aprovação: Atualizar cargo de Aline Xavier (Serra Azul Têxtil)') FROM avisados),
   'Aviso diz qual agente pede e o quê');
 
 -- Repetir a mesma proposta (idempotente) não avisa de novo.
