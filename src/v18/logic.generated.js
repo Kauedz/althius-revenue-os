@@ -971,7 +971,7 @@ export class AlthiusLogic extends React.Component {
     const pf = st.perfil || {}, sn = st.senha || {};
     const forca = s => !s ? 'Mínimo de 8 caracteres, com letras e números.' : s.length < 8 ? 'Muito curta' : /[0-9]/.test(s) && /[a-zA-Z]/.test(s) ? (s.length >= 12 ? 'Senha forte' : 'Senha boa') : 'Use letras e números';
     const setSn = o => this.setState({ senha: Object.assign({}, this.state.senha, o) }), setPf = o => this.setState({ perfil: Object.assign({}, this.state.perfil, o) });
-    v.conta = { nome: pf.nome !== undefined ? pf.nome : U.usuario, cargo: pf.cargo !== undefined ? pf.cargo : U.label, fone: pf.fone || '',
+    v.conta = { nome: pf.nome !== undefined ? pf.nome : U.usuario, cargo: pf.cargo !== undefined ? pf.cargo : (this.modoDemo === false ? '' : U.label), fone: pf.fone || '',
       mudarNome: e => setPf({ nome: e.target.value }), mudarCargo: e => setPf({ cargo: e.target.value }), mudarFone: e => setPf({ fone: e.target.value }),
       salvar: () => this.modoDemo === false ? this.salvarMinhaContaReal() : this.avisarCfg('Dados salvos.'),
       trocarFoto: e => { const f = e.target.files && e.target.files[0]; if (!f) return; if (this.modoDemo === false) return this.trocarFotoReal(f); if (f.size > 2 * 1024 * 1024) { this.avisarCfg('A foto passa de 2 MB. Escolha uma menor.'); return; }
