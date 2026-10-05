@@ -403,6 +403,45 @@ export const PATCHES = [
     aplicar: renomearAgentes(`agentes: nomes de exibição (${arquivo})`)
   })),
 
+  // ---- Início sem dado inventado (modo real): o mapa usa as contas do banco.
+  // O protótipo tinha uma distribuição fixa por estado, filtros de "30/60 dias" que aplicavam 36% e 61% sobre ela,
+  // "27 estados" e "contas sem endereço" fixos. No banco só existe a contagem por estado (não há data de sinal).
+  {
+    regra: 'início real: o mapa não usa período inventado',
+    arquivo: 'logic.generated.js',
+    trocar: "const per = st.mapaPer || '30', uSel",
+    por: "const per = this.modoDemo === false ? 'tudo' : (st.mapaPer || '30'), uSel"
+  },
+  {
+    regra: 'início real: o mapa conta as contas do banco por estado',
+    arquivo: 'logic.generated.js',
+    trocar: 'const n = MAPA_DIST[u.uf] || 0;',
+    por: 'const n = (this.modoDemo === false ? ((h && h.mapa) || {}) : MAPA_DIST)[u.uf] || 0;'
+  },
+  {
+    regra: 'início real: o mapa diz quantos estados têm conta de verdade',
+    arquivo: 'logic.generated.js',
+    trocar: "' · 27 estados';",
+    por: "' · ' + (this.modoDemo === false ? MAPA_UFS.filter(u => cont[u.uf] > 0).length : 27) + ' estados';"
+  },
+  {
+    regra: 'início real: contas sem endereço vêm do banco',
+    arquivo: 'logic.generated.js',
+    trocar: "m.semLocal = per === '30' ? 5 : per === '60' ? 9 : 14;",
+    por: "m.semLocal = this.modoDemo === false ? ((h && h.semLocalizacao) || 0) : (per === '30' ? 5 : per === '60' ? 9 : 14);"
+  },
+  {
+    regra: 'início real: sem seletor de período do mapa (não há data de sinal no banco)',
+    arquivo: 'template.generated.tsx',
+    aplicar: texto => {
+      const abre = '<div className={"seg seg-li"} role="radiogroup" aria-label="Período do mapa">';
+      const inicio = texto.indexOf(abre);
+      const fim = texto.indexOf('</div>', inicio) + '</div>'.length;
+      if (inicio < 0 || texto.indexOf(abre, inicio + 1) >= 0 || fim < inicio + abre.length) throw new Error('Regra "período do mapa": estrutura do bloco mudou.');
+      return texto.slice(0, inicio) + '{$v.modoDemo !== false ? (' + texto.slice(inicio, fim) + ') : null}' + texto.slice(fim);
+    }
+  },
+
   // ---- Relatórios, Sinais e Prospecção (Grok)
   // Relatórios, no modo real, troca os números na própria tela (AlthiusApp).
   // Sem patch no arquivo gerado. Sinais e Prospecção entram nesta seção depois.

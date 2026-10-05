@@ -1053,9 +1053,9 @@ export class AlthiusLogic extends React.Component {
     const opHref = ['executions','campaigns','cadences','agents','executions'];
     // MAPA DE CONTAS
     {
-      const per = st.mapaPer || '30', uSel = st.mapaUf || null, reg = st.mapaReg || 'Brasil';
+      const per = this.modoDemo === false ? 'tudo' : (st.mapaPer || '30'), uSel = st.mapaUf || null, reg = st.mapaReg || 'Brasil';
       const fr = per === '30' ? 0.36 : per === '60' ? 0.61 : 1;
-      const cont = {}; MAPA_UFS.forEach(u => { const n = MAPA_DIST[u.uf] || 0; cont[u.uf] = fr === 1 ? n : Math.max(n > 0 ? 1 : 0, Math.round(n * fr)); });
+      const cont = {}; MAPA_UFS.forEach(u => { const n = (this.modoDemo === false ? ((h && h.mapa) || {}) : MAPA_DIST)[u.uf] || 0; cont[u.uf] = fr === 1 ? n : Math.max(n > 0 ? 1 : 0, Math.round(n * fr)); });
       const total = Object.keys(cont).reduce((s, k) => s + cont[k], 0), max = Math.max.apply(null, Object.keys(cont).map(k => cont[k]));
       const passo = n => n <= 0 ? 0 : n <= max * 0.06 ? 1 : n <= max * 0.18 ? 2 : n <= max * 0.45 ? 3 : 4;
       const pct = (x, y) => ({ x: ((x - MAPA_VB[0]) / MAPA_VB[2] * 100).toFixed(2) + '%', y: ((y - MAPA_VB[1]) / MAPA_VB[3] * 100).toFixed(2) + '%' });
@@ -1071,9 +1071,9 @@ export class AlthiusLogic extends React.Component {
       MAPA_UFS.forEach(u => { m.f[u.uf] = 'var(--mapa-' + passo(cont[u.uf]) + ')'; m.s[u.uf] = uSel === u.uf ? 'true' : 'false'; m.x[u.uf] = vis(u.uf) ? 'false' : 'true';
         m.l[u.uf] = u.nome + ': ' + cont[u.uf] + (cont[u.uf] === 1 ? ' conta' : ' contas'); m.c[u.uf] = selUf(u.uf); });
       m.periodos = [['30', '30 dias'], ['60', '60 dias'], ['tudo', 'Todas']].map(([id, label]) => ({ label, ativo: per === id ? 'true' : 'false', escolher: () => this.setState({ mapaPer: id }) }));
-      m.resumo = total.toLocaleString('pt-BR') + ' contas com localização' + (per === 'tudo' ? '' : ' e sinal nos últimos ' + per + ' dias') + ' · 27 estados';
+      m.resumo = total.toLocaleString('pt-BR') + ' contas com localização' + (per === 'tudo' ? '' : ' e sinal nos últimos ' + per + ' dias') + ' · ' + (this.modoDemo === false ? MAPA_UFS.filter(u => cont[u.uf] > 0).length : 27) + ' estados';
       m.maxTexto = max.toLocaleString('pt-BR');
-      m.semLocal = per === '30' ? 5 : per === '60' ? 9 : 14;
+      m.semLocal = this.modoDemo === false ? ((h && h.semLocalizacao) || 0) : (per === '30' ? 5 : per === '60' ? 9 : 14);
       m.bolhas = MAPA_UFS.filter(u => cont[u.uf] > 0).map(u => { const p = pct(u.cx, u.cy), n = cont[u.uf], r = Math.round(20 + Math.sqrt(n / max) * 22);
         return { x: p.x, y: p.y, r: r + 'px', n, sel: uSel === u.uf ? 'true' : 'false', dim: vis(u.uf) ? 'false' : 'true', rotulo: u.nome + ', ' + n + ' contas. Ver contas do estado', selecionar: selUf(u.uf) }; });
       m.pins = contas.filter(c => MAPA_GEO[c.id] && MAPA_GEO[c.id][2] <= diasMax && (COM[c.id] || []).length).map(c => { const g = MAPA_GEO[c.id], xy = proj(g[0], g[1]), p = pct(xy[0], xy[1]);

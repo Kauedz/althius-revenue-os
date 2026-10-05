@@ -584,7 +584,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const ws = this.workspaceAtual();
     if (!ws?.membroId) {
       // Sem membro não há o que mostrar: nunca os números do protótipo.
-      return Promise.resolve({ kpis: [], operacao: [], acoes: [], timeline: [] } as unknown as HomeResumoTela);
+      return Promise.resolve({ kpis: [], operacao: [], acoes: [], timeline: [], mapa: {}, semLocalizacao: 0 });
     }
     return obterResumoHome(this.props.supabase, ws.uuid, ws.membroId);
   }
