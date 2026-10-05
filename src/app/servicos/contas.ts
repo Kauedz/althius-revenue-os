@@ -159,6 +159,8 @@ export interface ResultadoImportacao {
   total: number;
   criadas: number;
   duplicadas: number;
+  /** sem site ou com site que não é domínio: não entram */
+  invalidas?: number;
 }
 
 export async function criarConta(
