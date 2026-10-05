@@ -24,6 +24,14 @@
 		reverse_proxy storage:5000
 	}
 
+	# Webhooks da Unipile. O segredo (cabeçalho Unipile-Auth) é conferido pelo próprio receptor.
+	handle /webhooks/unipile {
+		request_body {
+			max_size 1MB
+		}
+		reverse_proxy webhooks:3100
+	}
+
 	# Página de definir senha (link do criar-superadmin e dos convites). Fica fora do front gerado.
 	handle /definir-senha* {
 		root * /srv

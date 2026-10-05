@@ -138,6 +138,27 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     networks: [interna]
 
+  # Receptor de webhooks da Unipile (mensagens, e-mails, status de conexão). Só o Caddy fala com ele (/webhooks/unipile).
+  webhooks:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.webhooks
+    restart: unless-stopped
+    depends_on:
+      rest:
+        condition: service_started
+    environment:
+      BANCO_URL: http://rest:3000
+      SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      # Vazio = recusa todo webhook (401) até configurar. Gerado por "npm run docker:env".
+      UNIPILE_WEBHOOK_SECRET: ${UNIPILE_WEBHOOK_SECRET:-}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3100/saude"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [interna]
+
   # Backup agendado do banco e dos arquivos, em ./backups (copie para fora do servidor).
   backup:
     image: supabase/postgres:17.11.0.002
@@ -170,6 +191,8 @@ services:
       migrar:
         condition: service_completed_successfully
       rest:
+        condition: service_started
+      webhooks:
         condition: service_started
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-${SITE_URL}}
