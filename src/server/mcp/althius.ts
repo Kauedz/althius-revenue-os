@@ -1,7 +1,7 @@
 // Servidor MCP da Althius: o único caminho do Hermes Agent até os dados (ADR 0024).
 // Não recebe workspace em nenhuma ferramenta; o token do agente decide tudo no banco.
 import { McpServer, fromJsonSchema, type CallToolResult } from '@modelcontextprotocol/server';
-import type { FerramentasAgente, PedidoInscricao, PedidoProposta, PedidoTarefa, TarefaAgente } from './ferramentas';
+import type { FerramentasAgente, NegocioAgente, PedidoInscricao, PedidoMoverNegocio, PedidoNegocio, PedidoProposta, PedidoTarefa, TarefaAgente } from './ferramentas';
 
 const nada = fromJsonSchema<Record<string, never>>({ type: 'object', properties: {}, additionalProperties: false });
 
@@ -45,6 +45,38 @@ const pedidoInscricao = fromJsonSchema<PedidoInscricao>({
     motivo: { type: 'string', description: 'por que este contato deve entrar nesta cadência, em uma frase' }
   },
   required: ['cadencia_id', 'contato_id', 'motivo'],
+  additionalProperties: false
+});
+
+const filtroNegocios = fromJsonSchema<{ status?: NegocioAgente['status'] }>({
+  type: 'object',
+  properties: { status: { type: 'string', enum: ['ativa', 'ganho', 'perdido', 'arquivada'], description: 'só os negócios neste status (padrão: ativa)' } },
+  additionalProperties: false
+});
+
+const pedidoNegocio = fromJsonSchema<PedidoNegocio>({
+  type: 'object',
+  properties: {
+    quadro_id: { type: 'string', description: 'id do quadro, como veio em listar_quadros' },
+    conta_id: { type: 'string', description: 'id da conta, como veio em listar_contas' },
+    responsavel_id: { type: 'string', description: 'id do membro responsável, como veio em listar_membros' },
+    valor_reais: { type: 'number', minimum: 0, description: 'valor do negócio em reais' },
+    etapa: { type: 'string', description: 'etapa inicial, uma das etapas do quadro, exceto ganho (padrão: entrada)' },
+    fecha_em: { type: 'string', description: 'data prevista de fechamento, AAAA-MM-DD (opcional)' },
+    motivo: { type: 'string', description: 'por que este negócio faz sentido, em uma frase' }
+  },
+  required: ['quadro_id', 'conta_id', 'responsavel_id', 'valor_reais', 'motivo'],
+  additionalProperties: false
+});
+
+const pedidoMoverNegocio = fromJsonSchema<PedidoMoverNegocio>({
+  type: 'object',
+  properties: {
+    negocio_id: { type: 'string', description: 'id do negócio, como veio em listar_negocios' },
+    etapa: { type: 'string', description: 'etapa de destino, uma das etapas do quadro do negócio' },
+    motivo: { type: 'string', description: 'por que o negócio mudou de etapa, em uma frase' }
+  },
+  required: ['negocio_id', 'etapa', 'motivo'],
   additionalProperties: false
 });
 
@@ -98,6 +130,10 @@ export function criarServidorAlthius(ferramentas: FerramentasAgente): McpServer 
   leitura('listar_tarefas', 'Lista as tarefas do cliente (até 200, por prazo). Só leitura.', filtroTarefas, a => ferramentas.listarTarefas(a?.status));
   leitura('listar_cadencias', 'Lista as cadências ativas do cliente, com número de passos e créditos que cada contato pode gastar. Só leitura.', nada, () => ferramentas.listarCadencias());
 
+  leitura('listar_contas', 'Lista as contas (empresas) do cliente, com id, domínio e responsável (até 500). Só leitura.', nada, () => ferramentas.listarContas());
+  leitura('listar_quadros', 'Lista os quadros do pipeline do cliente, com as etapas de cada um. Só leitura.', nada, () => ferramentas.listarQuadros());
+  leitura('listar_negocios', 'Lista os negócios do pipeline (até 200, mais novos primeiro), com etapa, valor em reais e chance. Só leitura.', filtroNegocios, a => ferramentas.listarNegocios(a?.status));
+
   // Propostas: nunca alteram nada. Viram aprovação; gasto só o C-level aprova.
   const proposta = (nome: string, descricao: string, inputSchema: any, propor: (a: any) => Promise<import('./ferramentas').ResultadoProposta>, aviso: string) =>
     servidor.registerTool(nome, { description: descricao, inputSchema, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } }, async (a: any): Promise<CallToolResult> => {
@@ -113,6 +149,11 @@ export function criarServidorAlthius(ferramentas: FerramentasAgente): McpServer 
     a => ferramentas.proporTarefa(a), 'Proposta de tarefa registrada e aguardando aprovação de uma pessoa. Nenhuma tarefa foi criada ainda.');
   proposta('propor_inscricao_cadencia', 'Propõe inscrever um contato numa cadência. NÃO inscreve ninguém: vira uma aprovação. Cadência com envio automático gasta créditos, e só o C-level aprova gasto.', pedidoInscricao,
     a => ferramentas.proporInscricao(a), 'Proposta de inscrição registrada e aguardando aprovação de uma pessoa. Ninguém foi inscrito ainda.');
+
+  proposta('propor_negocio', 'Propõe criar um negócio no pipeline. NÃO cria nada: vira uma aprovação para uma pessoa decidir.', pedidoNegocio,
+    a => ferramentas.proporNegocio(a), 'Proposta de negócio registrada e aguardando aprovação de uma pessoa. Nenhum negócio foi criado ainda.');
+  proposta('propor_mover_negocio', 'Propõe mudar um negócio de etapa. NÃO move nada: vira uma aprovação para uma pessoa decidir.', pedidoMoverNegocio,
+    a => ferramentas.proporMoverNegocio(a), 'Proposta de mudança de etapa registrada e aguardando aprovação de uma pessoa. O negócio não mudou ainda.');
 
   return servidor;
 }

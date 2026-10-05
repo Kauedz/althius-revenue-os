@@ -63,7 +63,46 @@ export interface PedidoInscricao {
   motivo: string;
 }
 
+export interface ContaAgente { id: string; nome: string; dominio: string | null; segmento: string | null; responsavel_id: string | null }
+export interface QuadroAgente { id: string; nome: string; motion: string; etapas: string[] }
+
+export interface NegocioAgente {
+  id: string;
+  titulo: string;
+  quadro_id: string;
+  quadro: string;
+  etapa: string;
+  valor_reais: number;
+  fecha_em: string | null;
+  chance: number;
+  saude: string;
+  status: 'ativa' | 'ganho' | 'perdido' | 'arquivada';
+  responsavel_id: string | null;
+  conta_id: string;
+}
+
+export interface PedidoNegocio {
+  quadro_id: string;
+  conta_id: string;
+  responsavel_id: string;
+  valor_reais: number;
+  etapa?: string;
+  fecha_em?: string;
+  motivo: string;
+}
+
+export interface PedidoMoverNegocio {
+  negocio_id: string;
+  etapa: string;
+  motivo: string;
+}
+
 export interface FerramentasAgente {
+  listarContas(): Promise<ContaAgente[]>;
+  listarQuadros(): Promise<QuadroAgente[]>;
+  listarNegocios(status?: NegocioAgente['status']): Promise<NegocioAgente[]>;
+  proporNegocio(pedido: PedidoNegocio): Promise<ResultadoProposta>;
+  proporMoverNegocio(pedido: PedidoMoverNegocio): Promise<ResultadoProposta>;
   buscarContatos(): Promise<ContatoAgente[]>;
   proporAtualizacao(pedido: PedidoProposta): Promise<ResultadoProposta>;
   listarMembros(): Promise<MembroAgente[]>;
@@ -160,6 +199,58 @@ export function ferramentasDoAgente(cliente: SupabaseClient, token: string): Fer
       if (error) {
         if (error.code === '22P02') return { ok: false, erro: 'Cadência ou contato não encontrado neste workspace.' };
         throw erroDoBanco(error, 'Não foi possível registrar a proposta de inscrição.');
+      }
+      return data as ResultadoProposta;
+    },
+
+    async listarContas() {
+      const { data, error } = await cliente.rpc('agent_list_accounts', { p_token: token });
+      if (error) throw erroDoBanco(error, 'Não foi possível ler as contas do workspace.');
+      return (data || []) as ContaAgente[];
+    },
+
+    async listarQuadros() {
+      const { data, error } = await cliente.rpc('agent_list_pipelines', { p_token: token });
+      if (error) throw erroDoBanco(error, 'Não foi possível ler os quadros do workspace.');
+      return (data || []) as QuadroAgente[];
+    },
+
+    async listarNegocios(status) {
+      const { data, error } = await cliente.rpc('agent_list_deals', { p_token: token, p_status: status ?? 'ativa' });
+      if (error) throw erroDoBanco(error, 'Não foi possível ler os negócios do workspace.');
+      return (data || []) as NegocioAgente[];
+    },
+
+    async proporNegocio(p) {
+      const { data, error } = await cliente.rpc('agent_propose_deal', {
+        p_token: token,
+        p_pipeline_id: p.quadro_id,
+        p_account_id: p.conta_id,
+        p_amount: p.valor_reais,
+        p_stage_key: p.etapa ?? null,
+        p_owner_member_id: p.responsavel_id,
+        p_close_date: p.fecha_em ?? null,
+        p_reason: p.motivo,
+        p_idempotency_key: chaveDe('negocio', p.quadro_id, p.conta_id, p.responsavel_id, p.valor_reais, p.etapa, p.fecha_em)
+      });
+      if (error) {
+        if (error.code === '22P02' || error.code === '22007') return { ok: false, erro: 'Quadro, conta, responsável ou data inválidos para este workspace.' };
+        throw erroDoBanco(error, 'Não foi possível registrar a proposta de negócio.');
+      }
+      return data as ResultadoProposta;
+    },
+
+    async proporMoverNegocio(p) {
+      const { data, error } = await cliente.rpc('agent_propose_move_deal', {
+        p_token: token,
+        p_opportunity_id: p.negocio_id,
+        p_to_stage: p.etapa,
+        p_reason: p.motivo,
+        p_idempotency_key: chaveDe('mover', p.negocio_id, p.etapa)
+      });
+      if (error) {
+        if (error.code === '22P02') return { ok: false, erro: 'Negócio não encontrado neste workspace.' };
+        throw erroDoBanco(error, 'Não foi possível registrar a proposta de mudança de etapa.');
       }
       return data as ResultadoProposta;
     }

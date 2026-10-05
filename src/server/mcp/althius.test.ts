@@ -20,6 +20,8 @@ const CANARIO_ID = 'cc000000-0000-0000-0000-0000000000d1';
 const LUCAS_MEMBRO = 'd0000000-0000-0000-0000-000000000004';
 const CAD_AUTO = 'f8000000-0000-0000-0000-0000000000d1';
 const TAREFA_CANARIO = 'f7000000-0000-0000-0000-0000000000d1';
+const NEGOCIO_CANARIO = 'f9000000-0000-0000-0000-0000000000d1';
+const CONTA_EVOLUT = 'c0000000-0000-0000-0000-000000000001';
 const TITULO_TAREFA = 'Ligar para Aline (teste MCP fatia A)';
 
 async function conectar(token: string) {
@@ -38,6 +40,7 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
   const admin = adminLocal();
   let tokenEvolut = '';
   let tokenGrao = '';
+  let quadroEvolut = '';
   const aprovacoesCriadas: string[] = [];
 
   beforeAll(async () => {
@@ -55,6 +58,13 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
     // Fixtures da fatia A: uma cadência com 1 passo automático e uma tarefa-canário na Evolut.
     await admin.from('cadences').upsert({ id: CAD_AUTO, workspace_id: EVOLUT, name: 'Cadência de teste MCP', status: 'ativa' });
     await admin.from('cadence_steps').upsert({ workspace_id: EVOLUT, cadence_id: CAD_AUTO, step_number: 1, channel: 'email', execution_mode: 'auto', subject: 'Oi', body: 'Olá', delay_days: 0 }, { onConflict: 'cadence_id,step_number' });
+    const { data: quadro } = await admin.from('pipelines').select('id').eq('workspace_id', EVOLUT).eq('motion', 'slg').order('created_at').limit(1).single();
+    quadroEvolut = quadro!.id;
+    const { error: erroNegocio } = await admin.from('opportunities').upsert({
+      id: NEGOCIO_CANARIO, workspace_id: EVOLUT, pipeline_id: quadroEvolut, account_id: CONTA_EVOLUT, stage_key: 'qualificacao',
+      title: 'CANÁRIO negócio MCP-8813', amount: 4321.5, owner_member_id: LUCAS_MEMBRO
+    });
+    if (erroNegocio) throw erroNegocio;
     await admin.from('tasks').upsert({ id: TAREFA_CANARIO, workspace_id: EVOLUT, title: 'CANÁRIO tarefa MCP-5521', assignee_member_id: LUCAS_MEMBRO, status: 'pendente' });
   });
 
@@ -66,6 +76,7 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
       await admin.from('approvals').delete().in('id', aprovacoesCriadas);
     }
     await admin.from('tasks').delete().eq('workspace_id', EVOLUT).in('title', [TITULO_TAREFA, 'CANÁRIO tarefa MCP-5521']);
+    await admin.from('opportunities').delete().eq('workspace_id', EVOLUT).or(`id.eq.${NEGOCIO_CANARIO},amount.eq.88888`);
     await admin.from('cadence_enrollments').delete().eq('cadence_id', CAD_AUTO);
     await admin.from('cadences').delete().eq('id', CAD_AUTO);
     await admin.from('contacts').delete().eq('id', CANARIO_ID);
@@ -77,7 +88,8 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
     const cliente = await conectar(tokenGrao);
     const { tools } = await cliente.listTools();
     expect(tools.map(t => t.name).sort()).toEqual([
-      'buscar_contatos', 'listar_cadencias', 'listar_membros', 'listar_tarefas', 'propor_atualizacao', 'propor_inscricao_cadencia', 'propor_tarefa'
+      'buscar_contatos', 'listar_cadencias', 'listar_contas', 'listar_membros', 'listar_negocios', 'listar_quadros', 'listar_tarefas',
+      'propor_atualizacao', 'propor_inscricao_cadencia', 'propor_mover_negocio', 'propor_negocio', 'propor_tarefa'
     ]);
     for (const t of tools) expect(JSON.stringify(t.inputSchema)).not.toMatch(/workspace/i);
   });
@@ -200,6 +212,61 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
     const item = (await listarAprovacoes(aline, EVOLUT)).find(a => a.id === id);
     expect(await decidirAprovacao(aline, { aprovacao: item!, membroId: ALINE_MEMBRO, decisao: 'Aprovada' })).toEqual({ ok: true });
     expect((await admin.from('cadence_enrollments').select('contact_id, status').eq('cadence_id', CAD_AUTO)).data).toEqual([{ contact_id: ALINE_CONTATO, status: 'ativa' }]);
+  });
+
+  it('CANÁRIO: negócios, quadros e contas também não vazam entre clientes', async () => {
+    const grao = await conectar(tokenGrao);
+    const evolut = await conectar(tokenEvolut);
+    expect(texto(await evolut.callTool({ name: 'listar_negocios', arguments: {} }))).toContain('MCP-8813');
+    expect(texto(await grao.callTool({ name: 'listar_negocios', arguments: {} }))).not.toContain('MCP-8813');
+    expect(texto(await evolut.callTool({ name: 'listar_quadros', arguments: {} }))).toContain(quadroEvolut);
+    expect(texto(await grao.callTool({ name: 'listar_quadros', arguments: {} }))).not.toContain(quadroEvolut);
+    expect(texto(await evolut.callTool({ name: 'listar_contas', arguments: {} }))).toContain(CONTA_EVOLUT);
+    expect(texto(await grao.callTool({ name: 'listar_contas', arguments: {} }))).not.toContain(CONTA_EVOLUT);
+  });
+
+  it('a Grão Norte não propõe mover nem criar negócio com ids da Evolut', async () => {
+    const grao = await conectar(tokenGrao);
+    const m = await grao.callTool({ name: 'propor_mover_negocio', arguments: { negocio_id: NEGOCIO_CANARIO, etapa: 'proposta', motivo: 'tentativa de outro workspace' } });
+    expect(m.isError).toBe(true);
+    const n = await grao.callTool({ name: 'propor_negocio', arguments: { quadro_id: quadroEvolut, conta_id: CONTA_EVOLUT, responsavel_id: LUCAS_MEMBRO, valor_reais: 88888, motivo: 'tentativa de outro workspace' } });
+    expect(n.isError).toBe(true);
+    const { count } = await admin.from('approvals').select('id', { count: 'exact', head: true }).eq('workspace_id', GRAO).in('payload_json->>acao', ['mover_negocio', 'criar_negocio']);
+    expect(count).toBe(0);
+  });
+
+  it('mover negócio: nada muda até a C-level aprovar; aprovado, o negócio muda de etapa e o histórico mostra quem aprovou', async () => {
+    const evolut = await conectar(tokenEvolut);
+    const pedido = { negocio_id: NEGOCIO_CANARIO, etapa: 'proposta', motivo: 'Reunião de proposta marcada' };
+    const r1 = await evolut.callTool({ name: 'propor_mover_negocio', arguments: pedido });
+    const r2 = await evolut.callTool({ name: 'propor_mover_negocio', arguments: pedido });
+    expect(r1.isError).toBeFalsy();
+    const id = (r1.structuredContent as { approval_id: string }).approval_id;
+    aprovacoesCriadas.push(id);
+    expect((r2.structuredContent as { approval_id: string }).approval_id).toBe(id);
+    expect((await admin.from('opportunities').select('stage_key').eq('id', NEGOCIO_CANARIO).single()).data?.stage_key).toBe('qualificacao');
+
+    const aline = await entrarComoLocal('aline@evolut.com.br');
+    const item = (await listarAprovacoes(aline, EVOLUT)).find(a => a.id === id);
+    expect(item).toBeDefined();
+    expect(await decidirAprovacao(aline, { aprovacao: item!, membroId: ALINE_MEMBRO, decisao: 'Aprovada' })).toEqual({ ok: true });
+    expect((await admin.from('opportunities').select('stage_key').eq('id', NEGOCIO_CANARIO).single()).data?.stage_key).toBe('proposta');
+    const { data: h } = await admin.from('opportunity_stage_history').select('from_stage_key, to_stage_key, moved_by_member_id').eq('opportunity_id', NEGOCIO_CANARIO);
+    expect(h).toEqual([{ from_stage_key: 'qualificacao', to_stage_key: 'proposta', moved_by_member_id: ALINE_MEMBRO }]);
+  });
+
+  it('criar negócio: só existe depois da aprovação, na etapa de entrada, com o valor em reais', async () => {
+    const evolut = await conectar(tokenEvolut);
+    const r = await evolut.callTool({ name: 'propor_negocio', arguments: { quadro_id: quadroEvolut, conta_id: CONTA_EVOLUT, responsavel_id: LUCAS_MEMBRO, valor_reais: 88888, motivo: 'Sinal forte de compra' } });
+    expect(r.isError).toBeFalsy();
+    const id = (r.structuredContent as { approval_id: string }).approval_id;
+    aprovacoesCriadas.push(id);
+    expect((await admin.from('opportunities').select('id').eq('amount', 88888).eq('workspace_id', EVOLUT)).data).toEqual([]);
+    const aline = await entrarComoLocal('aline@evolut.com.br');
+    const item = (await listarAprovacoes(aline, EVOLUT)).find(a => a.id === id);
+    expect(await decidirAprovacao(aline, { aprovacao: item!, membroId: ALINE_MEMBRO, decisao: 'Aprovada' })).toEqual({ ok: true });
+    const { data } = await admin.from('opportunities').select('stage_key, status, owner_member_id').eq('amount', 88888).eq('workspace_id', EVOLUT);
+    expect(data).toEqual([{ stage_key: 'entrada', status: 'ativa', owner_member_id: LUCAS_MEMBRO }]);
   });
 
   it('agente pausado pelo cliente recebe o aviso e nenhum dado', async () => {
