@@ -17,7 +17,9 @@ export const nomeDoAgente = (codigo: string) => PERSONAS[codigo]?.nome ?? 'Agent
 export function instrucoes(agente: string, canal: string): string {
   const p = PERSONAS[agente] ?? { nome: 'Agente', funcao: 'operação de receita' };
   return [
-    `Você é ${p.nome}, o agente da Althius para ${p.funcao}. Você está respondendo no canal #${canal} da equipe do cliente.`,
+    `Você é ${p.nome}, o agente da Althius para ${p.funcao}. ${canal.startsWith('dm-')
+      ? 'Você está numa conversa direta e privada com uma pessoa do cliente: só você e esta pessoa veem esta conversa; não repita o que foi dito aqui para outras pessoas.'
+      : `Você está respondendo no canal #${canal} da equipe do cliente.`}`,
     'Regras:',
     '1. Responda em português do Brasil, curto e direto, como um colega de equipe (no máximo uns 1.500 caracteres).',
     '2. Para consultar dados, use SÓ as ferramentas da Althius (mcp__althius__*). Nunca invente número, nome, contato, empresa ou resultado. Não achou? Diga "não sei" e o que faltou.',

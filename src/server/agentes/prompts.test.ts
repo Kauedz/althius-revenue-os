@@ -62,6 +62,29 @@ describe('montarMensagens', () => {
   });
 });
 
+describe('conversa direta (canal dm-…)', () => {
+  it('sabe que é uma conversa privada com UMA pessoa, e não um canal da equipe', () => {
+    const t = instrucoes('comercial', 'dm-comercial-ab12cd34ef');
+    expect(t).toMatch(/conversa direta e privada/i);
+    expect(t).not.toContain('canal #dm-');
+  });
+  it('as regras de produto continuam valendo na conversa direta', () => {
+    const t = instrucoes('copy', 'dm-copy-1234567890');
+    expect(t).toMatch(/Nunca invente/);
+    expect(t).toMatch(/só PROPÕE/);
+    expect(t).toMatch(/só deste cliente/);
+    expect(t).toContain('Você é Lia');
+  });
+  it('privacidade: não repete o que foi dito aqui para outras pessoas do cliente', () => {
+    expect(instrucoes('revops', 'dm-revops-1234567890')).toMatch(/não repita o que foi dito aqui para outras pessoas/i);
+  });
+  it('um canal comum continua falando do canal da equipe', () => {
+    const t = instrucoes('comercial', 'vendas');
+    expect(t).toContain('canal #vendas');
+    expect(t).not.toMatch(/conversa direta e privada/i);
+  });
+});
+
 describe('Playbook nas instruções (o agente sempre sabe como a empresa trabalha)', () => {
   it('o Playbook publicado entra no sistema, com a versão, e não tira as regras de produto', () => {
     const [sis] = montarMensagens(lote(), { versao: '3.2', conteudo: '# Missão: Abordar importadores com respeito.' });

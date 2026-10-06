@@ -1631,17 +1631,17 @@ export function renderTemplate($v: Record<string, any>) {
                       <div style={{"border":"1px solid var(--rule)","display":"flex","flexDirection":"column","borderRadius":"14px","overflow":"hidden"}}>
                         {"\n                    "}
                         <span style={{"padding":"12px 14px","fontSize":"13px","color":"var(--graphite)","borderBottom":"1px solid var(--rule)"}}>
-                          {"Threads"}
+                          <span style={{"display":"flex","justifyContent":"space-between","alignItems":"center","gap":"8px"}}>{"Threads"}{$v.novaConversa ? (<button onClick={$v.novaConversa} style={{"minHeight":"32px","padding":"0 10px","border":"1px solid var(--rule)","background":"var(--paper)","fontFamily":"inherit","fontSize":"13px","cursor":"pointer","borderRadius":"8px"}}>{"Nova conversa"}</button>) : null}</span>
                         </span>
                         {"\n                    "}
                         {__arr($v.threads).map((th, $index) => (<React.Fragment key={$index}>
                           {"\n                      "}
-                          <span style={__css(`min-height: 44px; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-size: 14px; background: ${__s(th?.bg)}; display: flex; flex-direction: column;`)}>
+                          <span onClick={th?.abrir} onKeyDown={(e) => { if (th?.abrir && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); th.abrir(); } }} role={th?.abrir ? 'button' : undefined} tabIndex={th?.abrir ? 0 : undefined} style={__css(`min-height: 44px; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-size: 14px; background: ${__s(th?.bg)}; display: flex; flex-direction: column; cursor: ${th?.abrir ? 'pointer' : 'default'};`)}>
                             <span>
                               {__t(th?.titulo)}
                             </span>
                             <span style={{"fontSize":"13px","color":"var(--graphite)"}}>
-                              {__t(th?.quando)}
+                              {__t(th?.quando)}{th?.arquivar ? (<button aria-label="Arquivar conversa" title="Arquivar" onClick={(e) => { e.stopPropagation(); th.arquivar(); }} style={{"marginLeft":"8px","border":"none","background":"transparent","cursor":"pointer","color":"var(--graphite)"}}>{"×"}</button>) : null}
                             </span>
                           </span>
                           {"\n                    "}

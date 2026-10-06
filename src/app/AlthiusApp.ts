@@ -42,6 +42,10 @@ import { adiarTarefa, criarTarefa, listarTarefas, mudarStatusTarefa, tarefasVazi
 import { CANAIS_CAMPANHA, campanhasVazias, criarCampanha, listarCampanhas, mudarStatusCampanha, mudarVerba, type CampanhasTela } from './servicos/campanhas';
 import { adicionarPasso, cadenciasVazias, CANAL_PASSO, DICA_VARIAVEIS, inscreverContato, listarCadencias, removerUltimoPasso, salvarCadencia, type CadenciasTela } from './servicos/cadencias';
 import { nomeDoAgente } from './agentes-exibicao';
+import { abrirConversa, arquivarConversa, listarConversas, tituloDaPrimeiraMensagem, type ConversaDireta } from './servicos/conversaDireta';
+
+/** O que a aba Conversa de um agente guarda: as conversas dele, a aberta (nulo = nova) e as mensagens já lidas. */
+type EstadoDaConversa = { lista: ConversaDireta[]; atual: string | null; carregou: boolean; enviando: boolean; msgs: Record<string, Array<{ autor: string; texto: string; hora: string; agente: boolean }>> };
 import { normalizarDominio } from './normalizacao';
 
 export interface AlthiusAppProps {
@@ -131,6 +135,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   componentWillUnmount() {
     this.vivo = false;
+    if (this.temporizadorConversa) clearTimeout(this.temporizadorConversa);
     this.cargaEquipe++;
     this.cargaWorkspace++;
     this.publicarContas([]);
@@ -941,6 +946,11 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   private carregarPaginaSobDemanda(prev: Readonly<Record<string, any>>) {
     const rota = this.state.rota || {}, antes = prev.rota || {};
+    // Conversa direta (migration 124): ao abrir um agente, ou trocar de agente ou de workspace, busca as conversas dele.
+    if (this.modoDemo === false && this.state.pronto) {
+      if (rota.ws !== antes.ws && this.state.convDireta && Object.keys(this.state.convDireta).length) this.setState({ convDireta: {} });
+      if (rota.page === 'agents' && rota.id && (rota.id !== antes.id || rota.page !== antes.page || rota.ws !== antes.ws || !prev.pronto)) void this.carregarConversaDireta(String(rota.id));
+    }
     const entrou = rota.page !== antes.page || rota.ws !== antes.ws || (this.state.pronto && !prev.pronto);
     if (!entrou || !this.state.pronto) return;
     if (rota.page === 'inbox') void this.carregarCaixa();
@@ -1755,6 +1765,102 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     } catch (falha) {
       if (this.vivo && carga === this.cargaMensagens) this.avisarFalha('Não foi possível carregar as mensagens', falha);
     }
+  }
+
+  // ---- Conversa direta e privada com um agente (migration 124, ADR 0059): a aba Conversa do agente
+
+  private cargaConversa = 0;
+  private temporizadorConversa: ReturnType<typeof setTimeout> | null = null;
+
+  private conversaDe(agente: string): EstadoDaConversa {
+    return ((this.state.convDireta || {})[agente] || { lista: [], atual: null, carregou: false, enviando: false, msgs: {} }) as EstadoDaConversa;
+  }
+
+  private gravarConversa(agente: string, parte: Record<string, unknown>) {
+    this.setState({ convDireta: Object.assign({}, this.state.convDireta, { [agente]: Object.assign({}, this.conversaDe(agente), parte) }) });
+  }
+
+  /** Busca as conversas do agente e as mensagens da aberta. Enquanto o agente responde, volta a buscar sozinho. */
+  async carregarConversaDireta(agente: string, abrir?: string | null) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId || this.modoDemo !== false) return;
+    const carga = ++this.cargaConversa;
+    try {
+      const lista = await listarConversas(this.props.supabase, ws.uuid, ws.membroId, agente);
+      const antes = this.conversaDe(agente);
+      // Quem já tem uma conversa aberta (inclusive uma que acabou de criar) não a perde numa recarga; na primeira carga abre a mais recente.
+      const atual = abrir !== undefined ? abrir : antes.atual ?? (antes.carregou ? null : (lista[0]?.slug ?? null));
+      const msgs = atual ? await lerMensagens(this.props.supabase, ws.uuid, atual, ws.membroId) : [];
+      if (!this.vivo || carga !== this.cargaConversa) return;
+      this.gravarConversa(agente, { lista, atual, carregou: true, msgs: Object.assign({}, antes.msgs, atual ? { [atual]: msgs } : {}) });
+      if (this.temporizadorConversa) clearTimeout(this.temporizadorConversa);
+      if (lista.some(c => c.slug === atual && c.aguardando)) this.temporizadorConversa = setTimeout(() => { void this.carregarConversaDireta(agente); }, 3000);
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaConversa) this.avisarFalha('Não foi possível carregar as conversas', falha);
+    }
+  }
+
+  /** As mensagens que a tela mostra (o formato do protótipo): pessoa, agente, avisos do sistema e o "pensando" enquanto a fila não foi atendida. */
+  mensagensDaConversaDireta(a: { id: string }) {
+    const c = this.conversaDe(a.id);
+    const conversa = c.lista.find(x => x.slug === c.atual);
+    const saida: Array<Record<string, unknown>> = [];
+    for (const m of (c.atual ? c.msgs[c.atual] || [] : [])) {
+      if (m.autor === 'Althius') { if (!/^Pedido enviado para /.test(m.texto)) saida.push({ tipo: 'deleg', texto: m.texto }); continue; }
+      saida.push(m.agente ? { tipo: 'agente', texto: m.texto, hora: m.hora, stream: null } : { tipo: 'user', texto: m.texto, hora: m.hora, status: 'Enviada' });
+    }
+    if (c.enviando || conversa?.aguardando) saida.push({ tipo: 'agente', hora: '', stream: 0, texto: '' });
+    return saida;
+  }
+
+  threadsDaConversaDireta(a: { id: string }) {
+    const c = this.conversaDe(a.id);
+    const itens = c.lista.map(t => ({
+      titulo: t.titulo, quando: t.aguardando ? 'respondendo…' : t.quando, bg: t.slug === c.atual ? 'var(--mist)' : 'var(--paper)',
+      abrir: () => { void this.carregarConversaDireta(a.id, t.slug); }, arquivar: () => { void this.arquivarConversaDireta(a.id, t.slug); }
+    }));
+    // Uma conversa ainda não aberta (a primeira mensagem a cria) aparece no alto como rascunho.
+    return c.carregou && c.atual === null ? [{ titulo: 'Nova conversa', quando: 'rascunho', bg: 'var(--mist)', abrir: () => {}, arquivar: undefined }, ...itens] : itens;
+  }
+
+  novaConversaDireta(a: { id: string }) {
+    this.setState({ msgTexto: '' });
+    this.gravarConversa(a.id, { atual: null, carregou: true });
+  }
+
+  async arquivarConversaDireta(agente: string, slug: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await arquivarConversa(this.props.supabase, ws.uuid, ws.membroId, slug);
+    if (!this.vivo) return;
+    if (!r.ok) return this.confirmar('Conversa não arquivada', r.mensagem, 'Entendi', () => {});
+    await this.carregarConversaDireta(agente, this.conversaDe(agente).atual === slug ? null : undefined);
+  }
+
+  /** Escreve para o agente. Sem conversa aberta, a primeira mensagem cria uma (com o título dela). Falha: o texto volta para a caixa. */
+  async enviarNaConversaDireta(a: { id: string }, texto: string) {
+    const t = (texto || '').trim();
+    const ws = this.workspaceAtual();
+    if (!t || !ws?.membroId) return;
+    let slug = this.conversaDe(a.id).atual;
+    this.setState({ msgTexto: '' });
+    this.gravarConversa(a.id, { enviando: true });
+    const falhou = (titulo: string, mensagem: string) => {
+      this.gravarConversa(a.id, { enviando: false });
+      this.setState({ msgTexto: t });
+      this.confirmar(titulo, mensagem, 'Entendi', () => {});
+    };
+    if (!slug) {
+      const aberta = await abrirConversa(this.props.supabase, ws.uuid, ws.membroId, a.id, tituloDaPrimeiraMensagem(t));
+      if (!this.vivo) return;
+      if (!aberta.ok) return falhou('Conversa não aberta', aberta.mensagem);
+      slug = aberta.slug;
+    }
+    const r = await enviarNoCanal(this.props.supabase, ws.uuid, ws.membroId, slug, t, null, a.id);
+    if (!this.vivo) return;
+    if (!r.ok) return falhou('Mensagem não enviada', r.mensagem);
+    this.gravarConversa(a.id, { enviando: false });
+    await this.carregarConversaDireta(a.id, slug);
   }
 
   /** Mesma regra do protótipo para saber qual agente foi chamado: o nome citado com @, ou o primeiro do canal. */

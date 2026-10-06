@@ -132,6 +132,7 @@ export class AlthiusLogic extends React.Component {
     }
   }
   chatDe(a) {
+    if (this.modoDemo === false) return this.mensagensDaConversaDireta(a);
     if (this.state.chats[a.id]) return this.state.chats[a.id];
     const POR = {
       marketing: [{ tipo: 'user', texto: 'Como está o custo por lead em cada canal?', hora: '09:02', status: 'Lida' }, { tipo: 'agente', hora: '09:02', texto: 'LinkedIn Ads está em R$ 118 por lead e Meta Ads em R$ 190. Para diretores de Supply Chain, LinkedIn rende mais. Sugiro mover R$ 3.000 de Meta para LinkedIn até o fim do mês.' }, { tipo: 'plano', passos: ['Reduzir o orçamento de Meta Ads em R$ 3.000', 'Aumentar o orçamento de LinkedIn Ads em R$ 3.000', 'Avisar o time no #geral'], estado: 'pendente' }],
@@ -1151,7 +1152,7 @@ export class AlthiusLogic extends React.Component {
         estadoLabel: ESTADO_AG[a.estado][0], estadoCor: ESTADO_AG[a.estado][1], acoes: acoesAg(a, true) };
       v.agTabsDet = tabsOk.map(([id, label]) => ({ label, ativo: id === tab ? 'true' : 'false', barra: id === tab ? '#F7054F' : 'transparent', ir: () => this.setState({ agDetTab: id }) }));
       ['visao','conversa','capacidades','playbooks','conhecimento','sinais','integracoes','execucoes','auditoria'].forEach(id => { v['t' + id.charAt(0).toUpperCase() + id.slice(1)] = tab === id; });
-      v.threads = [['Prioridades de hoje', 'agora', true], ['Revisão da lista Sudeste', 'ontem', false], ['Objeções de câmbio', 'seg', false]].map(t => ({ titulo: t[0], quando: t[1], bg: t[2] ? 'var(--mist)' : 'var(--paper)' }));
+      v.threads = this.modoDemo === false ? this.threadsDaConversaDireta(a) : [['Prioridades de hoje', 'agora', true], ['Revisão da lista Sudeste', 'ontem', false], ['Objeções de câmbio', 'seg', false]].map(t => ({ titulo: t[0], quando: t[1], bg: t[2] ? 'var(--mist)' : 'var(--paper)' }));
       const msgs = this.chatDe(a);
       const fb = st.feedback || {};
       v.chat = msgs.map((m, i) => {
@@ -1173,6 +1174,7 @@ export class AlthiusLogic extends React.Component {
         this.setState({ chats: Object.assign({}, st.chats, { [a.id]: nova }) });
       };
       const enviar = texto => {
+        if (this.modoDemo === false) return this.enviarNaConversaDireta(a, texto);
         const t = (texto || '').trim(); if (!t) return;
         const h = this.hora();
         const atual = this.chatDe(a).concat([{ tipo: 'user', texto: t, hora: h, status: 'Enviada' }, { tipo: 'agente', hora: h, stream: 0, texto: 'Entendido. Vou levantar isso com base no ICP vigente e te mostro o plano antes de qualquer ação no CRM.' }]);
@@ -1183,6 +1185,7 @@ export class AlthiusLogic extends React.Component {
       v.msgTexto = st.msgTexto; v.mudarMsg = e => this.setState({ msgTexto: e.target.value });
       v.teclaMsg = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(this.state.msgTexto); } };
       v.enviarMsg = () => enviar(st.msgTexto);
+      v.novaConversa = this.modoDemo === false ? () => this.novaConversaDireta(a) : undefined;
       v.comandos = ['/resumo da conta', '/próximo lead', '/objeções prováveis'].map(c => ({ label: c, fn: () => enviar(c) }));
       const capsAg = Object.assign({}, a.caps, st.caps[a.id] || {});
       const editavel = can('agents.configure');
