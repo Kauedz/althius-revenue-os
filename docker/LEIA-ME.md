@@ -49,6 +49,11 @@ A Unipile é só um canal: toda a ligação com ela (chave, endereço, assinatur
 - O que está no cofre vale mais que o `.env`. Sem chave no cofre, continua valendo `UNIPILE_API_KEY` etc. do `.env`.
 - Em cada linha: **Testar chave** (Apify e modelo de IA), **Ativar ou desativar** e **Remover chave**.
 
+## Aprendizado compartilhado entre contas
+- O serviço `aprendizado` (ADR 0052 e 0053) roda a cada 6 horas (`APRENDIZADO_INTERVALO_HORAS`). Ele só olha clientes que **aceitaram** (aviso único e Configurações → Aprendizado), só publica padrões com **3 ou mais clientes** e só **sugere** ao estrategista, que aplica ou descarta em Playbook → Aprendizados.
+- Ver o que está acontecendo: `docker compose logs -f aprendizado` (linhas `aprendizado_ciclo` com quantos clientes contribuem, padrões e sugestões novas; nunca texto nem nomes).
+- Sem cliente que aceitou, ou sem padrão forte o bastante, a rodada não faz nada: é o normal no começo.
+
 ## Motor de cadência
 O contêiner `cadencia` roda a cada 60 segundos (`CADENCIA_INTERVALO_SEGUNDOS`). Para cada inscrição ativa cujo passo venceu:
 - **Passo manual** (LinkedIn, Instagram, ligação), ou **automático com o envio automático desligado**: vira uma tarefa do responsável, no dia, com o texto/roteiro pronto.
