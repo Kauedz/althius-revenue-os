@@ -16,6 +16,8 @@ export interface PerfilMcp {
   enviarRecurso: boolean;
 }
 
+export type CanalUnipile = 'whatsapp' | 'google' | 'microsoft' | 'instagram' | 'linkedin';
+
 export interface PerfilDeIntegracao {
   id: string;
   nome: string;
@@ -24,6 +26,10 @@ export interface PerfilDeIntegracao {
   motivo?: string;
   /** O primeiro acesso fixa o portal do workspace (ex.: o portal do HubSpot). */
   portalFixo: boolean;
+  /** `mcp` (padrão): OAuth no servidor MCP oficial. `unipile`: conta de mensagem conectada pelo assistente hospedado da Unipile (o mesmo canal da Caixa de entrada, sem outro conector). */
+  via?: 'mcp' | 'unipile';
+  /** Só `via: 'unipile'`: o provedor da conta de mensagem. */
+  canal?: CanalUnipile;
   mcp?: PerfilMcp;
   /** Onde achar a conta e o portal na resposta do endpoint de token (caminhos alternativos; vale o primeiro que existir). */
   identificacao?: { portal?: string[]; conta?: string[] };
@@ -34,9 +40,10 @@ const PROVAVEL = 'O servidor oficial é provável, mas ainda falta confirmar com
 const APP_DO_FORNECEDOR = 'Exige um app da Althius registrado no fornecedor (e, no Google, a verificação do app). Em preparação.';
 const POR_CLIENTE = 'Cada cliente precisa criar um app ou uma URL na própria conta. Exige um guia próprio, ainda em desenho.';
 const SEM_SERVIDOR = 'O fornecedor não oferece um servidor oficial para terceiros conectarem.';
-const CAIXA = 'Conecte a sua conta na Caixa de entrada.';
 
 const emBreve = (id: string, nome: string, motivo: string): PerfilDeIntegracao => ({ id, nome, situacao: 'em_breve', motivo, portalFixo: false });
+// Canais de mensagem: o cartão do catálogo conecta pela Unipile (a conta é da PESSOA; a permissão é a da Caixa, `inbox.connect`).
+const canal = (id: string, nome: string, canal: CanalUnipile): PerfilDeIntegracao => ({ id, nome, situacao: 'disponivel', via: 'unipile', canal, portalFixo: false });
 
 export const PERFIS: Record<string, PerfilDeIntegracao> = Object.fromEntries([
   {
@@ -71,11 +78,11 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = Object.fromEntries([
   emBreve('teams', 'Microsoft Teams', POR_CLIENTE),
   emBreve('sharepoint', 'SharePoint', POR_CLIENTE),
   emBreve('m365', 'Microsoft 365', POR_CLIENTE),
-  emBreve('whatsapp', 'WhatsApp Business', CAIXA),
-  emBreve('gmail', 'Gmail', CAIXA),
-  emBreve('outlook', 'Outlook', CAIXA),
-  emBreve('instagram', 'Instagram', CAIXA),
-  emBreve('linkedin', 'LinkedIn Sales Navigator', SEM_SERVIDOR),
+  canal('whatsapp', 'WhatsApp Business', 'whatsapp'),
+  canal('gmail', 'Gmail', 'google'),
+  canal('outlook', 'Outlook', 'microsoft'),
+  canal('instagram', 'Instagram', 'instagram'),
+  canal('linkedin', 'LinkedIn Sales Navigator', 'linkedin'),
   emBreve('liads', 'LinkedIn Ads', SEM_SERVIDOR),
   emBreve('gads', 'Google Ads', SEM_SERVIDOR),
   emBreve('gsc', 'Google Search Console', SEM_SERVIDOR),

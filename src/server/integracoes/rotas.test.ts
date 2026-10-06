@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { chaveMestra, decifrar } from '../cofre/cifra.ts';
 import { desconectar, ferramentas, iniciarConexao, retirar, retornoDoConsentimento, type DepsIntegracoes } from './rotas.ts';
+import { PERFIS } from './perfis.ts';
 import type { AcessoGuardado, BancoIntegracoes } from './banco.ts';
 import { servidorMcpFalso } from './servidor-mcp-falso.ts';
 
@@ -334,5 +335,67 @@ describe('desconectar e retirar', () => {
     const m = montar();
     expect((await desconectar(m.deps, '', { workspaceId: WS, integracao: 'notion' })).status).toBe(401);
     expect((await retirar(m.deps, '', { workspaceId: WS, integracao: 'notion' })).status).toBe(401);
+  });
+});
+
+describe('canais de mensagem pela Unipile (o mesmo catálogo, sem outro conector)', () => {
+  const UUID_WS = '11111111-1111-4111-8111-111111111111';
+  const UUID_M = '22222222-2222-4222-8222-222222222222';
+  const CANAIS: Array<[string, string]> = [['whatsapp', 'whatsapp'], ['gmail', 'google'], ['outlook', 'microsoft'], ['instagram', 'instagram'], ['linkedin', 'linkedin']];
+
+  function comCanais(resposta = { status: 200, corpo: { url: 'https://hospedado.test/conectar' } as Record<string, unknown> }) {
+    const m = montar();
+    const vistos: Array<{ jwt: string; corpo: Record<string, unknown> }> = [];
+    m.deps.canais = async (jwt, corpo) => { vistos.push({ jwt, corpo }); return resposta; };
+    return { m, vistos };
+  }
+
+  it('os cinco cartões do catálogo estão disponíveis e conectam pela Unipile', () => {
+    for (const [id, canal] of CANAIS) {
+      expect(PERFIS[id].situacao, id).toBe('disponivel');
+      expect(PERFIS[id].via, id).toBe('unipile');
+      expect(PERFIS[id].canal, id).toBe(canal);
+      expect(PERFIS[id].mcp, id).toBeUndefined();
+    }
+  });
+
+  for (const [id, canal] of CANAIS) it(`${id}: repassa o login e o pedido à conexão da Unipile com o provedor certo e devolve o link`, async () => {
+    const { m, vistos } = comCanais();
+    const r = await iniciarConexao(m.deps, 'jwt-aline', { workspaceId: UUID_WS, membroId: UUID_M, integracao: id });
+    expect(r).toEqual({ status: 200, corpo: { url: 'https://hospedado.test/conectar' } });
+    expect(vistos).toEqual([{ jwt: 'jwt-aline', corpo: { workspace_id: UUID_WS, member_id: UUID_M, provider: canal } }]);
+    expect(m.mundo.chamadas).toEqual([]); // nenhum OAuth nem MCP: é outro caminho
+  });
+
+  it('quem só tem a permissão da Caixa (ex.: BDR) conecta o canal: a permissão de integrações não é exigida aqui', async () => {
+    const m = montar({ banco: bancoFalso({ semPermissao: ['m-camila'] }) });
+    m.deps.canais = async () => ({ status: 200, corpo: { url: 'https://hospedado.test/x' } });
+    const r = await iniciarConexao(m.deps, 'jwt-camila', { workspaceId: UUID_WS, membroId: UUID_M, integracao: 'gmail' });
+    expect(r.status).toBe(200);
+    expect(m.banco.chamadas).not.toContain('conferir');
+  });
+
+  it('quem decide é a conexão da Unipile (o banco): a recusa dela passa como está', async () => {
+    const { m } = comCanais({ status: 403, corpo: { erro: 'sem_permissao' } });
+    expect((await iniciarConexao(m.deps, 'jwt-aline', { workspaceId: UUID_WS, membroId: UUID_M, integracao: 'whatsapp' })).status).toBe(403);
+  });
+
+  it('sem login: 401; sem o membro: 400; canal de mensagens desligado: 503', async () => {
+    const { m } = comCanais();
+    expect((await iniciarConexao(m.deps, '', { workspaceId: UUID_WS, membroId: UUID_M, integracao: 'gmail' })).status).toBe(401);
+    expect((await iniciarConexao(m.deps, 'jwt-aline', { workspaceId: UUID_WS, integracao: 'gmail' })).status).toBe(400);
+    const desligado = montar();
+    const r = await iniciarConexao(desligado.deps, 'jwt-aline', { workspaceId: UUID_WS, membroId: UUID_M, integracao: 'gmail' });
+    expect(r.status).toBe(503);
+    expect((r.corpo as { erro: string }).erro).toBe('canais_indisponiveis');
+  });
+
+  it('listar ferramentas, desconectar e retirar de um canal não são desta rota: apontam para a Caixa de entrada', async () => {
+    const { m } = comCanais();
+    for (const rota of [ferramentas, desconectar, retirar]) {
+      const r = await rota(m.deps, 'jwt-aline', { workspaceId: UUID_WS, integracao: 'gmail' });
+      expect(r.status).toBe(409);
+      expect((r.corpo as { erro: string }).erro).toBe('canal_de_mensagens');
+    }
   });
 });

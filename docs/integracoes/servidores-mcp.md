@@ -39,8 +39,10 @@ Data: 06/10/2026. Complementa a pesquisa do protótipo (`AppAlthius/.scratch/con
 | Fireflies.ai | A documentação mostra MCP por URL gerada com token da conta (chave), não OAuth para terceiros: **não serve** como conector genérico até haver OAuth |
 | Fathom | Só servidores da comunidade; **sem servidor oficial confirmado** |
 
-### D. Passam pela Caixa de entrada (Unipile), não por MCP
-WhatsApp Business, Gmail (conta pessoal), Outlook (conta pessoal), Instagram e LinkedIn pessoal conectam como **contas de mensagem** na Caixa de entrada (já funcionam; só o e-mail foi testado com conta real). Os cartões do catálogo com esses nomes devem apontar para a Caixa, não virar OAuth MCP.
+### D. Conectam pela Unipile, direto do cartão do catálogo (decisão do dono, 06/10/2026)
+WhatsApp Business, Gmail, Outlook, Instagram e LinkedIn **não precisam de outro conector**: o cartão chama a conexão da Unipile (o mesmo assistente hospedado da Caixa de entrada) com o provedor `whatsapp`, `google`, `microsoft`, `instagram` ou `linkedin`. A conta é da pessoa e a permissão é a da Caixa de entrada. Já funcionam; só o e-mail foi testado com conta real. O cartão "LinkedIn Sales Navigator" usa a conta de LinkedIn da pessoa; os recursos do Sales Navigator dependem de a pessoa ter essa assinatura (não confirmado).
+
+**Agenda pela Unipile (a confirmar):** a Unipile publica uma API de agenda para Google e Outlook. Se a API v2 confirmar, o Google Calendar e a agenda do Outlook podem usar a mesma conta já conectada, sem OAuth novo. Hoje esses cartões seguem "Em breve".
 
 ### E. Sem servidor oficial confirmado: ficam "Em breve" com o motivo
 | Conector | Motivo |

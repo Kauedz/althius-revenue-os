@@ -17,6 +17,8 @@ export interface DepsIntegracoes {
   siteUrl: string;
   buscar?: typeof fetch;
   agora?: () => number;
+  /** A conexão de contas de mensagem da Unipile (`webhooks/conexoes.ts`): é ela que atende os cartões `via: 'unipile'`. */
+  canais?: (jwt: string, corpo: Record<string, unknown>) => Promise<Resp>;
   /** texto aleatório seguro para URL, com o tamanho pedido (padrão: do sistema) */
   aleatorio?: (tamanho: number) => string;
 }
@@ -35,7 +37,7 @@ const volta = (d: DepsIntegracoes, params: Record<string, string>) => `${d.siteU
 function perfilDisponivel(id: string): { ok: true; perfil: PerfilDeIntegracao } | { ok: false; r: Resp } {
   const perfil = PERFIS[id];
   if (!perfil) return { ok: false, r: resposta(404, { erro: 'integracao_desconhecida' }) };
-  if (perfil.situacao !== 'disponivel' || !perfil.mcp) return { ok: false, r: resposta(409, { erro: 'em_breve', motivo: perfil.motivo ?? 'Ainda não está disponível.' }) };
+  if (perfil.situacao !== 'disponivel' || (!perfil.mcp && perfil.via !== 'unipile')) return { ok: false, r: resposta(409, { erro: 'em_breve', motivo: perfil.motivo ?? 'Ainda não está disponível.' }) };
   return { ok: true, perfil };
 }
 
@@ -75,16 +77,27 @@ function corpoDe(c: unknown): { workspaceId: string; integracao: string } {
   return { workspaceId: texto(o.workspaceId), integracao: texto(o.integracao) };
 }
 
+const ehCanal = (integracao: string) => PERFIS[integracao]?.via === 'unipile';
+const recusaDeCanal = () => resposta(409, { erro: 'canal_de_mensagens', mensagem: 'Este canal é uma conta de mensagem: conecte e gerencie pela Caixa de entrada.' });
+
 /** Passo 1: devolve o endereço de consentimento do app. A tentativa fica guardada (uso único, 10 minutos). */
 export async function iniciarConexao(d: DepsIntegracoes, jwt: string, corpo: unknown): Promise<Resp> {
   if (!jwt) return resposta(401, { erro: 'nao_autorizado' });
   const { workspaceId, integracao } = corpoDe(corpo);
   if (!workspaceId || !integracao) return resposta(400, { erro: 'pedido_invalido' });
-  const conf = await d.banco.conferir(jwt, workspaceId);
-  if (!conf.ok) return resposta(conf.status, { erro: conf.status === 401 ? 'nao_autorizado' : conf.status === 403 ? 'sem_permissao' : 'falha_no_banco' });
   const p = perfilDisponivel(integracao);
   if (!p.ok) return p.r;
   const perfil = p.perfil;
+  if (perfil.via === 'unipile') {
+    // Canais de mensagem: o mesmo cartão do catálogo, mas quem conecta é a Unipile (assistente hospedado). A permissão é a da
+    // Caixa de entrada e quem a confere é o banco, dentro da conexão da Unipile (não a de "integrações").
+    const membroId = texto((corpo as Record<string, unknown>).membroId);
+    if (!membroId) return resposta(400, { erro: 'pedido_invalido' });
+    if (!d.canais) return resposta(503, { erro: 'canais_indisponiveis' });
+    return d.canais(jwt, { workspace_id: workspaceId, member_id: membroId, provider: perfil.canal });
+  }
+  const conf = await d.banco.conferir(jwt, workspaceId);
+  if (!conf.ok) return resposta(conf.status, { erro: conf.status === 401 ? 'nao_autorizado' : conf.status === 403 ? 'sem_permissao' : 'falha_no_banco' });
   const urlDeRetorno = retornoUrl(d);
   try {
     const descoberta = await descobrir(d, perfil);
@@ -194,6 +207,7 @@ export async function ferramentas(d: DepsIntegracoes, jwt: string, corpo: unknow
   if (!jwt) return resposta(401, { erro: 'nao_autorizado' });
   const { workspaceId, integracao } = corpoDe(corpo);
   if (!workspaceId || !integracao) return resposta(400, { erro: 'pedido_invalido' });
+  if (ehCanal(integracao)) return recusaDeCanal();
   const conf = await d.banco.conferir(jwt, workspaceId);
   if (!conf.ok) return resposta(conf.status, { erro: conf.status === 401 ? 'nao_autorizado' : conf.status === 403 ? 'sem_permissao' : 'falha_no_banco' });
   const p = perfilDisponivel(integracao);
@@ -217,6 +231,7 @@ export async function desconectar(d: DepsIntegracoes, jwt: string, corpo: unknow
   if (!jwt) return resposta(401, { erro: 'nao_autorizado' });
   const { workspaceId, integracao } = corpoDe(corpo);
   if (!workspaceId || !integracao) return resposta(400, { erro: 'pedido_invalido' });
+  if (ehCanal(integracao)) return recusaDeCanal();
   const conf = await d.banco.conferir(jwt, workspaceId);
   if (!conf.ok) return resposta(conf.status, { erro: conf.status === 401 ? 'nao_autorizado' : conf.status === 403 ? 'sem_permissao' : 'falha_no_banco' });
   try { await d.banco.desconectar(workspaceId, conf.membroId, integracao); } catch { return resposta(502, { erro: 'falha_no_banco' }); }
@@ -228,6 +243,7 @@ export async function retirar(d: DepsIntegracoes, jwt: string, corpo: unknown): 
   if (!jwt) return resposta(401, { erro: 'nao_autorizado' });
   const { workspaceId, integracao } = corpoDe(corpo);
   if (!workspaceId || !integracao) return resposta(400, { erro: 'pedido_invalido' });
+  if (ehCanal(integracao)) return recusaDeCanal();
   const conf = await d.banco.conferir(jwt, workspaceId);
   if (!conf.ok) return resposta(conf.status, { erro: conf.status === 401 ? 'nao_autorizado' : conf.status === 403 ? 'sem_permissao' : 'falha_no_banco' });
   try { await d.banco.retirar(workspaceId, conf.membroId, integracao); } catch { return resposta(403, { erro: 'sem_permissao' }); }

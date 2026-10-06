@@ -17,6 +17,7 @@
 ## Critérios
 - [ ] Nada aparece como conectado sem estar. Erro de consulta mostra mensagem clara com "Tentar de novo".
 - [ ] Quem não tem `integrations.connect` vê o cartão, mas o botão explica quem pode conectar.
+- [ ] Os cinco canais (WhatsApp, Gmail, Outlook, Instagram, LinkedIn) mostram o estado das contas de mensagem (o que a Caixa já sabe) e o botão Conectar chama `/integracoes/iniciar` com o `membroId` da pessoa; Gerenciar leva à Caixa de entrada. Quem é BDR conecta canais, mas vê "só C-level, estrategista e superadmin conectam apps".
 - [ ] Conector sem servidor oficial continua "Em breve" **com o motivo** (texto do perfil).
 - [ ] Retorno do consentimento (sucesso, recusa, expirado, portal diferente) mostra mensagem clara.
 - [ ] Nenhum US$ na tela.

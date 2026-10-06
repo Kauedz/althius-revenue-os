@@ -17,10 +17,14 @@ Os 37 conectores do catálogo apareciam "Em breve" (ADR 0054) porque nenhum exis
 7. **Onde roda:** rotas `/integracoes/*` no serviço Node `webhooks`, atrás do Caddy. Sem `COFRE_CHAVE_MESTRA`, `SITE_URL` e `ANON_KEY`, as integrações ficam desligadas com aviso no log.
 8. **Código com o Node daqui:** o Node roda TypeScript sem transformação, então o código portado não usa "propriedades de parâmetro" em classes.
 
+9. **Canais de mensagem pela Unipile, no mesmo catálogo (decisão do dono, 06/10/2026).** WhatsApp, Gmail, Outlook, Instagram e LinkedIn **não** são conectores novos: o cartão do catálogo conecta pela Unipile (assistente hospedado), que já é o canal da Caixa de entrada. A rota `/integracoes/iniciar` repassa o pedido à conexão da Unipile (`webhooks/conexoes.ts`) com o provedor certo (`whatsapp`, `google`, `microsoft`, `instagram`, `linkedin`). A permissão é a da Caixa (`inbox.connect`, que o BDR também tem), conferida pelo banco dentro da conexão da Unipile; a de integrações (`integrations.connect`) não se aplica a esses cinco. Listar ferramentas, desconectar e retirar de um canal respondem 409 `canal_de_mensagens` (a gestão da conta fica na Caixa).
+10. **Experiência do cliente:** o cliente só clica em Conectar e faz o login no app (como nos conectores do Claude). O que a Althius faz uma vez por fornecedor é o cadastro do app, quando o fornecedor o exige (HubSpot, Slack, Zoom, Google); nos de registro automático (Notion, Apollo, Pipedrive, Granola, Confluence) nem isso.
+
 ## O que NÃO faz (próximos tickets)
 - A tela de Conexões (ticket 02): hoje as rotas existem e estão testadas, mas o botão ainda não as chama.
 - HubSpot (ticket 04): precisa que o dono crie o MCP Auth App e guarde Client ID e Secret no cofre.
 - Sincronização, Enviar ao CRM e os demais apps (tickets 05 a 09).
+- Agenda (Google Calendar e Outlook) pela Unipile: a página da Unipile diz que oferece API de agenda para os dois; falta confirmar na API v2 e construir antes de ligar esses cartões.
 
 ## Verificação
 Testes com servidores falsos (OAuth e MCP) e banco falso, mais um teste contra o banco local. Prova manual em 06/10/2026 contra o **Notion real**: descoberta, registro automático e link de consentimento com PKCE funcionam. Falta uma conexão autorizada por uma pessoa (precisa da tela e do site no ar).

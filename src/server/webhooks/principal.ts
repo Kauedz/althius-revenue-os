@@ -1,7 +1,7 @@
 // Ponto de entrada do contêiner `webhooks` (docker-compose.yml). Só Node, sem dependências.
 import { bancoViaApi } from './banco.ts';
 import { criarServidor } from './servidor.ts';
-import type { DepsConexoes } from './conexoes.ts';
+import { iniciarConexao as iniciarContaDeMensagem, type DepsConexoes } from './conexoes.ts';
 import { configDoAmbiente } from '../unipile/config.ts';
 import type { ObterConfig } from '../unipile/config.ts';
 import { cofreDoAmbiente } from '../cofre/ambiente.ts';
@@ -44,7 +44,7 @@ const rotasCofre: DepsCofre | undefined = cofre && chaveAnon
 
 // Integrações do catálogo (ADR 0056): os tokens são cifrados com a chave mestra do cofre, então sem ela ficam desligadas.
 const depsIntegracoes: DepsIntegracoes | undefined = siteUrl && chaveAnon && (process.env.COFRE_CHAVE_MESTRA ?? '').trim()
-  ? { banco: bancoIntegracoes({ base, chaveAnon, chaveServico: chave }), chave: chaveMestra(), siteUrl }
+  ? { banco: bancoIntegracoes({ base, chaveAnon, chaveServico: chave }), chave: chaveMestra(), siteUrl, canais: conexoes ? (jwt, corpo) => iniciarContaDeMensagem(conexoes, jwt, corpo) : undefined }
   : undefined;
 if (!depsIntegracoes) {
   console.warn(JSON.stringify({ nivel: 'aviso', msg: 'integrações desligadas: faltam SITE_URL, ANON_KEY ou COFRE_CHAVE_MESTRA' }));

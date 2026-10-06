@@ -24,7 +24,9 @@ Cada pessoa autorizada conecta a **própria conta** de um app, como se conecta u
 5. **Onde roda:** rotas no serviço Node `webhooks` (atrás do Caddy), como o cofre e a conexão de contas de mensagem. Quem confere o login e a capacidade é o banco, com o JWT da pessoa.
 6. **Perfil por integração** (`src/server/integracoes/perfis.ts`): servidor MCP, forma de registro (`automatico`, `app_registrado`), escopos, ferramentas de leitura e escrita, e o motivo de estar "Em breve". Entrada de perfil nova = conector novo, sem mudar mecanismo.
 7. **App registrado** (HubSpot, Slack, Zoom, Google...): o Client ID e o Secret vêm do cofre (provedor novo), cadastrados pelo superadmin na tela Fornecedores. Sem eles o cartão mostra "Precisa configurar", nunca finge conectar.
-8. **Creditos, nunca dólar** continua valendo; nenhuma tela de cliente mostra custo de fornecedor.
+8. **Canais de mensagem pela Unipile, no mesmo catálogo.** WhatsApp, Gmail, Outlook, Instagram e LinkedIn conectam pela Unipile direto do cartão (sem OAuth MCP e sem conector novo). Ver ADR 0056, item 9.
+9. **Experiência do cliente:** só clicar em Conectar e fazer login no app. O cadastro do app do fornecedor (quando exigido) é feito uma vez pela Althius.
+10. **Créditos, nunca dólar** continua valendo; nenhuma tela de cliente mostra custo de fornecedor.
 
 ## Fatias (um PR por ticket)
 
