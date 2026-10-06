@@ -12,6 +12,7 @@ export interface RotasIntegracoes {
   retirar(jwt: string, corpo: unknown): Promise<{ status: number; corpo: Record<string, unknown> }>;
   /** Ponte dos agentes (ADR 0058): quem chama prova com o TOKEN DO AGENTE, não com o login de uma pessoa. */
   agenteFerramentas(tokenDoAgente: string, corpo: unknown): Promise<{ status: number; corpo: Record<string, unknown> }>;
+  agentePropor(tokenDoAgente: string, corpo: unknown): Promise<{ status: number; corpo: Record<string, unknown> }>;
   agenteChamar(tokenDoAgente: string, corpo: unknown): Promise<{ status: number; corpo: Record<string, unknown> }>;
   retorno(query: { code?: string; state?: string; error?: string }): Promise<{ status: 302; destino: string }>;
 }
@@ -77,7 +78,7 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
     const ehLink = url === '/conexoes/link';
     const ehCofre = url === '/cofre/guardar' || url === '/cofre/testar';
     const ehIntegracao = ['/integracoes/iniciar', '/integracoes/ferramentas', '/integracoes/desconectar', '/integracoes/retirar'].includes(url);
-    const ehAgente = url === '/integracoes/agente/ferramentas' || url === '/integracoes/agente/chamar';
+    const ehAgente = url === '/integracoes/agente/ferramentas' || url === '/integracoes/agente/chamar' || url === '/integracoes/agente/propor';
     if (!ehWebhook && !ehLink && !ehCofre && !ehIntegracao && !ehAgente) return responder(404, { erro: 'nao_encontrado' });
     if (req.method !== 'POST') return responder(405, { erro: 'metodo_nao_permitido' });
 
@@ -113,7 +114,7 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
         }
         if (ehAgente) {
           if (!o.integracoes) return responder(503, { erro: 'integracoes_indisponiveis' });
-          const rota = url.endsWith('/ferramentas') ? o.integracoes.agenteFerramentas : o.integracoes.agenteChamar;
+          const rota = url.endsWith('/ferramentas') ? o.integracoes.agenteFerramentas : url.endsWith('/propor') ? o.integracoes.agentePropor : o.integracoes.agenteChamar;
           rota(jwt, payload).then(r => responder(r.status, r.corpo), () => responder(502, { erro: 'falha_nas_integracoes' }));
           return;
         }

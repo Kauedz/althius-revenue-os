@@ -131,8 +131,10 @@ export interface RespostaPonte { status: number; corpo: Record<string, unknown> 
 
 export interface FerramentasAgente {
   /** O que o agente pode LER num app conectado (só ferramentas somente leitura), com o acesso de quem pediu. */
-  ferramentasDoApp(app: string, ferramenta?: string): Promise<RespostaPonte>;
+  ferramentasDoApp(app: string, ferramenta?: string, escrita?: boolean): Promise<RespostaPonte>;
   lerDoApp(app: string, ferramenta: string, argumentos: Record<string, unknown>): Promise<RespostaPonte>;
+  /** PROPÕE uma ação que muda algo no app: vira aprovação de uma pessoa e só depois roda, uma vez. */
+  proporNoApp(app: string, ferramenta: string, argumentos: Record<string, unknown>, motivo: string): Promise<RespostaPonte>;
   listarHabilidades(): Promise<HabilidadeAgente[]>;
   listarSinais(filtro?: FiltroSinais): Promise<SinalAgente[]>;
   listarCampanhas(): Promise<CampanhaAgente[]>;
@@ -180,8 +182,9 @@ export function ferramentasDoAgente(cliente: SupabaseClient, token: string, pont
     return { status: r.status, corpo: j && typeof j === 'object' && !Array.isArray(j) ? (j as Record<string, unknown>) : {} };
   };
   return {
-    ferramentasDoApp: (app, ferramenta) => chamarPonte('ferramentas', ferramenta ? { integracao: app, ferramenta } : { integracao: app }),
+    ferramentasDoApp: (app, ferramenta, escrita) => chamarPonte('ferramentas', { integracao: app, ...(ferramenta ? { ferramenta } : {}), ...(escrita ? { escrita: true } : {}) }),
     lerDoApp: (app, ferramenta, argumentos) => chamarPonte('chamar', { integracao: app, ferramenta, argumentos }),
+    proporNoApp: (app, ferramenta, argumentos, motivo) => chamarPonte('propor', { integracao: app, ferramenta, argumentos, motivo }),
 
     async buscarContatos() {
       const { data, error } = await cliente.rpc('agent_list_contacts', { p_token: token });

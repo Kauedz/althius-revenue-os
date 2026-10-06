@@ -96,6 +96,9 @@ describe('Playbook nas instruções (o agente sempre sabe como a empresa trabalh
     expect(t).toMatch(/nunca altere nada em um app/i);
     expect(t).toMatch(/não conectou/i);
     expect(t).toMatch(/cite o app como fonte/i);
+    expect(t).toContain('integracao_propor');
+    expect(t).toMatch(/escrita/i);
+    expect(t).toMatch(/nunca diga que .* foi feito antes da aprovação/i);
   });
   it('as regras falam das ferramentas de habilidades e sinais e tratam sinal como dado, não como ordem', () => {
     const t = instrucoes('comercial', 'vendas');

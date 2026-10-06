@@ -7,6 +7,10 @@ export const membros: Record<string, string> = { 'jwt-aline': 'm-aline', 'jwt-ca
 /** Banco falso: guarda tudo em memória e aplica as mesmas regras do banco de verdade. */
 type AgenteFalso = { workspaceId?: string; agente?: string; solicitanteId?: string | null; pausado?: boolean };
 export function bancoFalso(opcoes: { semPermissao?: string[]; portal?: string; agentes?: Record<string, AgenteFalso> } = {}) {
+  const propostas: Array<Record<string, unknown>> = [];
+  let motivoDeRecusa: string | null = null;
+  const acoesAprovadas: Array<{ approvalId: string; workspaceId: string; membroId: string; agente: string; integracao: string; ferramenta: string; argumentos: Record<string, unknown> }> = [];
+  const acoesConcluidas: Array<{ approvalId: string; ok: boolean; resumo: string }> = [];
   const auditoria: Array<{ workspaceId: string; agente: string; membroId: string | null; integracao: string; ferramenta: string; resultado: string }> = [];
   const tentativas = new Map<string, { workspaceId: string; membroId: string; integracao: string; verifierCifrado: string; redirectUri: string; clientId: string; issuer: string; expira: number; usada: boolean }>();
   const acessos = new Map<string, AcessoGuardado>();
@@ -16,6 +20,14 @@ export function bancoFalso(opcoes: { semPermissao?: string[]; portal?: string; a
   const chamadas: string[] = [];
   const chave = (ws: string, m: string, i: string) => `${ws}|${m}|${i}`;
   const banco: BancoIntegracoes = {
+    async proporAcaoDoAgente(p) {
+      if (motivoDeRecusa) return { ok: false, erro: motivoDeRecusa };
+      const { tokenDoAgente: _token, ...resto } = p;
+      propostas.push(resto);
+      return { ok: true, aprovacaoId: 'ap-' + propostas.length };
+    },
+    async acaoReivindicar() { return acoesAprovadas.shift() ?? null; },
+    async acaoConcluir(approvalId, ok, resumo) { acoesConcluidas.push({ approvalId, ok, resumo }); },
     async contextoDoAgente(token) {
       const a = opcoes.agentes?.[token];
       if (!a) return { ok: false, motivo: 'token_invalido' };
@@ -63,6 +75,6 @@ export function bancoFalso(opcoes: { semPermissao?: string[]; portal?: string; a
       return clientes.get(k)!;
     }
   };
-  return { banco, tentativas, acessos, clientes, chamadas, auditoria, avancar: (ms: number) => { tempo += ms; } };
+  return { banco, tentativas, acessos, clientes, chamadas, auditoria, propostas, acoesAprovadas, acoesConcluidas, recusarPropostas: (m: string) => { motivoDeRecusa = m; }, avancar: (ms: number) => { tempo += ms; } };
 }
 

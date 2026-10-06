@@ -195,6 +195,7 @@ describe('servidor: integrações do catálogo (ADR 0056)', () => {
     desconectar: async (jwt, corpo) => { vistos.push(['desconectar', jwt, corpo]); return { status: 200, corpo: { ok: true } }; },
     retirar: async (jwt, corpo) => { vistos.push(['retirar', jwt, corpo]); return { status: 200, corpo: { ok: true } }; },
     agenteFerramentas: async (token, corpo) => { vistos.push(['agenteFerramentas', token, corpo]); return { status: 200, corpo: { fonte: 'HubSpot', ferramentas: [] } }; },
+    agentePropor: async (token, corpo) => { vistos.push(['agentePropor', token, corpo]); return { status: 200, corpo: { ok: true, status: 'aguardando_aprovacao' } }; },
     agenteChamar: async (token, corpo) => { vistos.push(['agenteChamar', token, corpo]); return { status: 200, corpo: { ok: true, fonte: 'HubSpot', resultado: '[]', cortado: false } }; },
     retorno: async query => { vistos.push(['retorno', '', query]); return { status: 302, destino: 'https://site.test/?conexao=ok&integracao=notion#/integrations' }; }
   });
@@ -223,7 +224,8 @@ describe('servidor: integrações do catálogo (ADR 0056)', () => {
     expect((await post(url, '/integracoes/agente/ferramentas', {})).status).toBe(401);
     expect((await post(url, '/integracoes/agente/ferramentas', { integracao: 'hubspot' }, 'alt_agente_zoe')).status).toBe(200);
     expect((await post(url, '/integracoes/agente/chamar', { integracao: 'hubspot', ferramenta: 'get_crm_objects', argumentos: {} }, 'alt_agente_zoe')).status).toBe(200);
-    expect(vistos.map(v => v[0])).toEqual(['agenteFerramentas', 'agenteChamar']);
+    expect((await post(url, '/integracoes/agente/propor', { integracao: 'hubspot', ferramenta: 'manage_crm_objects', argumentos: {}, motivo: 'x' }, 'alt_agente_zoe')).status).toBe(200);
+    expect(vistos.map(v => v[0])).toEqual(['agenteFerramentas', 'agenteChamar', 'agentePropor']);
     expect(vistos.every(v => v[1] === 'alt_agente_zoe')).toBe(true);
     expect(vistos[1][2]).toEqual({ integracao: 'hubspot', ferramenta: 'get_crm_objects', argumentos: {} });
     const sem = await subirComIntegracoes();

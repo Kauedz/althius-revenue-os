@@ -4,7 +4,7 @@
 // auditoria. Servidor do app e banco são FALSOS: nenhum app real é chamado.
 import { describe, expect, it } from 'vitest';
 import { chaveMestra, cifrar } from '../cofre/cifra.ts';
-import { chamarDoAgente, ferramentasDoAgente } from './agente.ts';
+import { chamarDoAgente, ferramentasDoAgente, proporDoAgente } from './agente.ts';
 import type { DepsIntegracoes } from './rotas.ts';
 import { bancoFalso } from './mundo-falso.ts';
 import { servidorMcpFalso } from './servidor-mcp-falso.ts';
@@ -236,5 +236,107 @@ describe('ler de verdade', () => {
     await m.conectar(WS, 'm-aline', 'acc-aline');
     m.deps.banco.auditarUsoDoAgente = async () => { throw new Error('banco fora'); };
     expect((await chamarDoAgente(m.deps, TOKEN_ZOE, { integracao: 'hubspot', ferramenta: 'get_crm_objects', argumentos: {} })).status).toBe(200);
+  });
+});
+
+describe('achar a ferramenta de ESCRITA para propor (ticket 05)', () => {
+  const comDestrutiva = [...FERRAMENTAS, { name: 'delete_crm_objects', description: 'Apaga.', inputSchema: { type: 'object' }, annotations: { readOnlyHint: false, destructiveHint: true } }];
+  it('com escrita=true lista só as que mudam algo e NÃO apagam; sem a marca ou de leitura ficam de fora', async () => {
+    const m = montar({ ferramentas: comDestrutiva });
+    await m.conectar(WS, 'm-aline', 'acc-aline');
+    const r = await ferramentasDoAgente(m.deps, TOKEN_ZOE, { integracao: 'hubspot', escrita: true });
+    expect(r.status).toBe(200);
+    expect((r.corpo.ferramentas as Array<{ nome: string }>).map(f => f.nome)).toEqual(['manage_crm_objects']);
+    expect(r.corpo.tipo).toBe('escrita');
+  });
+  it('o detalhe de uma ferramenta de escrita vem só com escrita=true (e a de leitura só sem)', async () => {
+    const m = montar({ ferramentas: comDestrutiva });
+    await m.conectar(WS, 'm-aline', 'acc-aline');
+    expect((await ferramentasDoAgente(m.deps, TOKEN_ZOE, { integracao: 'hubspot', ferramenta: 'manage_crm_objects', escrita: true })).status).toBe(200);
+    expect((await ferramentasDoAgente(m.deps, TOKEN_ZOE, { integracao: 'hubspot', ferramenta: 'manage_crm_objects' })).status).toBe(404);
+    expect((await ferramentasDoAgente(m.deps, TOKEN_ZOE, { integracao: 'hubspot', ferramenta: 'get_crm_objects', escrita: true })).status).toBe(404);
+    expect((await ferramentasDoAgente(m.deps, TOKEN_ZOE, { integracao: 'hubspot', ferramenta: 'delete_crm_objects', escrita: true })).status).toBe(404);
+  });
+  it('listar as de escrita não executa nada e não altera o app', async () => {
+    const m = montar();
+    await m.conectar(WS, 'm-aline', 'acc-aline');
+    await ferramentasDoAgente(m.deps, TOKEN_ZOE, { integracao: 'hubspot', escrita: true });
+    expect(chamadasDeFerramenta(m.mcp)).toHaveLength(0);
+  });
+});
+
+describe('propor uma ação num app (ticket 05): nada roda agora, vira aprovação', () => {
+  const pedido = { integracao: 'hubspot', ferramenta: 'manage_crm_objects', argumentos: { id: '7', valor: 5000 }, motivo: 'O cliente confirmou o valor' };
+
+  it('ferramenta que ESCREVE: vira proposta com o app, a conta e o motivo; o app NÃO recebe a chamada', async () => {
+    const m = montar();
+    await m.conectar(WS, 'm-aline', 'acc-aline');
+    const r = await proporDoAgente(m.deps, TOKEN_ZOE, pedido);
+    expect(r.status).toBe(200);
+    expect(r.corpo).toMatchObject({ ok: true, status: 'aguardando_aprovacao', fonte: 'HubSpot' });
+    expect(r.corpo.approval_id).toBeTruthy();
+    expect(chamadasDeFerramenta(m.mcp)).toHaveLength(0);
+    expect(m.mundo.propostas).toHaveLength(1);
+    expect(m.mundo.propostas[0]).toMatchObject({ integracao: 'hubspot', ferramenta: 'manage_crm_objects', appNome: 'HubSpot', conta: 'ana@norte.test', motivo: 'O cliente confirmou o valor', argumentos: { id: '7', valor: 5000 } });
+    expect(JSON.stringify(m.mundo.propostas)).not.toContain('acc-aline');
+  });
+  it('a mesma proposta repetida usa a mesma chave de idempotência (não duplica); outra proposta usa outra', async () => {
+    const m = montar();
+    await m.conectar(WS, 'm-aline', 'acc-aline');
+    await proporDoAgente(m.deps, TOKEN_ZOE, pedido);
+    await proporDoAgente(m.deps, TOKEN_ZOE, { ...pedido, argumentos: { valor: 5000, id: '7' } }); // mesma coisa, outra ordem
+    await proporDoAgente(m.deps, TOKEN_ZOE, { ...pedido, argumentos: { id: '8' } });
+    const chaves = m.mundo.propostas.map(p => p.chave);
+    expect(chaves[0]).toBe(chaves[1]);
+    expect(chaves[2]).not.toBe(chaves[0]);
+  });
+  it('ferramenta de LEITURA: orienta a usar integracao_ler (não vira aprovação à toa)', async () => {
+    const m = montar();
+    await m.conectar(WS, 'm-aline', 'acc-aline');
+    const r = await proporDoAgente(m.deps, TOKEN_ZOE, { ...pedido, ferramenta: 'get_crm_objects' });
+    expect(r.status).toBe(400);
+    expect(r.corpo.erro).toBe('ferramenta_de_leitura');
+    expect(m.mundo.propostas).toHaveLength(0);
+  });
+  it('ferramenta sem marca, destrutiva ou que não existe: 403, sem proposta', async () => {
+    const m = montar({ ferramentas: [...FERRAMENTAS, { name: 'delete_crm_objects', description: 'Apaga.', inputSchema: { type: 'object' }, annotations: { readOnlyHint: false, destructiveHint: true } }] });
+    await m.conectar(WS, 'm-aline', 'acc-aline');
+    for (const nome of ['ferramenta_sem_marca', 'delete_crm_objects', 'nao_existe']) {
+      const r = await proporDoAgente(m.deps, TOKEN_ZOE, { ...pedido, ferramenta: nome });
+      expect(r.status, nome).toBe(403);
+      expect(r.corpo.erro, nome).toBe('ferramenta_nao_permitida');
+    }
+    expect(m.mundo.propostas).toHaveLength(0);
+  });
+  it('quem pediu não conectou o app: 409 "precisa conectar" (sem acesso não há em nome de quem agir)', async () => {
+    const m = montar();
+    const r = await proporDoAgente(m.deps, TOKEN_ZOE, pedido);
+    expect(r.status).toBe(409);
+    expect(r.corpo.erro).toBe('precisa_conectar');
+    expect(m.mundo.propostas).toHaveLength(0);
+  });
+  it('pedido torto (sem ferramenta, sem motivo, argumentos que não são objeto): 400; token ruim: 401; pausado: 403', async () => {
+    const m = montar();
+    await m.conectar(WS, 'm-aline', 'acc-aline');
+    expect((await proporDoAgente(m.deps, TOKEN_ZOE, { integracao: 'hubspot', motivo: 'x' })).status).toBe(400);
+    expect((await proporDoAgente(m.deps, TOKEN_ZOE, { ...pedido, motivo: '  ' })).status).toBe(400);
+    expect((await proporDoAgente(m.deps, TOKEN_ZOE, { ...pedido, argumentos: 'texto' } as never)).status).toBe(400);
+    expect((await proporDoAgente(m.deps, 'jwt-de-pessoa', pedido)).status).toBe(401);
+    expect((await proporDoAgente(m.deps, TOKEN_PAUSADA, pedido)).status).toBe(403);
+    expect(m.mundo.propostas).toHaveLength(0);
+  });
+  it('o banco recusa a proposta: o motivo volta ao agente (400) e o uso fica na auditoria', async () => {
+    const m = montar();
+    await m.conectar(WS, 'm-aline', 'acc-aline');
+    m.mundo.recusarPropostas('Os argumentos passam de 8000 caracteres.');
+    const r = await proporDoAgente(m.deps, TOKEN_ZOE, pedido);
+    expect(r.status).toBe(400);
+    expect(String(r.corpo.mensagem)).toContain('8000');
+  });
+  it('o uso (proposta) fica na auditoria sem guardar argumentos', async () => {
+    const m = montar();
+    await m.conectar(WS, 'm-aline', 'acc-aline');
+    await proporDoAgente(m.deps, TOKEN_ZOE, pedido);
+    expect(m.mundo.auditoria).toEqual([{ workspaceId: WS, agente: 'comercial', membroId: 'm-aline', integracao: 'hubspot', ferramenta: 'proposta:manage_crm_objects', resultado: 'ok' }]);
   });
 });

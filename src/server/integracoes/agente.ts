@@ -6,6 +6,7 @@
 //  - O token do app fica aqui dentro: o agente e o modelo só recebem o resultado.
 //  - O workspace e a pessoa vêm do banco (token do agente + rodada em andamento), nunca do pedido.
 //  - Cada uso vai para a auditoria (só nomes: nunca argumentos nem o conteúdo devolvido).
+import { createHash } from 'node:crypto';
 import { comSessaoMcp, type FerramentaMcp } from './mcp-cliente.ts';
 import { perfilDisponivel, resposta, tokenDaPessoa, type DepsIntegracoes, type Resp } from './rotas.ts';
 import { PERFIS, type PerfilDeIntegracao } from './perfis.ts';
@@ -51,6 +52,8 @@ async function contexto(d: DepsIntegracoes, tokenDoAgente: string, integracao: s
 }
 
 const somenteLeitura = (f: FerramentaMcp) => f.annotations?.readOnlyHint === true;
+/** Muda algo no app (marcada como escrita) e NÃO apaga dados. É a mesma regra do executor e da proposta. */
+const ferramentaDeEscrita = (f: FerramentaMcp) => f.annotations?.readOnlyHint === false && f.annotations?.destructiveHint !== true;
 
 const auditar = async (d: DepsIntegracoes, uso: UsoDoAgente) => {
   // O registro é tentado, mas nunca bloqueia nem derruba a leitura.
@@ -69,19 +72,21 @@ const primeiraFrase = (t: string) => { const limpo = t.replace(/s+/g, ' ').trim(
 
 /** O que o agente pode LER neste app (só ferramentas somente leitura). Com `ferramenta`: o detalhe de uma só. */
 export async function ferramentasDoAgente(d: DepsIntegracoes, tokenDoAgente: string, corpo: unknown): Promise<Resp> {
-  const b = (corpo && typeof corpo === 'object' ? corpo : {}) as { integracao?: unknown; ferramenta?: unknown };
+  const b = (corpo && typeof corpo === 'object' ? corpo : {}) as { integracao?: unknown; ferramenta?: unknown; escrita?: unknown };
   const integracao = texto(b.integracao);
   const detalhe = texto(b.ferramenta);
+  const escrita = b.escrita === true;
   const c = await contexto(d, tokenDoAgente, integracao);
   if (!c.ok) return c.r;
   try {
-    const lista = (await comSessaoMcp(opcoesMcp(d, c), s => s.ferramentas())).filter(somenteLeitura);
+    // Por padrão só as de LEITURA. Com escrita=true, as que MUDAM algo e não apagam: servem só para propor (nada roda aqui).
+    const lista = (await comSessaoMcp(opcoesMcp(d, c), s => s.ferramentas())).filter(escrita ? ferramentaDeEscrita : somenteLeitura);
     if (detalhe) {
       const f = lista.find(x => x.name === detalhe);
       if (!f) return resposta(404, { erro: 'ferramenta_nao_encontrada', mensagem: 'Não há uma ferramenta de leitura com esse nome neste app.' });
       return resposta(200, { fonte: c.perfil.nome, ferramenta: { nome: f.name, descricao: (f.description ?? '').slice(0, 3000), parametros: f.inputSchema ?? { type: 'object' } } });
     }
-    return resposta(200, { fonte: c.perfil.nome, ferramentas: lista.map(f => ({ nome: f.name, descricao: primeiraFrase(f.description ?? '') })) });
+    return resposta(200, { fonte: c.perfil.nome, tipo: escrita ? 'escrita' : 'leitura', ferramentas: lista.map(f => ({ nome: f.name, descricao: primeiraFrase(f.description ?? '') })) });
   } catch (e) {
     if (e instanceof ErroDeProvedor && e.tipo === 'nao_autorizado') return revogado(d, c);
     return resposta(502, { erro: 'indisponivel' });
@@ -130,3 +135,46 @@ export async function chamarDoAgente(d: DepsIntegracoes, tokenDoAgente: string, 
 
 /** Os apps que a ponte atende (os de servidor MCP; canais de mensagem não). Usado pela descrição das ferramentas. */
 export const APPS_DA_PONTE = Object.values(PERFIS).filter(p => p.situacao === 'disponivel' && p.mcp && p.via !== 'mensagens').map(p => p.id);
+
+/** O JSON com as chaves em ordem: o mesmo pedido, escrito em outra ordem, tem a mesma chave de idempotência. */
+const estavel = (v: unknown): string => {
+  if (Array.isArray(v)) return '[' + v.map(estavel).join(',') + ']';
+  if (v && typeof v === 'object') return '{' + Object.keys(v as object).sort().map(k => JSON.stringify(k) + ':' + estavel((v as Record<string, unknown>)[k])).join(',') + '}';
+  return JSON.stringify(v ?? null);
+};
+
+/**
+ * O agente PROPÕE uma ação que escreve num app. Nada roda agora: vira uma aprovação (operação) e, só depois de aprovada,
+ * o executor roda UMA vez com o acesso de quem pediu (ver acoes.ts). Só ferramentas marcadas como de escrita e não destrutivas.
+ */
+export async function proporDoAgente(d: DepsIntegracoes, tokenDoAgente: string, corpo: unknown): Promise<Resp> {
+  const b = (corpo && typeof corpo === 'object' ? corpo : {}) as { integracao?: unknown; ferramenta?: unknown; argumentos?: unknown; motivo?: unknown };
+  const integracao = texto(b.integracao);
+  const ferramenta = texto(b.ferramenta);
+  const motivo = texto(b.motivo);
+  const argumentos = b.argumentos === undefined ? {} : b.argumentos;
+  const c = await contexto(d, tokenDoAgente, integracao);
+  if (!c.ok) return c.r;
+  if (!ferramenta || !motivo || !argumentos || typeof argumentos !== 'object' || Array.isArray(argumentos)) return resposta(400, { erro: 'pedido_invalido', mensagem: 'Informe a ferramenta, os argumentos (um objeto) e o motivo.' });
+  const uso = (resultado: UsoDoAgente['resultado']): UsoDoAgente => ({ workspaceId: c.workspaceId, agente: c.agente, membroId: c.solicitanteId, integracao: c.perfil.id, ferramenta: 'proposta:' + ferramenta, resultado });
+  let f: FerramentaMcp | undefined;
+  try {
+    f = (await comSessaoMcp(opcoesMcp(d, c), s => s.ferramentas())).find(x => x.name === ferramenta);
+  } catch (e) {
+    if (e instanceof ErroDeProvedor && e.tipo === 'nao_autorizado') return revogado(d, c);
+    return resposta(502, { erro: 'indisponivel' });
+  }
+  if (f && somenteLeitura(f)) return resposta(400, { erro: 'ferramenta_de_leitura', mensagem: 'Esta ferramenta só lê: use integracao_ler. Propostas são para mudar algo no app.' });
+  if (!f || f.annotations?.readOnlyHint !== false || f.annotations?.destructiveHint === true) {
+    await auditar(d, uso('negado'));
+    return resposta(403, { erro: 'ferramenta_nao_permitida', mensagem: 'Não é possível propor esta ferramenta: ela não existe, não está marcada como de escrita ou apaga dados.' });
+  }
+  const chave = 'integracao:' + createHash('sha256').update(estavel({ p: c.solicitanteId, i: c.perfil.id, f: ferramenta, a: argumentos })).digest('hex');
+  const r = await d.banco.proporAcaoDoAgente({
+    tokenDoAgente: texto(tokenDoAgente), integracao: c.perfil.id, ferramenta, appNome: c.perfil.nome, argumentos: argumentos as Record<string, unknown>, motivo, chave,
+    conta: (await d.banco.acessoLer(c.workspaceId, c.solicitanteId, c.perfil.id))?.conta ?? null
+  });
+  if (!r.ok) return resposta(400, { erro: 'proposta_recusada', mensagem: r.erro });
+  await auditar(d, uso('ok'));
+  return resposta(200, { ok: true, status: 'aguardando_aprovacao', approval_id: r.aprovacaoId, fonte: c.perfil.nome });
+}

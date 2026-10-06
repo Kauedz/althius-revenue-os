@@ -31,7 +31,7 @@ async function conectar(opcoes?: OpcoesPonte) {
 const texto = (r: { content?: unknown }) => ((r.content as Array<{ text?: string }>) || []).map(c => c.text || '').join('\n');
 
 describe('ferramentas de leitura nos apps conectados', () => {
-  it('existem, são somente leitura e não aceitam escolher workspace nem pessoa', async () => {
+  it('as de leitura existem, são somente leitura e nenhuma aceita escolher workspace nem pessoa', async () => {
     const { tools } = await (await conectar()).listTools();
     for (const nome of ['integracao_ferramentas', 'integracao_ler']) {
       const t = tools.find(x => x.name === nome);
@@ -59,6 +59,15 @@ describe('ferramentas de leitura nos apps conectados', () => {
     expect(r.isError).not.toBe(true);
     expect(p.vistos[0].corpo).toEqual({ integracao: 'hubspot', ferramenta: 'get_crm_objects' });
     expect(texto(r)).toContain('get_crm_objects');
+  });
+
+  it('integracao_ferramentas aceita escrita=true para achar a ferramenta de mudança (só para propor)', async () => {
+    const p = ponteFalsa(() => ({ status: 200, corpo: { fonte: 'HubSpot', tipo: 'escrita', ferramentas: [{ nome: 'manage_crm_objects', descricao: 'Cria ou muda.' }] } }));
+    const r = await (await conectar({ url: 'http://x', buscar: p.buscar })).callTool({ name: 'integracao_ferramentas', arguments: { app: 'hubspot', escrita: true } });
+    expect(r.isError).not.toBe(true);
+    expect(p.vistos[0].corpo).toEqual({ integracao: 'hubspot', escrita: true });
+    expect(texto(r)).toContain('manage_crm_objects');
+    expect(texto(r)).toMatch(/mudam algo|escrita/i);
   });
 
   it('integracao_ler: manda app, ferramenta e argumentos; devolve o resultado com a fonte', async () => {
@@ -111,6 +120,37 @@ describe('ferramentas de leitura nos apps conectados', () => {
     expect(r.isError).toBe(true);
     expect(texto(r)).not.toContain(TOKEN);
     expect(texto(r)).not.toContain('webhooks:3100');
+  });
+
+  it('integracao_propor: só PROPÕE (não é leitura, não apaga) e manda app, ferramenta, argumentos e motivo à ponte', async () => {
+    const p = ponteFalsa(() => ({ status: 200, corpo: { ok: true, status: 'aguardando_aprovacao', approval_id: 'ap-9', fonte: 'HubSpot' } }));
+    const c = await conectar({ url: 'http://x', buscar: p.buscar });
+    const t = (await c.listTools()).tools.find(x => x.name === 'integracao_propor')!;
+    expect(t.annotations?.readOnlyHint).toBe(false);
+    expect(t.annotations?.destructiveHint).toBe(false);
+    expect(JSON.stringify(t.inputSchema)).not.toMatch(/workspace|membro|member|token/i);
+    const r = await c.callTool({ name: 'integracao_propor', arguments: { app: 'hubspot', ferramenta: 'manage_crm_objects', argumentos: { id: '7' }, motivo: 'O cliente pediu' } });
+    expect(r.isError).not.toBe(true);
+    expect(texto(r)).toMatch(/aguardando aprovação/i);
+    expect(texto(r)).toMatch(/Nada foi alterado ainda/i);
+    expect(p.vistos[0].url).toBe('http://x/integracoes/agente/propor');
+    expect(p.vistos[0].corpo).toEqual({ integracao: 'hubspot', ferramenta: 'manage_crm_objects', argumentos: { id: '7' }, motivo: 'O cliente pediu' });
+  });
+
+  it('integracao_propor: recusas da ponte (leitura, não permitida, falta conexão) voltam como aviso em português', async () => {
+    for (const [status, corpo] of [[400, { erro: 'ferramenta_de_leitura', mensagem: 'Esta é de leitura: use integracao_ler.' }], [403, { erro: 'ferramenta_nao_permitida', mensagem: 'Não é possível propor esta ferramenta.' }], [409, { erro: 'precisa_conectar', mensagem: 'Quem pediu ainda não conectou o HubSpot.' }]] as const) {
+      const p = ponteFalsa(() => ({ status, corpo }));
+      const r = await (await conectar({ url: 'http://x', buscar: p.buscar })).callTool({ name: 'integracao_propor', arguments: { app: 'hubspot', ferramenta: 'f', motivo: 'm' } });
+      expect(r.isError, String(status)).toBe(true);
+      expect(texto(r), String(status)).toContain((corpo as unknown as { mensagem: string }).mensagem);
+    }
+  });
+
+  it('integracao_propor exige o motivo', async () => {
+    const p = ponteFalsa(() => ({ status: 200, corpo: {} }));
+    const r = await (await conectar({ url: 'http://x', buscar: p.buscar })).callTool({ name: 'integracao_propor', arguments: { app: 'hubspot', ferramenta: 'manage_crm_objects' } });
+    expect(r.isError).toBe(true);
+    expect(p.vistos).toHaveLength(0);
   });
 
   it('não aceita pedido sem app ou sem ferramenta', async () => {

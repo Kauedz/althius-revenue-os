@@ -25,7 +25,17 @@ export type ContextoDoAgente =
 
 export interface UsoDoAgente { workspaceId: string; agente: string; membroId: string | null; integracao: string; ferramenta: string; resultado: 'ok' | 'erro' | 'negado' }
 
+/** Uma ação que o agente propõe num app: vira aprovação (migration 123). Os argumentos podem ter dados do cliente. */
+export interface PropostaDoAgente { tokenDoAgente: string; integracao: string; ferramenta: string; appNome: string; argumentos: Record<string, unknown>; motivo: string; chave: string; conta: string | null }
+export type ResultadoDaProposta = { ok: true; aprovacaoId: string } | { ok: false; erro: string };
+/** Uma ação já APROVADA, entregue ao executor uma única vez. */
+export interface AcaoAprovada { approvalId: string; workspaceId: string; membroId: string; agente: string; integracao: string; ferramenta: string; argumentos: Record<string, unknown> }
+
 export interface BancoIntegracoes {
+  proporAcaoDoAgente(proposta: PropostaDoAgente): Promise<ResultadoDaProposta>;
+  /** A próxima ação aprovada (uma por vez; já marcada como "executando"), ou nada. */
+  acaoReivindicar(): Promise<AcaoAprovada | null>;
+  acaoConcluir(approvalId: string, ok: boolean, resumo: string): Promise<void>;
   contextoDoAgente(tokenDoAgente: string): Promise<ContextoDoAgente>;
   /** Registra na auditoria que um agente usou um app (só nomes; nunca argumentos nem o conteúdo devolvido). */
   auditarUsoDoAgente(uso: UsoDoAgente): Promise<void>;
@@ -78,6 +88,18 @@ export function bancoIntegracoes(o: OpcoesBanco): BancoIntegracoes {
       if (j.code === '55000') return { ok: false, motivo: 'agente_pausado' };
       if (j.code === '28000') return { ok: false, motivo: 'token_invalido' };
       return { ok: false, motivo: r.status >= 500 ? 'indisponivel' : 'token_invalido' };
+    },
+    async proporAcaoDoAgente(p) {
+      const j = obj(await comoSistema('integration_agent_propose', { p_token: p.tokenDoAgente, p_integracao: p.integracao, p_ferramenta: p.ferramenta, p_app_nome: p.appNome, p_argumentos: p.argumentos, p_reason: p.motivo, p_idempotency_key: p.chave, p_conta: p.conta }));
+      return j.ok === true && typeof j.approval_id === 'string' ? { ok: true, aprovacaoId: j.approval_id } : { ok: false, erro: txt(j.erro) ?? 'Não foi possível registrar a proposta.' };
+    },
+    async acaoReivindicar() {
+      const j = obj(await comoSistema('integration_action_claim', {}));
+      if (typeof j.approval_id !== 'string') return null;
+      return { approvalId: j.approval_id, workspaceId: String(j.workspace_id), membroId: String(j.member_id), agente: String(j.agent_code), integracao: String(j.integracao), ferramenta: String(j.ferramenta), argumentos: obj(j.argumentos) };
+    },
+    async acaoConcluir(approvalId, ok, resumo) {
+      await comoSistema('integration_action_finish', { p_approval_id: approvalId, p_ok: ok, p_resumo: resumo });
     },
     async auditarUsoDoAgente(a) {
       await comoSistema('integration_agent_log', { p_workspace_id: a.workspaceId, p_agent_code: a.agente, p_member_id: a.membroId, p_integracao: a.integracao, p_ferramenta: a.ferramenta, p_resultado: a.resultado });

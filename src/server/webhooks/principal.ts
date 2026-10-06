@@ -10,7 +10,8 @@ import { chaveMestra } from '../cofre/cifra.ts';
 import type { DepsCofre } from '../cofre/rotas.ts';
 import { bancoIntegracoes } from '../integracoes/banco.ts';
 import { desconectar, ferramentas, iniciarConexao, retirar, retornoDoConsentimento, type DepsIntegracoes } from '../integracoes/rotas.ts';
-import { chamarDoAgente, ferramentasDoAgente } from '../integracoes/agente.ts';
+import { chamarDoAgente, ferramentasDoAgente, proporDoAgente } from '../integracoes/agente.ts';
+import { executarAcoesAprovadas } from '../integracoes/acoes.ts';
 import type { RotasIntegracoes } from './servidor.ts';
 
 const base = process.env.BANCO_URL ?? '';
@@ -56,9 +57,28 @@ const integracoes: RotasIntegracoes | undefined = depsIntegracoes && {
   desconectar: (jwt, corpo) => desconectar(depsIntegracoes, jwt, corpo),
   retirar: (jwt, corpo) => retirar(depsIntegracoes, jwt, corpo),
   agenteFerramentas: (token, corpo) => ferramentasDoAgente(depsIntegracoes, token, corpo),
+  agentePropor: (token, corpo) => proporDoAgente(depsIntegracoes, token, corpo),
   agenteChamar: (token, corpo) => chamarDoAgente(depsIntegracoes, token, corpo),
   retorno: query => retornoDoConsentimento(depsIntegracoes, query)
 };
+
+// Ações que os agentes propuseram nos apps e uma pessoa APROVOU (ADR 0058): rodam aqui, uma vez cada, com o acesso de quem pediu.
+if (depsIntegracoes) {
+  let rodando = false;
+  const ciclo = setInterval(async () => {
+    if (rodando) return;
+    rodando = true;
+    try {
+      const n = await executarAcoesAprovadas(depsIntegracoes);
+      if (n) console.log(JSON.stringify({ nivel: 'info', msg: 'acoes_de_agente_executadas', total: n }));
+    } catch {
+      console.log(JSON.stringify({ nivel: 'erro', msg: 'acoes_de_agente_falhou' }));
+    } finally {
+      rodando = false;
+    }
+  }, 5_000);
+  ciclo.unref?.();
+}
 
 const { servidor } = criarServidor({ segredo, banco: bancoViaApi(base, chave), conexoes, cofre: rotasCofre, integracoes });
 const porta = Number(process.env.PORT ?? 3100);

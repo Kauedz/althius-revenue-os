@@ -8,7 +8,7 @@ const AGENTES = ['comercial', 'marketing', 'copy', 'revops'] as const;
 // As ferramentas que existem de verdade no servidor MCP (src/server/mcp/althius.ts): o texto nunca pode citar uma que não existe.
 const FERRAMENTAS = [
   'buscar_contatos', 'listar_membros', 'listar_tarefas', 'listar_cadencias', 'listar_contas', 'listar_quadros', 'listar_negocios', 'listar_campanhas',
-  'listar_habilidades', 'listar_sinais', 'integracao_ferramentas', 'integracao_ler', 'propor_atualizacao', 'propor_tarefa', 'propor_inscricao_cadencia', 'propor_negocio', 'propor_mover_negocio',
+  'listar_habilidades', 'listar_sinais', 'integracao_ferramentas', 'integracao_ler', 'integracao_propor', 'propor_atualizacao', 'propor_tarefa', 'propor_inscricao_cadencia', 'propor_negocio', 'propor_mover_negocio',
   'propor_campanha', 'propor_verba_campanha', 'propor_status_campanha'
 ];
 
