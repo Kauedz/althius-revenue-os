@@ -541,6 +541,11 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const mod = (window as any).ALTHIUS_MOD;
     if (mod?.accounts) {
       mod.accounts.linhas = contas;
+      // Coluna "Último contato" (das nossas mensagens), logo depois do último sinal. Não duplica em chamadas repetidas.
+      const colunas: Array<[string, string, string]> = (mod.accounts.colunas || []).filter((c: [string, string, string]) => c[0] !== 'ultimoContato');
+      const depoisDoSinal = colunas.findIndex(c => c[0] === 'sinal');
+      colunas.splice(depoisDoSinal >= 0 ? depoisDoSinal + 1 : colunas.length, 0, ['ultimoContato', 'Último contato', '1.5fr']);
+      mod.accounts.colunas = colunas;
       const total = contas.length;
       const fitMedio = total ? Math.round(contas.reduce((s, c) => s + c.fit, 0) / total) : 0;
       const comDecisor = total ? Math.round((contas.filter(c => c.decisor !== 'A mapear').length / total) * 100) + '%' : '0%';

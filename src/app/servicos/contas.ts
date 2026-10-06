@@ -28,7 +28,40 @@ export interface ContaTela {
   decisor: string;
   dominio?: string;
   logoUrl?: string | null;
+  /** Texto pronto da coluna "Último contato" (das nossas mensagens). Sem mensagem: "Sem contato ainda". */
+  ultimoContato: string;
   comite?: ContatoComiteTela[];
+}
+
+export const SEM_CONTATO = 'Sem contato ainda';
+
+const NOME_CANAL: Record<string, string> = { email: 'E-mail', whatsapp: 'WhatsApp', linkedin: 'LinkedIn', instagram: 'Instagram' };
+
+/**
+ * "há 3 dias · E-mail · resposta do contato". Só mensagens reais da caixa de entrada: sem mensagem, "Sem contato ainda"
+ * (nunca uma data inventada). `direcao`: 'in' = o contato escreveu; 'out' = nós escrevemos.
+ */
+export function textoUltimoContato(
+  ultimo: { quando: string; direcao: string | null; canal: string | null } | null | undefined,
+  agora: Date = new Date()
+): string {
+  if (!ultimo) return SEM_CONTATO;
+  const quando = new Date(ultimo.quando);
+  if (Number.isNaN(quando.getTime())) return SEM_CONTATO;
+  const minutos = Math.max(0, Math.floor((agora.getTime() - quando.getTime()) / 60_000));
+  const horas = Math.floor(minutos / 60);
+  const dias = Math.floor(horas / 24);
+  let tempo: string;
+  if (minutos < 1) tempo = 'agora';
+  else if (minutos < 60) tempo = `há ${minutos} min`;
+  else if (horas < 24) tempo = `há ${horas} h`;
+  else if (dias < 30) tempo = `há ${dias} ${dias === 1 ? 'dia' : 'dias'}`;
+  else tempo = quando.toLocaleDateString('pt-BR');
+  const partes = [tempo];
+  if (ultimo.canal) partes.push(NOME_CANAL[ultimo.canal] || ultimo.canal);
+  if (ultimo.direcao === 'in') partes.push('resposta do contato');
+  else if (ultimo.direcao === 'out') partes.push('mensagem nossa');
+  return partes.join(' · ');
 }
 
 /** Lista as contas ativas do workspace com responsáveis, decisores e comitê mapeado. */
@@ -77,6 +110,15 @@ export async function listarContas(cliente: SupabaseClient, workspaceId: string)
     canaisPorContato.set(canal.contact_id, atual);
   }
 
+  // Último contato por conta, das nossas mensagens. A visão respeita a RLS: BDR só enxerga o das próprias conversas.
+  const { data: ultimosData, error: errUltimos } = await cliente
+    .from('account_last_contact')
+    .select('account_id, last_contact_at, last_direction, last_channel')
+    .eq('workspace_id', workspaceId)
+    .in('account_id', accountIds);
+  if (errUltimos) throw new Error('Não foi possível carregar o último contato das contas.', { cause: errUltimos });
+  const ultimoPorConta = new Map((ultimosData || []).map(u => [u.account_id as string, u]));
+
   // Agrupa contatos por conta
   const comitePorConta = new Map<string, ContatoComiteTela[]>();
   for (const c of contatosData || []) {
@@ -119,6 +161,9 @@ export async function listarContas(cliente: SupabaseClient, workspaceId: string)
       decisor: decisorContato ? decisorContato.nome : 'A mapear',
       dominio: a.domain,
       logoUrl: a.logo_url,
+      ultimoContato: textoUltimoContato(ultimoPorConta.has(a.id)
+        ? { quando: ultimoPorConta.get(a.id)!.last_contact_at, direcao: ultimoPorConta.get(a.id)!.last_direction, canal: ultimoPorConta.get(a.id)!.last_channel }
+        : null),
       comite
     };
   });
