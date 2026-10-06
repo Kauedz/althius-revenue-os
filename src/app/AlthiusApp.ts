@@ -27,6 +27,7 @@ import { decidirAprendizado, lerPlaybooks, listarSugestoes, publicarPlaybook } f
 import { desconectarConta, iniciarConexaoConta, provedorDoCanal } from './servicos/conexoes';
 import { excluirContatoDoCrm, listarCaixa, marcarLida, minhasConexoes, pedirSugestaoDeResposta, type CaixaTela, type ConexoesTela } from './servicos/caixa';
 import * as admin from './servicos/admin';
+import { alternarChave, guardarChave, removerChave, ROTULO_PROVEDOR, testarChave, type ProvedorCofre } from './servicos/cofre';
 import { arquivarCanal, criarCanal, editarMensagem, enviarNoCanal, lerMensagens, listarCanais, mudarCanal, reagir, type CanalTela } from './servicos/canais';
 import { pedirAoCopiloto } from './servicos/copiloto';
 import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla } from './servicos/notificacoes';
@@ -1182,7 +1183,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   private formularioDoModulo(v: Record<string, any>) {
     const f = this.state.formModulo as { tipo: string; titulo: string; salvarLabel: string; erro: string; campos: Array<Record<string, any>> } | undefined;
     const pagina = (this.state.rota || {}).page;
-    if (!f || !v.md || (pagina !== 'campaigns' && pagina !== 'cadences')) return;
+    if (!f || !v.md || (pagina !== 'campaigns' && pagina !== 'cadences' && pagina !== 'admin/providers')) return;
     v.md.form = {
       titulo: f.titulo,
       campos: f.campos.map(c => ({
@@ -1208,6 +1209,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   private async enviarFormulario() {
     const f = this.state.formModulo as { tipo: string; id?: string; extra?: Record<string, any>; campos: Array<{ k: string; valor: string }> } | undefined;
     const ws = this.workspaceAtual();
+    if (f?.tipo === 'cofre_nova') return this.enviarChaveNova(f.campos);
     if (!f || !ws?.membroId) return;
     const val = (k: string) => (f.campos.find(c => c.k === k)?.valor ?? '').trim();
     const falhou = (erro: string) => this.setState({ formModulo: Object.assign({}, this.state.formModulo, { erro }) });
@@ -1318,6 +1320,10 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       void this.acaoNoCliente(acao, linha as { id: string; nome: string });
       return true;
     }
+    if (page === 'admin/providers') {
+      void this.acaoNaChave(acao, linha as any);
+      return true;
+    }
     if (page === 'inbox') {
       void this.acaoNaConversa(acao, linha.id);
       return true;
@@ -1401,7 +1407,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       colunas: [['nome', 'Cliente', '2fr'], ['slug', 'Endereço', '1fr'], ['clevel', 'C-level', '1.4fr'], ['membros', 'Membros', '90px'], ['saldo', 'Saldo', '1.2fr'], ['status', 'Status', '1fr']] },
     'admin/usage': { titulo: 'Uso global', sub: 'Consumo de créditos por cliente no ciclo', busca: true,
       colunas: [['nome', 'Cliente', '2fr'], ['consumido', 'Consumido no ciclo', '1.4fr'], ['saldo', 'Saldo', '1.2fr'], ['execucoes', 'Execuções no mês', '1fr'], ['ultimo', 'Último uso', '1fr']] },
-    'admin/providers': { titulo: 'Fornecedores', sub: 'Contas de coleta, mensagens e modelo de IA (sem chaves)', filtro: 'tipo',
+    'admin/providers': { titulo: 'Fornecedores', sub: 'Chaves de coleta, mensagens e modelo de IA. Só os 4 últimos caracteres aparecem.', filtro: 'tipo',
       colunas: [['nome', 'Fornecedor', '1.6fr'], ['tipo', 'Tipo', '1.4fr'], ['status', 'Status', '1fr'], ['uso', 'Custo real no mês', '1.2fr'], ['detalhe', 'Detalhe', '2fr']] },
     'admin/margins': { titulo: 'Margens', sub: 'Preço em créditos de cada capacidade', busca: true,
       colunas: [['capacidade', 'Capacidade', '2fr'], ['base', 'Base', '1fr'], ['margem', 'Margem', '1fr'], ['risco', 'Risco', '1fr'], ['status', 'Status', '1fr']] },
@@ -1417,7 +1423,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const mod = ((window as any).ALTHIUS_MOD = (window as any).ALTHIUS_MOD || {});
     for (const [pagina, def] of Object.entries(AlthiusApp.TELAS_ADMIN)) {
       mod[pagina] = { ...def, kpis: [], linhas: [], acoesLinha: [],
-        acao: pagina === 'admin/workspaces' ? { label: 'Novo workspace' } : undefined };
+        acao: pagina === 'admin/workspaces' ? { label: 'Novo workspace' } : pagina === 'admin/providers' ? { label: 'Nova chave' } : undefined };
     }
   }
 
@@ -1440,6 +1446,11 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
         ['Gerar chaves dos agentes', ''],
         ['Revogar chaves dos agentes', '', null, true, 'As chaves dos agentes de {x} param de funcionar na hora. O Hermes Agent desse cliente fica sem acesso até gerar novas.']
       ];
+      if (pagina === 'admin/providers') mod.acoesLinha = [
+        ['Testar chave', ''],
+        ['Ativar ou desativar', ''],
+        ['Remover chave', '', null, true, 'A chave {x} é apagada do cofre. O sistema passa a usar as outras chaves do mesmo fornecedor (ou a do .env, se houver).']
+      ];
       this.setState({ adminVersao: carga });
     } catch (falha) {
       if (this.vivo && carga === this.cargaAdmin) this.avisarFalha('Não foi possível carregar esta tela', falha);
@@ -1459,6 +1470,16 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       this.abrirFormulario({ tipo: 'nova_cadencia', titulo: 'Nova cadência', salvarLabel: 'Criar cadência', campos: [
         { k: 'nome', label: 'Nome da cadência', valor: '', placeholder: 'Ex.: Importadores do Sudeste' },
         { k: 'descricao', label: 'Descrição (opcional)', valor: '', placeholder: 'Para quem é e o que ela faz' }
+      ] });
+      return true;
+    }
+    if (page === 'admin/providers') {
+      this.abrirFormulario({ tipo: 'cofre_nova', titulo: 'Nova chave', salvarLabel: 'Guardar no cofre', campos: [
+        { k: 'provedor', label: 'Fornecedor', valor: 'apify', opcoes: (Object.keys(ROTULO_PROVEDOR) as ProvedorCofre[]).map(k => ({ valor: k, label: ROTULO_PROVEDOR[k] })) },
+        { k: 'rotulo', label: 'Nome da chave', valor: '', placeholder: 'Ex.: Apify conta 6 · Reserva' },
+        { k: 'segredo', label: 'Chave (não aparece de novo)', valor: '', tipo: 'password', placeholder: 'Cole a chave aqui' },
+        { k: 'endereco', label: 'Endereço da API (só modelo de IA, ou Unipile se tiver outro)', valor: '', placeholder: 'https://api.openai.com/v1' },
+        { k: 'modelo', label: 'Nome do modelo (só modelo de IA)', valor: '', placeholder: 'Ex.: o nome exato que o fornecedor deu' }
       ] });
       return true;
     }
@@ -1495,6 +1516,41 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.setState({ formNovoWs: undefined });
     this.avisar('mod', 'Cliente criado. O convite do C-level fica pendente até o conector de e-mail enviar.');
     await this.carregarAdmin('admin/workspaces');
+  }
+
+  private async enviarChaveNova(campos: Array<{ k: string; valor: string }>) {
+    const val = (k: string) => (campos.find(c => c.k === k)?.valor ?? '').trim();
+    const falhou = (erro: string) => this.setState({ formModulo: Object.assign({}, this.state.formModulo, { erro }) });
+    const provedor = val('provedor') as ProvedorCofre;
+    if (!val('rotulo')) return falhou('Dê um nome para a chave.');
+    if (val('segredo').length < 8) return falhou('Cole a chave inteira.');
+    const config: Record<string, string> = {};
+    if (provedor === 'modelo_ia') { config.base_url = val('endereco'); config.modelo = val('modelo'); }
+    else if (provedor === 'unipile' && val('endereco')) config.url = val('endereco');
+    const r = await guardarChave(this.props.supabase, { provedor, rotulo: val('rotulo'), segredo: val('segredo'), config });
+    if (!this.vivo) return;
+    if (!r.ok) return falhou(r.mensagem);
+    this.setState({ formModulo: undefined });
+    this.avisar('mod', 'Chave guardada no cofre. Use "Testar chave" para conferir.');
+    await this.carregarAdmin('admin/providers');
+  }
+
+  private async acaoNaChave(acao: string, linha: { id: string; nome: string; cofre?: boolean; ativo?: boolean }) {
+    if (!linha.cofre) {
+      return this.confirmar('Esta linha não está no cofre', 'Só as chaves cadastradas na tela têm teste, desativar e remover. As demais vêm do .env do servidor.', 'Entendi', () => {});
+    }
+    const sb = this.props.supabase;
+    if (acao === 'Testar chave') {
+      const r = await testarChave(sb, linha.id);
+      if (!this.vivo) return;
+      await this.carregarAdmin('admin/providers');
+      return this.confirmar(r.ok ? 'Chave funcionando' : 'Chave com problema', r.ok ? 'A chave ' + linha.nome + ' respondeu direitinho.' : r.mensagem, 'Entendi', () => {});
+    }
+    const r = acao === 'Remover chave' ? await removerChave(sb, linha.id) : await alternarChave(sb, linha.id, linha.ativo === false);
+    if (!this.vivo) return;
+    if (!r.ok) return this.confirmar('Não concluído', r.mensagem, 'Entendi', () => {});
+    this.avisar('mod', acao === 'Remover chave' ? 'Chave removida do cofre.' : linha.ativo === false ? 'Chave ativada.' : 'Chave desativada.');
+    await this.carregarAdmin('admin/providers');
   }
 
   private async acaoNoCliente(acao: string, linha: { id: string; nome: string }) {

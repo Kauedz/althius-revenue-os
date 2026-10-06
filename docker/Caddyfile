@@ -40,6 +40,14 @@
 		reverse_proxy webhooks:3100
 	}
 
+	# Cofre de chaves (tela do superadmin): guardar e testar chave. Quem confere o superadmin é o banco.
+	handle /cofre/* {
+		request_body {
+			max_size 16KB
+		}
+		reverse_proxy webhooks:3100
+	}
+
 	# Página de definir senha (link do criar-superadmin e dos convites). Fica fora do front gerado.
 	handle /definir-senha* {
 		root * /srv

@@ -1,7 +1,7 @@
 // A Unipile é só um canal: tudo o que depende dela (endereço e chave) passa por aqui.
 // A chave é lida a cada uso (função `obterConfig`), nunca guardada dentro dos serviços. Assim trocar a chave é mudar
 // UM valor (UNIPILE_API_KEY no `.env`; veja `npm run docker:chave-unipile`) e, no futuro, mudar a origem dela
-// (tela do superadmin, cofre) sem mexer no envio, na conexão nem no webhook.
+// (tela do superadmin: cofre, ADR 0049) sem mexer no envio, na conexão nem no webhook.
 export const URL_PADRAO_UNIPILE = 'https://api.unipile.com';
 
 export interface ConfigUnipile {
@@ -11,7 +11,7 @@ export interface ConfigUnipile {
   url: string;
 }
 
-export type ObterConfig = () => ConfigUnipile;
+export type ObterConfig = () => ConfigUnipile | Promise<ConfigUnipile>;
 
 export function lerConfig(env: Record<string, string | undefined> = process.env): ConfigUnipile {
   return {
@@ -21,4 +21,4 @@ export function lerConfig(env: Record<string, string | undefined> = process.env)
 }
 
 /** Config que relê o ambiente a cada chamada (e aceita um `env` falso nos testes). */
-export const configDoAmbiente = (env: Record<string, string | undefined> = process.env): ObterConfig => () => lerConfig(env);
+export const configDoAmbiente = (env: Record<string, string | undefined> = process.env): (() => ConfigUnipile) => () => lerConfig(env);

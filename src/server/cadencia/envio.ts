@@ -24,7 +24,7 @@ export function whatsappId(numero: string): string {
 export function mensageiroViaApi(obterConfig: ObterConfig, buscar: typeof fetch = fetch): Mensageiro {
   const chamar = async (caminho: string, corpo: Record<string, unknown>): Promise<ResultadoEnvio> => {
     // A chave é lida AGORA: trocar a chave vale no próximo envio, sem reiniciar nada.
-    const cfg = obterConfig();
+    const cfg = await obterConfig();
     if (!cfg.apiKey) return { ok: false, erro: 'sem chave do canal de mensagens', definitivo: true };
     let r: Response;
     try {
