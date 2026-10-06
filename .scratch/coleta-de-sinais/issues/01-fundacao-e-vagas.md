@@ -4,7 +4,7 @@
 
 **Blocked by:** None.
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 ## Pode mexer
 
@@ -22,14 +22,21 @@
 
 ## Critérios
 
-- [ ] Conta sem a janela nova de vagas não gera evento; vaga repetida (mesma empresa+cargo) não conta duas vezes.
-- [ ] Rodar duas vezes no mesmo período grava um evento só (idempotência).
-- [ ] Falha, teto estourado ou resposta vazia: crédito devolvido, execução registrada com motivo, nenhum evento.
-- [ ] Isolamento: workspace B nunca vê execução ou evento do workspace A (pgTAP).
-- [ ] Nenhuma tela de cliente mostra dólar; custo real só no superadmin.
-- [ ] `npm run verificar` verde.
+- [x] Conta sem a janela nova de vagas não gera evento; vaga repetida (mesma empresa+cargo) não conta duas vezes.
+- [x] Rodar duas vezes no mesmo período grava um evento só (idempotência).
+- [x] Falha, teto estourado ou resposta vazia: crédito devolvido, execução registrada com motivo, nenhum evento.
+- [x] Isolamento: workspace B nunca vê execução ou evento do workspace A (pgTAP).
+- [x] Nenhuma tela de cliente mostra dólar; custo real só no superadmin.
+- [ ] `npm run verificar` verde. **Pendente:** banco (66 arquivos, 1.627 verificações), tipos e build passam; no front 8 testes falham nesta máquina **com e sem** este ticket (6 do executor do Hermes por rede local, 1 de permissão 0600 do Windows, 1 de tela do aprendizado).
+
+## Comments
+
+- Validado em execução real em 06/10/2026 (uma conta, a Nubank, teto de US$ 0,05): 8 vagas reais viraram eventos, 5 créditos cobrados, conta esquentou um nível, segunda rodada no mesmo período não fez nada. Custo real lido da Apify (US$ 0,0054 numa execução de 11 vagas).
+- Limite conhecido: o filtro por empresa usa o nome como o LinkedIn escreve ("Magalu" acha, "Magazine Luiza" não). Ver ADR 0055.
+- Pendência de decisão do Nan: quem pode ligar um sinal que gasta créditos sozinho (ADR 0055, "Limites conhecidos").
 
 ## Passos do Nan
 
 1. Cadastrar as chaves da Apify na tela Fornecedores (cofre). Nunca colar chave no chat.
 2. Conferir no console da Apify o saldo antes da primeira rodada real.
+3. Ligar a coleta de vagas (só o superadmin): função `admin_signal_recipe_set('vagas_cargo', true)`. Nada coleta antes disso.

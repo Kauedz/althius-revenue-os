@@ -52,6 +52,14 @@ A Unipile é só um canal: toda a ligação com ela (chave, endereço, assinatur
 ## Aprendizado compartilhado entre contas
 - O serviço `aprendizado` (ADR 0052 e 0053) roda a cada 6 horas (`APRENDIZADO_INTERVALO_HORAS`). Ele só olha clientes que **aceitaram** (aviso único e Configurações → Aprendizado), só publica padrões com **3 ou mais clientes** e só **sugere** ao estrategista, que aplica ou descarta em Playbook → Aprendizados.
 - Ver o que está acontecendo: `docker compose logs -f aprendizado` (linhas `aprendizado_ciclo` com quantos clientes contribuem, padrões e sugestões novas; nunca texto nem nomes).
+
+### Coleta de sinais
+
+O serviço `sinais` (ADR 0055) roda a cada 30 minutos (`SINAIS_INTERVALO_MINUTOS`). O banco escolhe as contas que precisam de coleta, reserva o crédito e o serviço busca o dado na Apify (as chaves vêm do cofre, na tela Fornecedores). **Nada coleta até o superadmin ligar a receita de cada sinal.**
+
+- Ver o que está acontecendo: `docker compose logs -f sinais` (linhas `sinais_ciclo` com pedidos, concluídos, falhas e acontecimentos novos; nunca nome, texto nem chave).
+- Sem nenhuma chave da Apify cadastrada, a rodada falha com aviso claro e o crédito é devolvido. Nada é simulado.
+- A conta grátis da Apify aceita 5 execuções ao mesmo tempo; `SINAIS_CONCORRENCIA` (padrão 3) respeita isso.
 - Sem cliente que aceitou, ou sem padrão forte o bastante, a rodada não faz nada: é o normal no começo.
 
 ## Motor de cadência

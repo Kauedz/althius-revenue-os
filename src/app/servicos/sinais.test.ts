@@ -1,7 +1,7 @@
 // @vitest-environment node
 // Seam: Sinais (página signals) lista só os sinais de compra que o banco devolve, em modo somente leitura.
 import { describe, expect, it } from 'vitest';
-import { SEM_DADOS, listarSinais } from './sinais';
+import { SEM_DADOS, avisoDeColeta, listarSinais, sinaisSemDados } from './sinais';
 import { bancoLocalNoAr, entrarComoLocal } from '../../test/supabaseLocal';
 
 const EVOLUT = 'a0000000-0000-0000-0000-000000000001';
@@ -10,10 +10,10 @@ const RECENTE = new Date(Date.now() - 60 * 60 * 1000).toISOString();
 const ANTIGO = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
 
 describe('listarSinais (unitário / mapeamento)', () => {
-  function mockSupabase(opcoes: { rpc?: { data?: unknown; error?: { message: string; code?: string } | null }; tabelas?: Record<string, { data?: unknown; error?: { message: string } | null }> }) {
+  function mockSupabase(opcoes: { coleta?: { data?: unknown; error?: { message: string } | null }; rpc?: { data?: unknown; error?: { message: string; code?: string } | null }; tabelas?: Record<string, { data?: unknown; error?: { message: string } | null }> }) {
     const tabelas = opcoes.tabelas || {};
     return {
-      rpc: () => Promise.resolve(opcoes.rpc || { data: { stages: [] }, error: null }),
+      rpc: (nome: string) => Promise.resolve(nome === 'signal_codes_com_coleta' ? (opcoes.coleta || { data: [], error: null }) : (opcoes.rpc || { data: { stages: [] }, error: null })),
       from: (tabela: string) => {
         const resp = tabelas[tabela] || { data: [], error: null };
         const chain: any = {
@@ -27,6 +27,46 @@ describe('listarSinais (unitário / mapeamento)', () => {
       }
     } as any;
   }
+
+  describe('coleta automática (ticket 01 da coleta de sinais)', () => {
+    const defs = {
+      data: [
+        { id: 's1', agent_code: 'comercial', code: 'vagas_cargo', name: 'Vagas abertas por cargo', credits_per_account: 5, default_on: true },
+        { id: 's3', agent_code: 'comercial', code: 'rodada_investimento', name: 'Rodada de investimento ou M&A', credits_per_account: 4, default_on: true }
+      ],
+      error: null
+    };
+
+    it('marca só o sinal que já coleta de verdade; os outros seguem "em breve"', async () => {
+      const cliente = mockSupabase({ coleta: { data: ['vagas_cargo'], error: null }, tabelas: { signal_definitions: defs } });
+      const sinais = await listarSinais(cliente, 'ws-1');
+      const itens = sinais.grupos.flatMap(g => g.itens);
+      expect(itens.find(i => i.nome === 'Vagas abertas por cargo')?.coleta).toBe(true);
+      expect(itens.find(i => i.nome.startsWith('Rodada'))?.coleta).toBe(false);
+      expect(sinais.coletando).toEqual(['Vagas abertas por cargo']);
+      expect(avisoDeColeta(sinais)).toBe('Coleta automática ativa para: Vagas abertas por cargo. Os demais sinais chegam em breve.');
+    });
+
+    it('sem nenhum sinal coletando, o aviso continua "em breve"', async () => {
+      const cliente = mockSupabase({ coleta: { data: [], error: null }, tabelas: { signal_definitions: defs } });
+      const sinais = await listarSinais(cliente, 'ws-1');
+      expect(sinais.coletando).toEqual([]);
+      expect(avisoDeColeta(sinais)).toBe('Coleta automática em breve.');
+      expect(avisoDeColeta(sinaisSemDados())).toBe('Coleta automática em breve.');
+    });
+
+    it('não consegue saber quais coletam: não afirma que coleta (fica "em breve") e a tela carrega', async () => {
+      const cliente = mockSupabase({ coleta: { data: null, error: { message: 'falhou' } }, tabelas: { signal_definitions: defs } });
+      const sinais = await listarSinais(cliente, 'ws-1');
+      expect(sinais.coletando).toEqual([]);
+      expect(sinais.grupos.flatMap(g => g.itens).every(i => i.coleta === false)).toBe(true);
+    });
+
+    it('nunca mostra dólar nem custo do fornecedor', async () => {
+      const cliente = mockSupabase({ coleta: { data: ['vagas_cargo'], error: null }, tabelas: { signal_definitions: defs } });
+      expect(JSON.stringify(await listarSinais(cliente, 'ws-1'))).not.toMatch(/US\$|dólar|dolar|usd/i);
+    });
+  });
 
   it('mostra o catálogo e o evento que o banco devolve, e "Sem dados ainda" no que falta', async () => {
     const cliente = mockSupabase({

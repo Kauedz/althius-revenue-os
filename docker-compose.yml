@@ -243,6 +243,26 @@ services:
       APRENDIZADO_INTERVALO_HORAS: ${APRENDIZADO_INTERVALO_HORAS:-6}
     networks: [interna]
 
+  # Coleta de sinais (ticket 01 da coleta de sinais, ADR 0055): a cada 30 minutos o banco diz quais contas precisam de coleta
+  # (e reserva o crédito); aqui se busca o dado na Apify e se entrega o resultado. As chaves da Apify vêm do cofre.
+  # A coleta de cada sinal só começa quando o superadmin liga a receita dele. Sem chave da Apify, falha com aviso claro.
+  sinais:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.sinais
+    restart: unless-stopped
+    depends_on:
+      rest:
+        condition: service_started
+    environment:
+      BANCO_URL: http://rest:3000
+      SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      COFRE_CHAVE_MESTRA: ${COFRE_CHAVE_MESTRA:-}
+      SINAIS_INTERVALO_MINUTOS: ${SINAIS_INTERVALO_MINUTOS:-30}
+      SINAIS_PEDIDOS_POR_RODADA: ${SINAIS_PEDIDOS_POR_RODADA:-20}
+      SINAIS_CONCORRENCIA: ${SINAIS_CONCORRENCIA:-3}
+    networks: [interna]
+
   # Backup agendado do banco e dos arquivos, em ./backups (copie para fora do servidor).
   backup:
     image: supabase/postgres:17.11.0.002

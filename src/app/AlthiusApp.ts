@@ -33,7 +33,7 @@ import { arquivarCanal, criarCanal, editarMensagem, enviarNoCanal, lerMensagens,
 import { pedirAoCopiloto } from './servicos/copiloto';
 import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla } from './servicos/notificacoes';
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
-import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
+import { avisoDeColeta, listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
 import { listarProspeccao, prospeccaoSemDados, type ProspeccaoTela } from './servicos/prospeccao';
 import { arquivarNegocio, atualizarNegocio, criarNegocio, criarQuadro, excluirQuadro, listarPipeline, moverNegocio, MOTIONS, pipelineVazio, reordenarEtapas, renomearQuadro, type Motion, type PipelineTela, type Resultado } from './servicos/pipeline';
 import { adiarTarefa, criarTarefa, listarTarefas, mudarStatusTarefa, tarefasVazias, type TarefasTela } from './servicos/tarefas';
@@ -702,7 +702,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     mod.signals.linhas = sinais.eventos;
     mod.signals.acoesLinha = [];
     // A coleta (Apify) ainda não está ligada: nada busca sinais sozinho. A tela diz isso em vez de parecer que coleta.
-    mod.signals.sub = 'Coleta automática em breve. Aqui aparecem só os sinais já registrados no sistema.';
+    mod.signals.sub = avisoDeColeta(sinais) + ' Aqui aparecem só os sinais já registrados no sistema.';
   }
 
   /** Troca o catálogo do protótipo pelo do banco, só na página de Sinais. */
@@ -710,7 +710,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const sinais: SinaisTela = this.state.sinaisReais || sinaisSemDados();
     if (!v.sigCat) return;
     const anteriores = Array.isArray(v.sigCat.grupos) ? v.sigCat.grupos : [];
-    v.sigCat.resumo = 'Coleta automática em breve. ' + sinais.resumo;
+    v.sigCat.resumo = avisoDeColeta(sinais) + ' ' + sinais.resumo;
     v.sigCat.grupos = sinais.grupos.map((g, i) => {
       const antigo = g.codigo
         ? anteriores.find((a: { nome?: string; sigla?: string; href?: string }) => typeof a?.nome === 'string' && a.nome.toLowerCase().includes(g.codigo))

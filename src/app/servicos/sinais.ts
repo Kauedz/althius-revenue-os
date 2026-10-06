@@ -24,6 +24,8 @@ export interface ItemCatalogoSinal {
   nome: string;
   custo: string;
   ativo: boolean;
+  /** o banco já coleta este sinal de verdade (receita ligada pelo superadmin) */
+  coleta: boolean;
 }
 
 export interface GrupoCatalogoSinal {
@@ -39,6 +41,8 @@ export interface SinaisTela {
   eventos: EventoSinal[];
   grupos: GrupoCatalogoSinal[];
   resumo: string;
+  /** nomes dos sinais que já coletam de verdade */
+  coletando: string[];
 }
 
 const ERRO_SINAIS = 'Não foi possível carregar os sinais de compra.';
@@ -89,9 +93,10 @@ export function sinaisSemDados(): SinaisTela {
       nome: SEM_DADOS,
       sigla: '--',
       ativos: SEM_DADOS,
-      itens: [{ nome: SEM_DADOS, custo: SEM_DADOS, ativo: false }]
+      itens: [{ nome: SEM_DADOS, custo: SEM_DADOS, ativo: false, coleta: false }]
     }],
-    resumo: SEM_DADOS
+    resumo: SEM_DADOS,
+    coletando: []
   };
 }
 
@@ -148,7 +153,7 @@ interface EventoBruto {
   signal_definitions?: { name?: unknown; code?: unknown } | Array<{ name?: unknown; code?: unknown }> | null;
 }
 
-function montarCatalogo(definicoes: Definicao[], ajustes: Ajuste[]): { grupos: GrupoCatalogoSinal[]; resumo: string } {
+function montarCatalogo(definicoes: Definicao[], ajustes: Ajuste[], coletam: Set<string>): { grupos: GrupoCatalogoSinal[]; resumo: string; coletando: string[] } {
   const porId = new Map<string, boolean>();
   for (const ajuste of ajustes) {
     const id = texto(ajuste.signal_id);
@@ -157,17 +162,21 @@ function montarCatalogo(definicoes: Definicao[], ajustes: Ajuste[]): { grupos: G
   const porAgente = new Map<string, ItemCatalogoSinal[]>();
   const ativosPorAgente = new Map<string, number>();
   let ativos = 0;
+  const coletando: string[] = [];
   for (const definicao of definicoes) {
     const codigo = texto(definicao.agent_code) || SEM_DADOS;
     const id = texto(definicao.id);
     const ligado = id && porId.has(id) ? porId.get(id) === true : definicao.default_on === true;
     if (ligado) ativos += 1;
     const creditos = numero(definicao.credits_per_account);
+    const coleta = coletam.has(texto(definicao.code));
     const item: ItemCatalogoSinal = {
       nome: texto(definicao.name) || SEM_DADOS,
       custo: creditos === null ? SEM_DADOS : String(Math.round(creditos)),
-      ativo: ligado
+      ativo: ligado,
+      coleta
     };
+    if (coleta) coletando.push(item.nome);
     const lista = porAgente.get(codigo) || [];
     lista.push(item);
     porAgente.set(codigo, lista);
@@ -190,7 +199,7 @@ function montarCatalogo(definicoes: Definicao[], ajustes: Ajuste[]): { grupos: G
       itens
     };
   });
-  return { grupos, resumo: resumoCatalogo(ativos, definicoes.length) };
+  return { grupos, resumo: resumoCatalogo(ativos, definicoes.length), coletando: coletando.sort((a, b) => a.localeCompare(b, 'pt-BR')) };
 }
 
 function montarEventos(brutos: EventoBruto[], agora: number): { eventos: EventoSinal[]; kpis: KpiSinal[] } {
@@ -234,6 +243,27 @@ async function ler(
   return data || [];
 }
 
+/**
+ * Quais sinais já coletam de verdade. Se o banco não responder, ninguém é dado como "coletando": a tela segue dizendo
+ * "em breve" em vez de prometer o que não sabe.
+ */
+async function sinaisQueColetam(cliente: SupabaseClient): Promise<Set<string>> {
+  try {
+    const { data, error } = await cliente.rpc('signal_codes_com_coleta');
+    if (error || !Array.isArray(data)) return new Set();
+    return new Set(data.filter((c): c is string => typeof c === 'string'));
+  } catch {
+    return new Set();
+  }
+}
+
+/** O aviso da página de Sinais: só os sinais que já coletam saem do "em breve". */
+export function avisoDeColeta(sinais: SinaisTela): string {
+  const nomes = sinais.coletando || [];
+  if (!nomes.length) return 'Coleta automática em breve.';
+  return 'Coleta automática ativa para: ' + nomes.join(', ') + '. Os demais sinais chegam em breve.';
+}
+
 /** Lista o catálogo e os eventos de compra do workspace. Não grava nada. */
 export async function listarSinais(cliente: SupabaseClient, workspaceId: string): Promise<SinaisTela> {
   const acesso = await cliente.rpc('get_revenue_funnel_summary', { p_workspace_id: workspaceId });
@@ -245,17 +275,18 @@ export async function listarSinais(cliente: SupabaseClient, workspaceId: string)
     throw new Error(ERRO_SINAIS, { cause: acesso.error });
   }
 
-  const [definicoes, ajustes, eventos] = await Promise.all([
+  const [definicoes, ajustes, eventos, coletam] = await Promise.all([
     ler(cliente, 'signal_definitions', 'id, agent_code, code, name, credits_per_account, default_on', null),
     ler(cliente, 'workspace_signal_settings', 'signal_id, enabled', workspaceId),
-    ler(cliente, 'signal_events', 'id, detected_at, payload, accounts(name, fit), signal_definitions(name, code)', workspaceId)
+    ler(cliente, 'signal_events', 'id, detected_at, payload, accounts(name, fit), signal_definitions(name, code)', workspaceId),
+    sinaisQueColetam(cliente)
   ]);
 
-  const catalogo = montarCatalogo(definicoes as Definicao[], ajustes as Ajuste[]);
+  const catalogo = montarCatalogo(definicoes as Definicao[], ajustes as Ajuste[], coletam);
   const lista = montarEventos(eventos as EventoBruto[], Date.now());
   if (catalogo.grupos.length === 0) {
     const vazio = sinaisSemDados();
     return { ...vazio, ...lista, grupos: vazio.grupos, resumo: vazio.resumo };
   }
-  return { kpis: lista.kpis, eventos: lista.eventos, grupos: catalogo.grupos, resumo: catalogo.resumo };
+  return { kpis: lista.kpis, eventos: lista.eventos, grupos: catalogo.grupos, resumo: catalogo.resumo, coletando: catalogo.coletando };
 }
