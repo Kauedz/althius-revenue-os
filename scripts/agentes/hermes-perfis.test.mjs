@@ -23,6 +23,18 @@ describe('perfilDoAgente', () => {
     const c = perfilDoAgente({ ...base, modelo: { url: 'https://x.test/v1', nome: 'a"b\nc: d' } });
     expect(c).toContain('default: "a\\"b\\nc: d"');
   });
+  it('modo assinatura (login do Codex, sem chave): provedor openai-codex, sem endereço e sem chave no perfil', () => {
+    const c = perfilDoAgente({ ...base, modelo: { nome: 'gpt-6-luna', oauth: true } });
+    expect(c).toContain('default: "gpt-6-luna"');
+    expect(c).toContain('provider: openai-codex');
+    expect(c).not.toContain('base_url');
+    expect(c).not.toContain('key_env');
+    expect(c).toContain('api_server: []'); // continua sem nenhuma ferramenta embutida
+    expect(c).toContain('/opt/althius/mcp-althius.mjs');
+  });
+  it('modo assinatura exige o nome do modelo', () => {
+    expect(() => perfilDoAgente({ ...base, modelo: { nome: '', oauth: true } })).toThrow('modelo');
+  });
   it('exige tudo (sem token, sem modelo: erro claro)', () => {
     expect(() => perfilDoAgente({ ...base, token: '' })).toThrow('token');
     expect(() => perfilDoAgente({ ...base, modelo: { url: '', nome: '' } })).toThrow('modelo');

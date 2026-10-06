@@ -25,13 +25,14 @@ const desligadas = () => [
 /** Perfil de um agente: modelo, só o MCP da Althius, nenhuma ferramenta embutida. */
 export function perfilDoAgente({ urlBanco, chavePublica, token, modelo }) {
   for (const [k, v] of Object.entries({ urlBanco, chavePublica, token })) if (!v) throw new Error(`perfilDoAgente: falta ${k}`);
-  if (!modelo?.url || !modelo?.nome) throw new Error('perfilDoAgente: falta o modelo (url e nome)');
+  // Modo assinatura (teste sem custo): o Hermes usa o login do Codex (ChatGPT) feito dentro do contêiner, sem chave.
+  if (!modelo?.nome || (!modelo.oauth && !modelo.url)) throw new Error('perfilDoAgente: falta o modelo (url e nome)');
   return [
     'model:',
     `  default: ${q(modelo.nome)}`,
-    '  provider: custom',
-    `  base_url: ${q(modelo.url)}`,
-    '  key_env: MODELO_CHAVE',
+    ...(modelo.oauth
+      ? ['  provider: openai-codex']
+      : ['  provider: custom', `  base_url: ${q(modelo.url)}`, '  key_env: MODELO_CHAVE']),
     desligadas(),
     'mcp_servers:',
     '  althius:',
