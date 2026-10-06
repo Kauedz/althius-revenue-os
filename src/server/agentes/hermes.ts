@@ -38,6 +38,9 @@ export function executorHermes(o: OpcoesHermes): ExecutorAgente {
       try { dados = await r.json(); } catch { throw new Error('o executor devolveu resposta ilegível'); }
       const conteudo = (dados as { choices?: Array<{ message?: { content?: unknown } }> })?.choices?.[0]?.message?.content;
       if (typeof conteudo !== 'string' || !conteudo.trim()) throw new Error('o executor devolveu resposta vazia');
+      // Sem o login do modelo feito (modo teste, ADR 0051) o Hermes devolve a mensagem de erro dele como se fosse a resposta.
+      // Isso nunca vai para o canal: o lote volta para a fila e o log diz o que falta.
+      if (/Provider authentication failed|No Codex credentials/i.test(conteudo)) throw new Error('o Hermes está sem login do modelo (rode: docker exec -it hermes-<cliente> hermes auth add openai-codex)');
       return ajustarResposta(conteudo);
     }
   };

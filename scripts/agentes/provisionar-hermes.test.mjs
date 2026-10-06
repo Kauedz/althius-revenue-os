@@ -115,6 +115,26 @@ describe('modelo', () => {
   });
 });
 
+describe('modo local (o computador do dono, sem o Docker completo)', () => {
+  it('--modo local: o Hermes enxerga o banco da máquina, o compose é separado e o executor aponta para a porta local', async () => {
+    const { opcoes, io } = ambiente();
+    await provisionar({ ...opcoes, modo: 'local', 'modelo-oauth': 'gpt-6-luna' }, io);
+    const cfg = ler('docker', 'hermes', 'evolut', 'data', 'profiles', 'comercial', 'config.yaml');
+    expect(cfg).toContain('ALTHIUS_SUPABASE_URL: "http://host.docker.internal:54321"');
+    expect(cfg).toContain('provider: openai-codex');
+    expect(ler('docker', 'agentes-hermes.local.compose.yml')).toContain('127.0.0.1:8642:8642');
+    expect(existsSync(join(pasta, 'docker', 'agentes-hermes.compose.yml'))).toBe(false);
+    const ex = JSON.parse(ler('docker', 'agentes-executores.local.json'));
+    expect(ex.executores[`${WS}/comercial`].url).toBe('http://127.0.0.1:8642/p/comercial');
+    expect(existsSync(join(pasta, 'docker', 'agentes-executores.json'))).toBe(false);
+  });
+  it('modo desconhecido é recusado antes de tocar no banco', async () => {
+    const { chamadas, opcoes, io } = ambiente();
+    await expect(provisionar({ ...opcoes, modo: 'nuvem' }, io)).rejects.toThrow('--modo');
+    expect(chamadas).toHaveLength(0);
+  });
+});
+
 describe('modo assinatura (teste sem custo)', () => {
   it('--modelo-oauth: perfil usa o login do Codex, sem gateway e sem chave no .env', async () => {
     const { opcoes, io } = ambiente();

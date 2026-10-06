@@ -1,3 +1,4 @@
+// @vitest-environment node
 // O executor contra um "Hermes" falso (servidor HTTP de verdade, na porta 0): nenhuma API real.
 import { afterEach, describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:http';
@@ -43,6 +44,12 @@ describe('executorHermes', () => {
     expect(h.vistos[0].corpo.messages.map((m: any) => m.role)).toEqual(['system', 'user']);
     expect(h.vistos[0].corpo.messages[1].content).toContain('[Aline Xavier · C-level] Quais contas estão quentes?');
     expect(JSON.stringify(h.vistos[0].corpo)).not.toContain('chave-secreta-do-hermes');
+  });
+
+  it('Hermes sem login do modelo (Codex): vira erro com a instrução, nunca resposta do agente no canal (ADR 0051)', async () => {
+    const h = await hermesFalso(() => ok('Provider authentication failed: No Codex credentials stored. Run hermes auth add openai-codex.'));
+    const e = executorHermes({ resolver: resolverPara(h.url) });
+    await expect(e.responder(lote, new AbortController().signal)).rejects.toThrow('sem login do modelo');
   });
 
   it('resposta grande demais é cortada para caber no banco', async () => {
