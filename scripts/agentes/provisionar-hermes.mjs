@@ -24,6 +24,9 @@ export const NOME_GATEWAY = 'althius';
 /** Modo local (--modo local): o computador do dono, com o Supabase CLI e sem o Docker completo. O Hermes (em contêiner) chega no banco pelo nome da máquina. */
 export const URL_BANCO_LOCAL = 'http://host.docker.internal:54321';
 export const URL_HERMES_LOCAL = 'http://127.0.0.1:8642';
+/** O serviço de integrações (a ponte dos agentes com os apps): na rede do Docker, ou na máquina no modo local. Nunca pela internet. */
+export const URL_INTEGRACOES_INTERNA = 'http://webhooks:3100';
+export const URL_INTEGRACOES_LOCAL = 'http://host.docker.internal:3100';
 
 export function lerArgumentos(argv) {
   const r = {};
@@ -81,7 +84,7 @@ export async function provisionar(o, io = {}) {
       criados.push(agente);
     }
     chaveApi = chaveApi ?? aleatoria('alt_hermes_');
-    escrever(path.join(dir, 'config.yaml'), perfilDoAgente({ urlBanco: local ? URL_BANCO_LOCAL : URL_BANCO_INTERNA, chavePublica: o.chavePublica, token, modelo: oauth ? { nome: oauth, oauth: true } : { url: modeloUrl, nome: modeloNome } }));
+    escrever(path.join(dir, 'config.yaml'), perfilDoAgente({ urlBanco: local ? URL_BANCO_LOCAL : URL_BANCO_INTERNA, integracoesUrl: local ? URL_INTEGRACOES_LOCAL : URL_INTEGRACOES_INTERNA, chavePublica: o.chavePublica, token, modelo: oauth ? { nome: oauth, oauth: true } : { url: modeloUrl, nome: modeloNome } }));
     escrever(path.join(dir, '.env'), envDoPerfil({ chaveApi, chaveModelo: oauth ? '' : token }));
     chaves[agente] = chaveApi;
   }

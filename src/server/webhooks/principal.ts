@@ -10,6 +10,7 @@ import { chaveMestra } from '../cofre/cifra.ts';
 import type { DepsCofre } from '../cofre/rotas.ts';
 import { bancoIntegracoes } from '../integracoes/banco.ts';
 import { desconectar, ferramentas, iniciarConexao, retirar, retornoDoConsentimento, type DepsIntegracoes } from '../integracoes/rotas.ts';
+import { chamarDoAgente, ferramentasDoAgente } from '../integracoes/agente.ts';
 import type { RotasIntegracoes } from './servidor.ts';
 
 const base = process.env.BANCO_URL ?? '';
@@ -54,6 +55,8 @@ const integracoes: RotasIntegracoes | undefined = depsIntegracoes && {
   ferramentas: (jwt, corpo) => ferramentas(depsIntegracoes, jwt, corpo),
   desconectar: (jwt, corpo) => desconectar(depsIntegracoes, jwt, corpo),
   retirar: (jwt, corpo) => retirar(depsIntegracoes, jwt, corpo),
+  agenteFerramentas: (token, corpo) => ferramentasDoAgente(depsIntegracoes, token, corpo),
+  agenteChamar: (token, corpo) => chamarDoAgente(depsIntegracoes, token, corpo),
   retorno: query => retornoDoConsentimento(depsIntegracoes, query)
 };
 

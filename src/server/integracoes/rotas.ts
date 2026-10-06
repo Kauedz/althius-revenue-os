@@ -33,7 +33,7 @@ export interface RespRedirecionamento { status: 302; destino: string }
 
 const TTL_TENTATIVA_SEG = 600;
 const MARGEM_RENOVACAO_MS = 60_000;
-const resposta = (status: number, corpo: Record<string, unknown>): Resp => ({ status, corpo });
+export const resposta = (status: number, corpo: Record<string, unknown>): Resp => ({ status, corpo });
 const texto = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 const sorteio = (d: DepsIntegracoes, tamanho: number): string => d.aleatorio ? d.aleatorio(tamanho) : randomBytes(Math.ceil(tamanho * 0.75) + 1).toString('base64url').slice(0, tamanho);
 const retornoUrl = (d: DepsIntegracoes) => `${d.siteUrl.replace(/\/$/, '')}/integracoes/retorno`;
@@ -41,7 +41,7 @@ const retornoUrl = (d: DepsIntegracoes) => `${d.siteUrl.replace(/\/$/, '')}/inte
 // O resultado vai ANTES do `#`: o roteador da tela lê o `#`, e a tela mostra o aviso e limpa o endereço.
 const volta = (d: DepsIntegracoes, params: Record<string, string>) => `${d.siteUrl.replace(/\/$/, '')}/?${new URLSearchParams(params)}#/integrations`;
 
-function perfilDisponivel(id: string): { ok: true; perfil: PerfilDeIntegracao } | { ok: false; r: Resp } {
+export function perfilDisponivel(id: string): { ok: true; perfil: PerfilDeIntegracao } | { ok: false; r: Resp } {
   const perfil = PERFIS[id];
   if (!perfil) return { ok: false, r: resposta(404, { erro: 'integracao_desconhecida' }) };
   if (perfil.situacao !== 'disponivel' || (!perfil.mcp && perfil.via !== 'mensagens')) return { ok: false, r: resposta(409, { erro: 'em_breve', motivo: perfil.motivo ?? 'Ainda não está disponível.' }) };
@@ -196,10 +196,10 @@ export async function retornoDoConsentimento(d: DepsIntegracoes, query: { code?:
   }
 }
 
-type Acesso = { ok: true; token: string } | { ok: false; r: Resp };
+export type Acesso = { ok: true; token: string } | { ok: false; r: Resp };
 
 /** O token válido DESTA pessoa: renova quando está para vencer. Quem não conectou ou foi revogado precisa reconectar. */
-async function tokenDaPessoa(d: DepsIntegracoes, perfil: PerfilDeIntegracao, workspaceId: string, membroId: string): Promise<Acesso> {
+export async function tokenDaPessoa(d: DepsIntegracoes, perfil: PerfilDeIntegracao, workspaceId: string, membroId: string): Promise<Acesso> {
   const precisaReconectar = (motivo: 'sem_acesso' | 'revogado') => ({ ok: false as const, r: resposta(409, { erro: 'precisa_reconectar', motivo }) });
   const a = await d.banco.acessoLer(workspaceId, membroId, perfil.id);
   if (!a) return precisaReconectar('sem_acesso');

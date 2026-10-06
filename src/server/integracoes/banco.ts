@@ -18,7 +18,17 @@ export type ResultadoDaTentativa =
   | { ok: true; workspaceId: string; membroId: string; integracao: string; verifierCifrado: string; redirectUri: string; clientId: string; issuer: string }
   | { ok: false; motivo: 'invalida' | 'usada' | 'expirada' | 'participacao_inativa' };
 
+/** O que o sistema sabe de um token de agente: de qual cliente e agente é e QUEM PEDIU na rodada em andamento (migration 122). */
+export type ContextoDoAgente =
+  | { ok: true; workspaceId: string; agente: string; solicitanteId: string | null }
+  | { ok: false; motivo: 'token_invalido' | 'agente_pausado' | 'indisponivel' };
+
+export interface UsoDoAgente { workspaceId: string; agente: string; membroId: string | null; integracao: string; ferramenta: string; resultado: 'ok' | 'erro' | 'negado' }
+
 export interface BancoIntegracoes {
+  contextoDoAgente(tokenDoAgente: string): Promise<ContextoDoAgente>;
+  /** Registra na auditoria que um agente usou um app (só nomes; nunca argumentos nem o conteúdo devolvido). */
+  auditarUsoDoAgente(uso: UsoDoAgente): Promise<void>;
   conferir(jwt: string, workspaceId: string): Promise<{ ok: true; membroId: string } | { ok: false; status: 401 | 403 | 502 }>;
   tentativaAbrir(a: { membroId: string; workspaceId: string; integracao: string; state: string; verifierCifrado: string; redirectUri: string; clientId: string; issuer: string; ttlSegundos: number }): Promise<void>;
   tentativaConsumir(state: string): Promise<ResultadoDaTentativa>;
@@ -52,6 +62,26 @@ export function bancoIntegracoes(o: OpcoesBanco): BancoIntegracoes {
   const txt = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
 
   return {
+    async contextoDoAgente(token) {
+      let r: Response;
+      try {
+        r = await buscar(url('integration_agent_context'), { method: 'POST', headers: { apikey: o.chaveServico, Authorization: `Bearer ${o.chaveServico}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ p_token: token }) });
+      } catch { return { ok: false, motivo: 'indisponivel' }; }
+      if (r.ok) {
+        const j = obj(await r.json().catch(() => null));
+        return typeof j.workspace_id === 'string' && typeof j.agent_code === 'string'
+          ? { ok: true, workspaceId: j.workspace_id, agente: j.agent_code, solicitanteId: txt(j.requester_member_id) }
+          : { ok: false, motivo: 'indisponivel' };
+      }
+      // 28000 = token inventado ou revogado; 55000 = agente pausado pelo cliente (o PostgREST os devolve como 401/403/4xx com o código no corpo).
+      const j = obj(await r.json().catch(() => null));
+      if (j.code === '55000') return { ok: false, motivo: 'agente_pausado' };
+      if (j.code === '28000') return { ok: false, motivo: 'token_invalido' };
+      return { ok: false, motivo: r.status >= 500 ? 'indisponivel' : 'token_invalido' };
+    },
+    async auditarUsoDoAgente(a) {
+      await comoSistema('integration_agent_log', { p_workspace_id: a.workspaceId, p_agent_code: a.agente, p_member_id: a.membroId, p_integracao: a.integracao, p_ferramenta: a.ferramenta, p_resultado: a.resultado });
+    },
     async conferir(jwt, workspaceId) {
       let r: Response;
       try {

@@ -194,6 +194,8 @@ describe('servidor: integrações do catálogo (ADR 0056)', () => {
     ferramentas: async (jwt, corpo) => { vistos.push(['ferramentas', jwt, corpo]); return { status: 200, corpo: { ferramentas: [] } }; },
     desconectar: async (jwt, corpo) => { vistos.push(['desconectar', jwt, corpo]); return { status: 200, corpo: { ok: true } }; },
     retirar: async (jwt, corpo) => { vistos.push(['retirar', jwt, corpo]); return { status: 200, corpo: { ok: true } }; },
+    agenteFerramentas: async (token, corpo) => { vistos.push(['agenteFerramentas', token, corpo]); return { status: 200, corpo: { fonte: 'HubSpot', ferramentas: [] } }; },
+    agenteChamar: async (token, corpo) => { vistos.push(['agenteChamar', token, corpo]); return { status: 200, corpo: { ok: true, fonte: 'HubSpot', resultado: '[]', cortado: false } }; },
     retorno: async query => { vistos.push(['retorno', '', query]); return { status: 302, destino: 'https://site.test/?conexao=ok&integracao=notion#/integrations' }; }
   });
 
@@ -213,6 +215,21 @@ describe('servidor: integrações do catálogo (ADR 0056)', () => {
     expect(vistos.map(v => v[0])).toEqual(['iniciar', 'ferramentas', 'desconectar', 'retirar']);
     expect(vistos.every(v => v[1] === 'meu-jwt')).toBe(true);
     expect(vistos[0][2]).toEqual({ workspaceId: 'w', integracao: 'notion' });
+  });
+
+  it('rotas do agente: o token do agente (não o login) vai à função certa; sem token 401; sem as integrações 503', async () => {
+    vistos.length = 0;
+    const url = await subirComIntegracoes(rotas());
+    expect((await post(url, '/integracoes/agente/ferramentas', {})).status).toBe(401);
+    expect((await post(url, '/integracoes/agente/ferramentas', { integracao: 'hubspot' }, 'alt_agente_zoe')).status).toBe(200);
+    expect((await post(url, '/integracoes/agente/chamar', { integracao: 'hubspot', ferramenta: 'get_crm_objects', argumentos: {} }, 'alt_agente_zoe')).status).toBe(200);
+    expect(vistos.map(v => v[0])).toEqual(['agenteFerramentas', 'agenteChamar']);
+    expect(vistos.every(v => v[1] === 'alt_agente_zoe')).toBe(true);
+    expect(vistos[1][2]).toEqual({ integracao: 'hubspot', ferramenta: 'get_crm_objects', argumentos: {} });
+    const sem = await subirComIntegracoes();
+    expect((await post(sem, '/integracoes/agente/chamar', {}, 'alt_agente_zoe')).status).toBe(503);
+    expect((await post(url, '/integracoes/agente/inventada', {}, 'alt_agente_zoe')).status).toBe(404);
+    expect((await fetch(url + '/integracoes/agente/chamar')).status).toBe(405);
   });
 
   it('o retorno do consentimento é um GET sem login: redireciona (302) para onde a função mandar, sem seguir o redirecionamento', async () => {

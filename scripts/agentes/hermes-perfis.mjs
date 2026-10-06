@@ -23,7 +23,7 @@ const desligadas = () => [
 ].join('\n');
 
 /** Perfil de um agente: modelo, só o MCP da Althius, nenhuma ferramenta embutida. */
-export function perfilDoAgente({ urlBanco, chavePublica, token, modelo }) {
+export function perfilDoAgente({ urlBanco, chavePublica, token, modelo, integracoesUrl }) {
   for (const [k, v] of Object.entries({ urlBanco, chavePublica, token })) if (!v) throw new Error(`perfilDoAgente: falta ${k}`);
   // Modo assinatura (teste sem custo): o Hermes usa o login do Codex (ChatGPT) feito dentro do contêiner, sem chave.
   if (!modelo?.nome || (!modelo.oauth && !modelo.url)) throw new Error('perfilDoAgente: falta o modelo (url e nome)');
@@ -42,6 +42,8 @@ export function perfilDoAgente({ urlBanco, chavePublica, token, modelo }) {
     `      ALTHIUS_SUPABASE_URL: ${q(urlBanco)}`,
     `      ALTHIUS_SUPABASE_CHAVE_PUBLICA: ${q(chavePublica)}`,
     `      ALTHIUS_AGENTE_TOKEN: ${q(token)}`,
+    // A ponte com os apps conectados (ADR 0058): serviço de integrações, só pela rede interna.
+    ...(integracoesUrl ? [`      ALTHIUS_INTEGRACOES_URL: ${q(integracoesUrl)}`] : []),
     ''
   ].join('\n');
 }

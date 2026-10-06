@@ -38,6 +38,7 @@ describe('provisionar', () => {
     for (const a of ['comercial', 'marketing', 'copy', 'revops']) {
       const cfg = ler('docker', 'hermes', 'evolut', 'data', 'profiles', a, 'config.yaml');
       expect(cfg).toContain(`ALTHIUS_SUPABASE_URL: "${URL_BANCO_INTERNA}"`);
+      expect(cfg).toContain('ALTHIUS_INTEGRACOES_URL: "http://webhooks:3100"'); // pela rede interna: a rota do agente não existe na internet
       expect(cfg).toContain('ALTHIUS_AGENTE_TOKEN: "alt_agente_token');
       expect(cfg).not.toContain('servico-secreta');
       // O modelo é o gateway da Althius (ADR 0050): endereço interno, nome lógico e nenhuma chave de provedor.
@@ -121,6 +122,7 @@ describe('modo local (o computador do dono, sem o Docker completo)', () => {
     await provisionar({ ...opcoes, modo: 'local', 'modelo-oauth': 'gpt-6-luna' }, io);
     const cfg = ler('docker', 'hermes', 'evolut', 'data', 'profiles', 'comercial', 'config.yaml');
     expect(cfg).toContain('ALTHIUS_SUPABASE_URL: "http://host.docker.internal:54321"');
+    expect(cfg).toContain('ALTHIUS_INTEGRACOES_URL: "http://host.docker.internal:3100"');
     expect(cfg).toContain('provider: openai-codex');
     expect(ler('docker', 'agentes-hermes.local.compose.yml')).toContain('127.0.0.1:8642:8642');
     expect(existsSync(join(pasta, 'docker', 'agentes-hermes.compose.yml'))).toBe(false);

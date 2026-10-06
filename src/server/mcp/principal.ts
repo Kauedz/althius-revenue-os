@@ -53,7 +53,7 @@ if (executadoDiretamente(import.meta.url, process.argv[1])) {
   try {
     const config = lerConfiguracao(process.env);
     const cliente = createClient(config.url, config.chavePublica, { auth: { persistSession: false, autoRefreshToken: false } });
-    const ferramentas = ferramentasDoAgente(cliente, config.token);
+    const ferramentas = ferramentasDoAgente(cliente, config.token, { url: (process.env.ALTHIUS_INTEGRACOES_URL ?? '').trim() || undefined });
     serveStdio(() => criarServidorAlthius(ferramentas));
   } catch (e) {
     // stdout é do protocolo MCP: avisos vão para stderr.

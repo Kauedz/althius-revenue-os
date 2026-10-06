@@ -19,6 +19,11 @@ describe('perfilDoAgente', () => {
     expect(c).toContain('ALTHIUS_SUPABASE_CHAVE_PUBLICA: "anon-publica"');
     expect(c).not.toMatch(/service_role|SERVICE_ROLE|MODELO_CHAVE=/);
   });
+  it('com o endereço do serviço de integrações, o MCP recebe ALTHIUS_INTEGRACOES_URL (a ponte com os apps)', () => {
+    const c = perfilDoAgente({ ...base, integracoesUrl: 'http://webhooks:3100' });
+    expect(c).toContain('ALTHIUS_INTEGRACOES_URL: "http://webhooks:3100"');
+    expect(perfilDoAgente(base)).not.toContain('ALTHIUS_INTEGRACOES_URL');
+  });
   it('valores com aspas ou quebra de linha não escapam do YAML', () => {
     const c = perfilDoAgente({ ...base, modelo: { url: 'https://x.test/v1', nome: 'a"b\nc: d' } });
     expect(c).toContain('default: "a\\"b\\nc: d"');

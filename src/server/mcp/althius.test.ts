@@ -100,7 +100,7 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
     const cliente = await conectar(tokenGrao);
     const { tools } = await cliente.listTools();
     expect(tools.map(t => t.name).sort()).toEqual([
-      'buscar_contatos', 'listar_cadencias', 'listar_campanhas', 'listar_contas', 'listar_habilidades', 'listar_membros', 'listar_negocios', 'listar_quadros', 'listar_sinais', 'listar_tarefas',
+      'buscar_contatos', 'integracao_ferramentas', 'integracao_ler', 'listar_cadencias', 'listar_campanhas', 'listar_contas', 'listar_habilidades', 'listar_membros', 'listar_negocios', 'listar_quadros', 'listar_sinais', 'listar_tarefas',
       'propor_atualizacao', 'propor_campanha', 'propor_inscricao_cadencia', 'propor_mover_negocio', 'propor_negocio', 'propor_status_campanha', 'propor_tarefa',
       'propor_verba_campanha'
     ]);

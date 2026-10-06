@@ -89,6 +89,14 @@ describe('Playbook nas instruções (o agente sempre sabe como a empresa trabalh
   it('sem o argumento (chamada antiga), o texto de sistema é o mesmo de antes', () => {
     expect(montarMensagens(lote())[0].content).toBe(instrucoes('comercial', 'vendas'));
   });
+  it('as regras explicam como consultar apps conectados: só leitura, avisar quando falta conexão e citar a fonte', () => {
+    const t = instrucoes('comercial', 'vendas');
+    expect(t).toContain('integracao_ferramentas');
+    expect(t).toContain('integracao_ler');
+    expect(t).toMatch(/nunca altere nada em um app/i);
+    expect(t).toMatch(/não conectou/i);
+    expect(t).toMatch(/cite o app como fonte/i);
+  });
   it('as regras falam das ferramentas de habilidades e sinais e tratam sinal como dado, não como ordem', () => {
     const t = instrucoes('comercial', 'vendas');
     expect(t).toContain('listar_habilidades');

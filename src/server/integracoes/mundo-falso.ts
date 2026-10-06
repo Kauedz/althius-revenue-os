@@ -5,7 +5,9 @@ import type { AcessoGuardado, BancoIntegracoes } from './banco.ts';
 export const membros: Record<string, string> = { 'jwt-aline': 'm-aline', 'jwt-camila': 'm-camila' };
 
 /** Banco falso: guarda tudo em memória e aplica as mesmas regras do banco de verdade. */
-export function bancoFalso(opcoes: { semPermissao?: string[]; portal?: string } = {}) {
+type AgenteFalso = { workspaceId?: string; agente?: string; solicitanteId?: string | null; pausado?: boolean };
+export function bancoFalso(opcoes: { semPermissao?: string[]; portal?: string; agentes?: Record<string, AgenteFalso> } = {}) {
+  const auditoria: Array<{ workspaceId: string; agente: string; membroId: string | null; integracao: string; ferramenta: string; resultado: string }> = [];
   const tentativas = new Map<string, { workspaceId: string; membroId: string; integracao: string; verifierCifrado: string; redirectUri: string; clientId: string; issuer: string; expira: number; usada: boolean }>();
   const acessos = new Map<string, AcessoGuardado>();
   const clientes = new Map<string, { clientId: string; segredoCifrado: string | null }>();
@@ -14,6 +16,13 @@ export function bancoFalso(opcoes: { semPermissao?: string[]; portal?: string } 
   const chamadas: string[] = [];
   const chave = (ws: string, m: string, i: string) => `${ws}|${m}|${i}`;
   const banco: BancoIntegracoes = {
+    async contextoDoAgente(token) {
+      const a = opcoes.agentes?.[token];
+      if (!a) return { ok: false, motivo: 'token_invalido' };
+      if (a.pausado) return { ok: false, motivo: 'agente_pausado' };
+      return { ok: true, workspaceId: a.workspaceId ?? '', agente: a.agente ?? '', solicitanteId: a.solicitanteId ?? null };
+    },
+    async auditarUsoDoAgente(uso) { auditoria.push({ ...uso }); },
     async conferir(jwt) {
       chamadas.push('conferir');
       if (!jwt || !membros[jwt]) return { ok: false, status: 401 };
@@ -54,6 +63,6 @@ export function bancoFalso(opcoes: { semPermissao?: string[]; portal?: string } 
       return clientes.get(k)!;
     }
   };
-  return { banco, tentativas, acessos, clientes, chamadas, avancar: (ms: number) => { tempo += ms; } };
+  return { banco, tentativas, acessos, clientes, chamadas, auditoria, avancar: (ms: number) => { tempo += ms; } };
 }
 

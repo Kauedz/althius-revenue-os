@@ -10,6 +10,9 @@ export interface RotasIntegracoes {
   ferramentas(jwt: string, corpo: unknown): Promise<{ status: number; corpo: Record<string, unknown> }>;
   desconectar(jwt: string, corpo: unknown): Promise<{ status: number; corpo: Record<string, unknown> }>;
   retirar(jwt: string, corpo: unknown): Promise<{ status: number; corpo: Record<string, unknown> }>;
+  /** Ponte dos agentes (ADR 0058): quem chama prova com o TOKEN DO AGENTE, não com o login de uma pessoa. */
+  agenteFerramentas(tokenDoAgente: string, corpo: unknown): Promise<{ status: number; corpo: Record<string, unknown> }>;
+  agenteChamar(tokenDoAgente: string, corpo: unknown): Promise<{ status: number; corpo: Record<string, unknown> }>;
   retorno(query: { code?: string; state?: string; error?: string }): Promise<{ status: 302; destino: string }>;
 }
 
@@ -74,13 +77,14 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
     const ehLink = url === '/conexoes/link';
     const ehCofre = url === '/cofre/guardar' || url === '/cofre/testar';
     const ehIntegracao = ['/integracoes/iniciar', '/integracoes/ferramentas', '/integracoes/desconectar', '/integracoes/retirar'].includes(url);
-    if (!ehWebhook && !ehLink && !ehCofre && !ehIntegracao) return responder(404, { erro: 'nao_encontrado' });
+    const ehAgente = url === '/integracoes/agente/ferramentas' || url === '/integracoes/agente/chamar';
+    if (!ehWebhook && !ehLink && !ehCofre && !ehIntegracao && !ehAgente) return responder(404, { erro: 'nao_encontrado' });
     if (req.method !== 'POST') return responder(405, { erro: 'metodo_nao_permitido' });
 
     // A prova do link de conexão é o login da pessoa, conferido ANTES de ler o corpo. A do webhook é a assinatura do
     // corpo bruto: só dá para conferir depois de ler (o limite de tamanho protege a memória).
     let jwt = '';
-    if (ehLink || ehCofre || ehIntegracao) {
+    if (ehLink || ehCofre || ehIntegracao || ehAgente) {
       const m = /^Bearer (.+)$/.exec(req.headers.authorization ?? '');
       jwt = m?.[1] ?? '';
       if (!jwt) { req.resume(); return responder(401, { erro: 'nao_autorizado' }); }
@@ -105,6 +109,12 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
           if (!o.cofre) return responder(503, { erro: 'cofre_indisponivel' });
           const rota = url === '/cofre/guardar' ? guardarSegredo : testarSegredo;
           rota(o.cofre, jwt, payload).then(r => responder(r.status, r.corpo), () => responder(502, { erro: 'falha_no_cofre' }));
+          return;
+        }
+        if (ehAgente) {
+          if (!o.integracoes) return responder(503, { erro: 'integracoes_indisponiveis' });
+          const rota = url.endsWith('/ferramentas') ? o.integracoes.agenteFerramentas : o.integracoes.agenteChamar;
+          rota(jwt, payload).then(r => responder(r.status, r.corpo), () => responder(502, { erro: 'falha_nas_integracoes' }));
           return;
         }
         if (ehIntegracao) {

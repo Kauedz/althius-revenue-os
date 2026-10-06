@@ -124,7 +124,15 @@ export interface SinalAgente {
 }
 export interface FiltroSinais { conta_id?: string; limite?: number }
 
+/** Onde fica o serviço de integrações (a ponte com os apps conectados, ADR 0058). Sem isto, as ferramentas de app avisam que não estão ligadas. */
+export interface OpcoesPonte { url?: string; buscar?: typeof fetch }
+/** A resposta da ponte: o status HTTP e o corpo já lido. */
+export interface RespostaPonte { status: number; corpo: Record<string, unknown> }
+
 export interface FerramentasAgente {
+  /** O que o agente pode LER num app conectado (só ferramentas somente leitura), com o acesso de quem pediu. */
+  ferramentasDoApp(app: string, ferramenta?: string): Promise<RespostaPonte>;
+  lerDoApp(app: string, ferramenta: string, argumentos: Record<string, unknown>): Promise<RespostaPonte>;
   listarHabilidades(): Promise<HabilidadeAgente[]>;
   listarSinais(filtro?: FiltroSinais): Promise<SinalAgente[]>;
   listarCampanhas(): Promise<CampanhaAgente[]>;
@@ -158,8 +166,23 @@ function erroDoBanco(error: { code?: string; message?: string }, mensagem: strin
 const chaveDe = (tipo: string, ...partes: Array<string | number | undefined>) =>
   `agente:${tipo}:` + createHash('sha256').update(partes.map(p => String(p ?? '').trim()).join('|')).digest('hex');
 
-export function ferramentasDoAgente(cliente: SupabaseClient, token: string): FerramentasAgente {
+export function ferramentasDoAgente(cliente: SupabaseClient, token: string, ponte: OpcoesPonte = {}): FerramentasAgente {
+  // O serviço de integrações recebe SÓ o token do agente. O erro devolvido nunca leva endereço interno nem token.
+  const chamarPonte = async (caminho: string, corpo: Record<string, unknown>): Promise<RespostaPonte> => {
+    if (!ponte.url) throw new Error('As integrações com apps ainda não estão ligadas neste ambiente.');
+    let r: Response;
+    try {
+      r = await (ponte.buscar ?? fetch)(`${ponte.url.replace(/[/]+$/, '')}/integracoes/agente/${caminho}`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(corpo), signal: AbortSignal.timeout(60_000)
+      });
+    } catch { throw new Error('Não foi possível falar com o serviço de integrações agora.'); }
+    const j = await r.json().catch(() => null);
+    return { status: r.status, corpo: j && typeof j === 'object' && !Array.isArray(j) ? (j as Record<string, unknown>) : {} };
+  };
   return {
+    ferramentasDoApp: (app, ferramenta) => chamarPonte('ferramentas', ferramenta ? { integracao: app, ferramenta } : { integracao: app }),
+    lerDoApp: (app, ferramenta, argumentos) => chamarPonte('chamar', { integracao: app, ferramenta, argumentos }),
+
     async buscarContatos() {
       const { data, error } = await cliente.rpc('agent_list_contacts', { p_token: token });
       if (error) throw erroDoBanco(error, 'Não foi possível ler os contatos do workspace.');
