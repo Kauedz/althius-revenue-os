@@ -77,3 +77,11 @@ As versões estão fixas no `docker-compose.yml`. Troque a versão num PR, teste
 
 ## Ainda não está aqui (entra quando existir ponto de entrada)
 Outros workers das filas (enriquecimento, raspagem), servidor MCP e Hermes Agent. Hoje só existe o Redis das filas.
+
+## Agentes respondendo (Hermes Agent)
+O contêiner `agentes` (ADR 0047) pega os pedidos dos canais e os entrega ao Hermes Agent de cada cliente. Ele **só responde por quem está em `docker/agentes-executores.json`** (copie de `docker/agentes-executores.exemplo.json`; o arquivo não vai para o git porque tem chaves). Sem entrada para o agente, o pedido espera na fila e nada é respondido: não existe resposta de mentira.
+- Ver o que está acontecendo: `docker compose logs -f agentes` (linhas `agentes_ciclo`, `harness_lote_respondido`, `harness_lote_falhou`; o log nunca mostra o texto das mensagens).
+- Adicionar um cliente ou agente: acrescente a entrada no arquivo; o serviço relê sozinho, sem reiniciar.
+- **Teste de ponta a ponta** (prova canal → fila → Hermes → banco → resposta): `scripts/agentes/teste-ponta-a-ponta.mjs` (variáveis no cabeçalho do arquivo). Sem chave de modelo, use `scripts/agentes/modelo-de-mentira.mjs` como modelo de IA do perfil de teste.
+- **Ainda não existe:** o Hermes rodando por cliente dentro do Docker e um modelo de IA de verdade configurado.
+

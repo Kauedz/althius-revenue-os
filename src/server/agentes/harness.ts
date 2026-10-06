@@ -3,8 +3,8 @@
 // tentativas, créditos, política) mora no Postgres (migration 0110); aqui só se repete o ciclo.
 // O executor (o Hermes Agent) entra por uma interface nossa: nos testes é uma versão falsa, e sem executor NADA é
 // respondido (os pedidos esperam na fila; nunca existe resposta inventada).
-export interface MensagemDoLote { id: string; autor_id: string | null; texto: string; em: string }
-export interface ContextoDoLote { tipo: 'member' | 'agent'; autor_id: string | null; agente: string | null; texto: string; em: string }
+export interface MensagemDoLote { id: string; autor_id: string | null; autor?: string | null; papel?: string | null; texto: string; em: string }
+export interface ContextoDoLote { tipo: 'member' | 'agent'; autor_id: string | null; autor?: string | null; agente: string | null; texto: string; em: string }
 
 export interface LoteHarness {
   run_id: string;
@@ -19,7 +19,8 @@ export interface LoteHarness {
   contexto: ContextoDoLote[];
 }
 
-export interface OpcoesPegar { silencioS?: number; esperaMaximaS?: number; prazoS?: number; limite?: number }
+/** `somente`: lista de "workspace/agente" que têm executor. Sem ela, pega todos; com ela (mesmo vazia), só esses. */
+export interface OpcoesPegar { silencioS?: number; esperaMaximaS?: number; prazoS?: number; limite?: number; somente?: string[] }
 
 export interface BancoHarness {
   recolher(semBatidaS: number): Promise<number>;
@@ -41,6 +42,8 @@ export interface OpcoesCiclo {
   /** sem batida por este tempo (s), o lote é recolhido. Padrão 90 s. */
   semBatidaS?: number;
   pegar?: OpcoesPegar;
+  /** Quais "workspace/agente" têm executor agora. Sem executor, o pedido espera na fila (sem gastar tentativa nem crédito). */
+  executoresRegistrados?: () => string[] | Promise<string[]>;
   /** Uma linha por lote: nunca recebe o texto das mensagens. */
   log?: (linha: Record<string, unknown>) => void;
 }
@@ -52,7 +55,8 @@ const curto = (e: unknown) => (e instanceof Error ? e.message : 'erro').slice(0,
 export async function rodarCicloHarness(o: OpcoesCiclo): Promise<ResumoCiclo> {
   const log = o.log ?? (() => {});
   const resumo: ResumoCiclo = { recolhidos: await o.banco.recolher(o.semBatidaS ?? 90), lotes: 0, respondidos: 0, falhas: 0 };
-  const lotes = await o.banco.pegar(o.pegar ?? {});
+  const somente = o.executoresRegistrados ? await o.executoresRegistrados() : undefined;
+  const lotes = await o.banco.pegar({ ...(o.pegar ?? {}), ...(somente ? { somente } : {}) });
   resumo.lotes = lotes.length;
 
   await Promise.all(lotes.map(async lote => {
@@ -96,7 +100,8 @@ export function bancoHarnessViaApi(base: string, chaveServico: string, buscar: t
   return {
     recolher: semBatidaS => chamar<number>('agent_harness_reap', { p_heartbeat_timeout_seconds: semBatidaS }),
     pegar: o => chamar<LoteHarness[]>('agent_harness_claim', {
-      p_quiet_seconds: o.silencioS ?? 3, p_max_wait_seconds: o.esperaMaximaS ?? 15, p_deadline_seconds: o.prazoS ?? 300, p_limit: o.limite ?? 5
+      p_quiet_seconds: o.silencioS ?? 3, p_max_wait_seconds: o.esperaMaximaS ?? 15, p_deadline_seconds: o.prazoS ?? 300, p_limit: o.limite ?? 5,
+      p_only: o.somente ?? null
     }),
     batida: runId => chamar<boolean>('agent_harness_heartbeat', { p_run_id: runId }),
     terminar: async (runId, r) => {

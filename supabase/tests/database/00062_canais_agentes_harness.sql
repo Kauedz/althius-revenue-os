@@ -14,9 +14,9 @@ SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid = 'public.agent_channel
 SELECT ok((SELECT relrowsecurity FROM pg_class WHERE oid = 'public.agent_channel_runs'::regclass), 'Lotes têm RLS ligada');
 SELECT ok(NOT has_table_privilege('authenticated', 'public.agent_channel_queue', 'SELECT'), 'Usuário logado não lê a fila');
 SELECT ok(NOT has_table_privilege('anon', 'public.agent_channel_runs', 'SELECT'), 'Visitante não lê os lotes');
-SELECT ok(NOT has_function_privilege('authenticated', 'public.agent_harness_claim(integer, integer, integer, integer)', 'EXECUTE'), 'Usuário logado não pega lote');
+SELECT ok(NOT has_function_privilege('authenticated', 'public.agent_harness_claim(integer, integer, integer, integer, jsonb)', 'EXECUTE'), 'Usuário logado não pega lote');
 SELECT ok(NOT has_function_privilege('anon', 'public.agent_harness_finish(uuid, boolean, text, text)', 'EXECUTE'), 'Visitante não termina lote');
-SELECT ok(has_function_privilege('service_role', 'public.agent_harness_claim(integer, integer, integer, integer)', 'EXECUTE'), 'Sistema pega lote');
+SELECT ok(has_function_privilege('service_role', 'public.agent_harness_claim(integer, integer, integer, integer, jsonb)', 'EXECUTE'), 'Sistema pega lote');
 SELECT ok(has_function_privilege('service_role', 'public.agent_harness_reap(integer)', 'EXECUTE'), 'Sistema recolhe lotes parados');
 SELECT ok(NOT has_function_privilege('authenticated', 'internal.harness_falhar(uuid, text)', 'EXECUTE'), 'Peça interna fechada');
 SELECT ok(has_function_privilege('authenticated', 'public.chat_set_agent_policy(uuid, uuid, text, text, text)', 'EXECUTE'), 'Gestor do canal muda a política (a função confere quem é)');

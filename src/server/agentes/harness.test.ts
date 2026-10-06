@@ -44,6 +44,16 @@ describe('rodarCicloHarness (banco e executor falsos)', () => {
     expect(JSON.stringify(logs)).not.toContain('SEGREDO-DA-MENSAGEM');
   });
 
+  it('só pede ao banco os agentes que têm executor registrado (lista vazia = nenhum)', async () => {
+    const pedidos: unknown[] = [];
+    const { banco } = bancoFalso([], { pegar: async o => { pedidos.push(o); return []; } });
+    const executor = { responder: async () => 'x' };
+    await rodarCicloHarness({ banco, executor, executoresRegistrados: () => ['w/comercial'] });
+    await rodarCicloHarness({ banco, executor, executoresRegistrados: async () => [] });
+    await rodarCicloHarness({ banco, executor });
+    expect(pedidos).toEqual([{ somente: ['w/comercial'] }, { somente: [] }, {}]);
+  });
+
   it('sem lote pronto, nada é chamado no executor', async () => {
     const { banco } = bancoFalso([]);
     let chamou = 0;
@@ -102,7 +112,7 @@ describe('bancoHarnessViaApi (fetch falso)', () => {
       'http://rest:3000/rpc/agent_harness_reap', 'http://rest:3000/rpc/agent_harness_claim',
       'http://rest:3000/rpc/agent_harness_heartbeat', 'http://rest:3000/rpc/agent_harness_finish'
     ]);
-    expect(chamadas[1].corpo).toEqual({ p_quiet_seconds: 1, p_max_wait_seconds: 15, p_deadline_seconds: 300, p_limit: 2 });
+    expect(chamadas[1].corpo).toEqual({ p_quiet_seconds: 1, p_max_wait_seconds: 15, p_deadline_seconds: 300, p_limit: 2, p_only: null });
     expect(chamadas[3].corpo).toEqual({ p_run_id: 'r1', p_ok: false, p_reply: null, p_error: 'x' });
     expect(chamadas.every(c => c.h.apikey === 'chave-servico' && c.h.Authorization === 'Bearer chave-servico')).toBe(true);
   });
