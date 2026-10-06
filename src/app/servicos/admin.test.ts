@@ -43,6 +43,16 @@ describe.skipIf(!bancoLocalNoAr)('Superadmin (banco local)', () => {
     expect(await revogarChavesDosAgentes(rafael, id)).toEqual({ ok: true, revogadas: 4 });
   });
 
+  it('uso global mostra tokens e custo real do modelo (só superadmin); sem preço informado o custo fica "—"', async () => {
+    const WS = 'b0000000-0000-0000-0000-000000000001'; // Grão Norte
+    const { error } = await adminLocal().rpc('llm_registrar_uso', { p_workspace_id: WS, p_agente: 'copy', p_rotulo: 'Teste', p_modelo: 'm', p_tokens_entrada: 1000, p_tokens_saida: 500, p_custo_usd: null });
+    expect(error).toBeNull();
+    const rafael = await entrarComoLocal('rafael@althius.com.br');
+    const linha = (await usoGlobal(rafael)).linhas.find(l => l.id === WS)!;
+    expect(Number(linha.tokens.replace(/\D/g, ''))).toBeGreaterThanOrEqual(1500);
+    expect(typeof linha.custoModelo).toBe('string');
+  });
+
   it('telas só leitura trazem dados reais e nunca segredo', async () => {
     const rafael = await entrarComoLocal('rafael@althius.com.br');
     expect((await usoGlobal(rafael)).linhas.length).toBeGreaterThanOrEqual(3);

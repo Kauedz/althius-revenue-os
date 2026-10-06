@@ -19,8 +19,8 @@ function ambiente(status = 200) {
     chamadas.push({ url, h: init.headers, corpo: JSON.parse(init.body) });
     return { ok: status < 300, status, json: async () => `alt_agente_token${++n}` };
   };
-  const opcoes = { workspace: WS, responsavel: MEMBRO, slug: 'evolut', 'modelo-url': 'https://api.exemplo.test/v1', 'modelo-nome': 'modelo-x',
-    urlBanco: 'http://localhost/rest/v1', chavePublica: 'anon-publica', chaveServico: 'servico-secreta', chaveModelo: 'chave-do-modelo' };
+  const opcoes = { workspace: WS, responsavel: MEMBRO, slug: 'evolut',
+    urlBanco: 'http://localhost/rest/v1', chavePublica: 'anon-publica', chaveServico: 'servico-secreta' };
   const io = { buscar, raiz: pasta, semChown: true, empacotar: () => {}, log: () => {} };
   return { chamadas, opcoes, io };
 }
@@ -40,10 +40,12 @@ describe('provisionar', () => {
       expect(cfg).toContain(`ALTHIUS_SUPABASE_URL: "${URL_BANCO_INTERNA}"`);
       expect(cfg).toContain('ALTHIUS_AGENTE_TOKEN: "alt_agente_token');
       expect(cfg).not.toContain('servico-secreta');
-      expect(cfg).not.toContain('chave-do-modelo');
+      // O modelo é o gateway da Althius (ADR 0050): endereço interno, nome lógico e nenhuma chave de provedor.
+      expect(cfg).toContain('base_url: "http://gateway:3300/v1"');
+      expect(cfg).toContain('default: "althius"');
       const env = ler('docker', 'hermes', 'evolut', 'data', 'profiles', a, '.env');
       expect(env).toMatch(/API_SERVER_KEY=alt_hermes_[0-9a-f]{48}/);
-      expect(env).toContain('MODELO_CHAVE=chave-do-modelo');
+      expect(env).toMatch(/MODELO_CHAVE=alt_agente_token\d/); // a chave do gateway é o token do próprio agente
     }
     expect(ler('docker', 'hermes', 'evolut', 'data', '.env')).toMatch(/API_SERVER_KEY=alt_padrao_/);
     expect(ler('docker', 'agentes-hermes.compose.yml')).toContain('hermes-evolut:');
@@ -95,11 +97,21 @@ describe('provisionar', () => {
 
   it.each([
     [{ workspace: 'x' }, '--workspace'], [{ responsavel: 'x' }, '--responsavel'], [{ slug: 'Maiuscula' }, '--slug'],
-    [{ 'modelo-url': 'ftp://x' }, '--modelo-url'], [{ 'modelo-nome': '' }, '--modelo-nome'], [{ chaveModelo: '' }, 'chaveModelo'], [{ chavePublica: '' }, 'chavePublica']
+    [{ 'modelo-url': 'ftp://x' }, '--modelo-url'], [{ 'modelo-nome': '' }, '--modelo-nome'], [{ chavePublica: '' }, 'chavePublica']
   ])('argumento inválido %j: erro claro, sem tocar no banco', async (troca, texto) => {
     const { chamadas, opcoes, io } = ambiente();
     await expect(provisionar({ ...opcoes, ...troca }, io)).rejects.toThrow(texto);
     expect(chamadas).toHaveLength(0);
+  });
+});
+
+describe('modelo', () => {
+  it('o endereço e o nome podem ser trocados à mão (ex.: teste com um modelo falso), mas o padrão é o gateway', async () => {
+    const { opcoes, io } = ambiente();
+    await provisionar({ ...opcoes, 'modelo-url': 'http://127.0.0.1:8999/v1', 'modelo-nome': 'fake-model' }, io);
+    const cfg = ler('docker', 'hermes', 'evolut', 'data', 'profiles', 'comercial', 'config.yaml');
+    expect(cfg).toContain('base_url: "http://127.0.0.1:8999/v1"');
+    expect(cfg).toContain('default: "fake-model"');
   });
 });
 

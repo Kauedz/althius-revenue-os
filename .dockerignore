@@ -9,3 +9,5 @@ docs
 .scratch
 .agents
 *.log
+**/*.test.ts
+**/*.test.tsx

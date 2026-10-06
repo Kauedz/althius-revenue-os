@@ -186,6 +186,27 @@ services:
       CADENCIA_INTERVALO_SEGUNDOS: ${CADENCIA_INTERVALO_SEGUNDOS:-60}
     networks: [interna]
 
+  # Gateway do modelo de IA (PR 17, ADR 0050): o Hermes de cada cliente fala com ele (formato OpenAI) usando o token do
+  # próprio agente; a chave real do provedor vem do cofre (tela do superadmin). Rede interna, nenhuma porta publicada.
+  gateway:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.gateway
+    restart: unless-stopped
+    depends_on:
+      rest:
+        condition: service_started
+    environment:
+      BANCO_URL: http://rest:3000
+      SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      COFRE_CHAVE_MESTRA: ${COFRE_CHAVE_MESTRA:-}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3300/saude"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [interna]
+
   # Harness dos agentes (PR 14): entrega os pedidos dos canais ao Hermes Agent de cada cliente e grava a resposta.
   # Só roda para quem tem executor em ./docker/agentes-executores.json (copie de agentes-executores.exemplo.json).
   # Sem arquivo ou sem entrada para o agente, o pedido espera na fila: nunca existe resposta de mentira.

@@ -14,6 +14,7 @@ export interface DepsCofre {
 type Resp = { status: number; corpo: Record<string, unknown> };
 const resposta = (status: number, corpo: Record<string, unknown>): Resp => ({ status, corpo });
 
+const ALIAS: Record<string, Provedor> = { mensagens: 'unipile', mensagens_webhook: 'unipile_webhook' };
 const PROVEDORES: Provedor[] = ['apify', 'unipile', 'unipile_webhook', 'modelo_ia'];
 const urlSegura = (v: unknown): string | null => {
   if (typeof v !== 'string') return null;
@@ -26,7 +27,7 @@ const urlSegura = (v: unknown): string | null => {
 };
 
 /** Só entra a configuração que o fornecedor usa; o resto é descartado. null = pedido inválido. */
-function limparConfig(provedor: Provedor, config: unknown): Record<string, string> | null {
+function limparConfig(provedor: Provedor, config: unknown): Record<string, string | number> | null {
   const c = (config && typeof config === 'object' ? config : {}) as Record<string, unknown>;
   if (provedor === 'unipile') {
     if (c.url === undefined || c.url === '') return {};
@@ -34,9 +35,23 @@ function limparConfig(provedor: Provedor, config: unknown): Record<string, strin
     return url ? { url } : null;
   }
   if (provedor === 'modelo_ia') {
-    const url = urlSegura(c.base_url);
+    // `api`: o "idioma" do provedor. OpenAI serve também para vários outros; Claude é o da Anthropic.
+    const api = c.api === undefined || c.api === '' ? 'openai' : c.api;
+    if (api !== 'openai' && api !== 'anthropic') return null;
     const modelo = typeof c.modelo === 'string' ? c.modelo.trim() : '';
-    return url && modelo && modelo.length <= 100 ? { base_url: url, modelo } : null;
+    if (!modelo || modelo.length > 100) return null;
+    const semEndereco = c.base_url === undefined || c.base_url === '';
+    if (semEndereco && api === 'openai') return null; // OpenAI-compatível precisa do endereço; a Claude tem o padrão
+    const url = semEndereco ? null : urlSegura(c.base_url);
+    if (!semEndereco && !url) return null;
+    const prioridade = c.prioridade === undefined || c.prioridade === '' ? 50 : Number(c.prioridade);
+    if (!Number.isInteger(prioridade) || prioridade < 1 || prioridade > 99) return null;
+    // Preço por 1 milhão de tokens (US$), só do superadmin: serve para calcular o custo real. Os dois ou nenhum.
+    const preco = (v: unknown) => (v === undefined || v === '' ? undefined : Number(String(v).replace(',', '.')));
+    const pe = preco(c.preco_entrada); const ps = preco(c.preco_saida);
+    if ((pe === undefined) !== (ps === undefined)) return null;
+    if (pe !== undefined && ps !== undefined && (!Number.isFinite(pe) || !Number.isFinite(ps) || pe < 0 || ps < 0)) return null;
+    return { api, ...(url ? { base_url: url } : {}), modelo, prioridade, ...(pe !== undefined && ps !== undefined ? { preco_entrada: pe, preco_saida: ps } : {}) };
   }
   return {};
 }
@@ -59,7 +74,8 @@ async function conferirSuperadmin(d: DepsCofre, jwt: string): Promise<{ ok: true
 
 export async function guardarSegredo(d: DepsCofre, jwt: string, corpo: unknown): Promise<Resp> {
   const c = (corpo && typeof corpo === 'object' ? corpo : {}) as Record<string, unknown>;
-  const provedor = c.provedor as Provedor;
+  // A tela chama o canal de mensagens por nomes neutros (o nome do fornecedor não aparece no front); aqui vira o do banco.
+  const provedor = (ALIAS[c.provedor as string] ?? c.provedor) as Provedor;
   const rotulo = typeof c.rotulo === 'string' ? c.rotulo.trim() : '';
   const segredo = typeof c.segredo === 'string' ? c.segredo.trim() : '';
   // Antes de qualquer outra coisa: quem não é superadmin nem descobre o que é válido.
@@ -87,11 +103,15 @@ export async function guardarSegredo(d: DepsCofre, jwt: string, corpo: unknown):
 /** Sonda leve de cada fornecedor. Unipile não tem: o endereço de teste não está confirmado e nada é inventado. */
 async function sondar(p: Provedor, segredo: string, config: Record<string, unknown>, buscar: typeof fetch): Promise<{ ok: boolean; mensagem?: string; sem_teste?: boolean }> {
   let url: string;
+  let cabecalhos: Record<string, string> = { Authorization: `Bearer ${segredo}` };
   if (p === 'apify') url = 'https://api.apify.com/v2/users/me';
-  else if (p === 'modelo_ia' && typeof config.base_url === 'string') url = `${config.base_url.replace(/\/+$/, '')}/models`;
+  else if (p === 'modelo_ia' && config.api === 'anthropic') {
+    url = `${(typeof config.base_url === 'string' && config.base_url ? config.base_url : 'https://api.anthropic.com/v1').replace(/\/+$/, '')}/models`;
+    cabecalhos = { 'x-api-key': segredo, 'anthropic-version': '2023-06-01' };
+  } else if (p === 'modelo_ia' && typeof config.base_url === 'string') url = `${config.base_url.replace(/\/+$/, '')}/models`;
   else return { ok: false, sem_teste: true, mensagem: 'Este fornecedor não tem teste automático. Ele é confirmado no primeiro uso.' };
   try {
-    const r = await buscar(url, { headers: { Authorization: `Bearer ${segredo}` }, signal: AbortSignal.timeout(10_000) });
+    const r = await buscar(url, { headers: cabecalhos, signal: AbortSignal.timeout(10_000) });
     if (r.ok) return { ok: true };
     if (r.status === 401 || r.status === 403) return { ok: false, mensagem: 'Chave recusada pelo fornecedor.' };
     return { ok: false, mensagem: `O fornecedor respondeu com erro (${r.status}).` };

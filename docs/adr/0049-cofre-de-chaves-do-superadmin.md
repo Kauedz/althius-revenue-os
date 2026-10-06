@@ -19,7 +19,7 @@ As chaves dos fornecedores (Apify, Unipile, modelo de IA) estavam no `.env` do s
 9. **Créditos, nunca dólar** continua valendo: o custo real da Apify segue só nesta tela do superadmin.
 
 ## O que esta decisão NÃO faz (próximas etapas)
-- A chave do **modelo de IA** já pode ser guardada, mas o Hermes ainda não a usa: isso vem com o gateway do modelo (PR 17), que também permite trocar de fornecedor sem mexer em cada Hermes.
+- (Feito na ADR 0050) A chave do **modelo de IA** é usada pelo gateway, que também permite trocar de fornecedor sem mexer em cada Hermes.
 - O envio de chave de Apify para os pedidos de coleta reais depende de existir o ponto de coleta no backend; hoje o rodízio está pronto e testado, e a coleta o chamará.
 - Aprendizado entre contas e o aviso de consentimento (PR 18 e 19).
 
