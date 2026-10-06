@@ -3,6 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   listarContas,
+  linkedinDoPerfil,
+  geoDaConta,
   textoUltimoContato,
   SEM_CONTATO,
   criarConta,
@@ -150,6 +152,8 @@ describe('listarContas (unitário / mapeamento)', () => {
       decisor: 'Mariana Lima',
       dominio: 'acme.com',
       logoUrl: 'https://acme.com/logo.png',
+      uf: 'SP',
+      geo: null,
       ultimoContato: 'Sem contato ainda',
       comite: [
         {
@@ -176,6 +180,19 @@ describe('listarContas (unitário / mapeamento)', () => {
     const contas = await listarContas(cliente, 'ws');
     expect(contas[0].comite?.map(p => p.nome)).toEqual(['Carla', 'Bruno', 'Ana', 'Zélia']);
     expect(contas[0].decisor).toBe('Carla');
+  });
+
+  it('enriquecimento: o perfil do LinkedIn guardado e o ponto no mapa (exato pelo CEP, aproximado pela cidade)', async () => {
+    const conta = (id: string, extra: Record<string, unknown>) => ({ id, name: id, domain: id + '.test', logo_url: null, segment: 'x', fit: 50, temperature: 1, last_signal_text: null, owner_member_id: null, city: 'Campinas', state_uf: 'SP', status: 'ativa', ...extra });
+    const cliente = mockSupabase({
+      accounts: { data: [conta('exata', { lat: -22.9, lng: -47.06, localizacao_precisao: 'cep' }), conta('cidade', { lat: -22.9, lng: -47.06, localizacao_precisao: 'cidade' }), conta('sem', { state_uf: null, city: null })], error: null },
+      contacts: { data: [{ id: 'p1', account_id: 'exata', name: 'Bia Rocha', job_title: 'CEO', buying_role: 'decisor', photo_url: 'https://media.licdn.test/bia.jpg', linkedin_status: 'sem_conexao' }], error: null },
+      contact_channels: { data: [{ contact_id: 'p1', type: 'linkedin', value: 'https://www.linkedin.com/in/bia-rocha', position: 1 }], error: null }
+    });
+    const contas = await listarContas(cliente, 'ws');
+    expect(contas.map(c => c.geo)).toEqual([{ lat: -22.9, lng: -47.06, aprox: false }, { lat: -22.9, lng: -47.06, aprox: true }, null]);
+    expect(contas.map(c => c.uf)).toEqual(['SP', 'SP', null]);
+    expect(contas[0].comite?.[0]).toMatchObject({ linkedin: 'https://www.linkedin.com/in/bia-rocha', foto: 'https://media.licdn.test/bia.jpg' });
   });
 
   it('quando não há decisor mapeado, mostra "A mapear"', async () => {
@@ -395,5 +412,21 @@ describe.skipIf(!bancoLocalNoAr)('Contas e leads (banco local)', () => {
     expect(resultado.total).toBe(2);
     expect(resultado.duplicadas).toBeGreaterThanOrEqual(1);
     expect(resultado.criadas).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('ajudas do enriquecimento na tela', () => {
+  it('perfil do LinkedIn: aceita endereço completo ou só o identificador; o resto é nulo', () => {
+    expect(linkedinDoPerfil('https://br.linkedin.com/in/bia-rocha/?trk=x')).toBe('https://www.linkedin.com/in/bia-rocha');
+    expect(linkedinDoPerfil('bia-rocha')).toBe('https://www.linkedin.com/in/bia-rocha');
+    expect(linkedinDoPerfil('javascript:alert(1)')).toBeNull();
+    expect(linkedinDoPerfil('')).toBeNull();
+  });
+
+  it('ponto no mapa: só dentro do Brasil e com as duas coordenadas', () => {
+    expect(geoDaConta({ lat: -23.5, lng: -46.6, localizacao_precisao: 'endereco' })).toEqual({ lat: -23.5, lng: -46.6, aprox: false });
+    expect(geoDaConta({ lat: -23.5, lng: -46.6 })).toEqual({ lat: -23.5, lng: -46.6, aprox: true });
+    expect(geoDaConta({ lat: 40.7, lng: -74 })).toBeNull();
+    expect(geoDaConta({ lat: -23.5, lng: null })).toBeNull();
   });
 });

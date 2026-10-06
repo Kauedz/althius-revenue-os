@@ -1067,7 +1067,7 @@ export function renderTemplate($v: Record<string, any>) {
                         {"\n                  "}
                         {__arr($v.mapa?.pins).map((p, $index) => (<React.Fragment key={$index}>
                           {"\n                    "}
-                          <button className={"mapa-pin"} data-nivel={p?.nivel} data-dim={p?.dim} style={__css(`left: ${__s(p?.x)}; top: ${__s(p?.y)};`)} onClick={p?.abrir} aria-label={p?.rotulo}>
+                          <button className={"mapa-pin"} data-nivel={p?.nivel} data-dim={p?.dim} data-aprox={p?.aprox} data-semlocal={p?.semLocal} style={__css(`left: ${__s(p?.x)}; top: ${__s(p?.y)};`)} onClick={p?.abrir} aria-label={p?.rotulo}>
                             {"\n                      "}
                             <svg viewBox="0 0 24 32" aria-hidden="true">
                               <path d="M12 31s10-10.3 10-18.5C22 6.7 17.5 2 12 2S2 6.7 2 12.5C2 20.7 12 31 12 31z"></path>
@@ -1243,11 +1243,11 @@ export function renderTemplate($v: Record<string, any>) {
                           <b>
                             {"Escala:"}
                           </b>
-                          {" o mapa mostra contas com sinal no período escolhido. Os números agrupam por estado; os pins mostram as contas com comitê mapeado. Clique no estado para ver as contas dele."}
+                          {__t($v.mapa?.legendaPins)}
                         </span>
                         {"\n                    "}
                         <span>
-                          {__t($v.mapa?.semLocal)}{" contas sem endereço ainda ficam fora do mapa."}
+                          {__t($v.mapa?.semLocalTexto)}
                         </span>
                         {"\n                  "}
                       </div>

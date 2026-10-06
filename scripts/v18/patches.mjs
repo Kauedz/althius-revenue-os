@@ -678,4 +678,79 @@ export const PATCHES = [
   // ---- Relatórios, Sinais e Prospecção (Grok)
   // Relatórios, no modo real, troca os números na própria tela (AlthiusApp).
   // Sem patch no arquivo gerado. Sinais e Prospecção entram nesta seção depois.
+
+  // ---- Enriquecimento de contas (ADR 0062): toda conta aparece no mapa do Início, sem estragar as outras.
+  // Com coordenada (do enriquecimento): pin no ponto. Só com o estado: pin em volta do número do estado, com contorno
+  // tracejado (local aproximado). Sem nada: marcador "Sem localização" no oceano, que lista essas contas ao clicar.
+  {
+    regra: 'mapa real: toda conta vira pin (ponto exato, aproximado pelo estado ou "Sem localização")',
+    arquivo: 'logic.generated.js',
+    trocar: 'm.pins = contas.filter(c => MAPA_GEO[c.id] && MAPA_GEO[c.id][2] <= diasMax && (COM[c.id] || []).length).map(c => { const g = MAPA_GEO[c.id], xy = proj(g[0], g[1]), p = pct(xy[0], xy[1]);',
+    por: "const real = this.modoDemo === false;\n" +
+      "      const pontoReal = c => { const g = this.geoDaContaNoMapa ? this.geoDaContaNoMapa(c.id) : null; if (g) return { xy: proj(g.lat, g.lng), aprox: !!g.aprox };\n" +
+      "        const u = MAPA_UFS.find(x => x.uf === ufDe(c)); if (!u) return null;\n" +
+      "        let hsh = 0; for (const ch of String(c.id)) hsh = (hsh * 31 + ch.charCodeAt(0)) >>> 0;\n" +
+      "        const ang = (hsh % 360) * Math.PI / 180, raio = 22 + (hsh >>> 9) % 12;\n" +
+      "        return { xy: [u.cx + Math.cos(ang) * raio, u.cy + Math.sin(ang) * raio], aprox: true }; };\n" +
+      "      const semLocalReal = real ? contas.filter(c => !pontoReal(c)) : [];\n" +
+      "      m.pins = (real ? contas.filter(c => pontoReal(c)) : contas.filter(c => MAPA_GEO[c.id] && MAPA_GEO[c.id][2] <= diasMax && (COM[c.id] || []).length)).map(c => { const pr = real ? pontoReal(c) : null, g = real ? [0, 0, 0] : MAPA_GEO[c.id], xy = real ? pr.xy : proj(g[0], g[1]), p = pct(xy[0], xy[1]);"
+  },
+  {
+    regra: 'mapa real: pin aproximado se diferencia (contorno) e diz que o local é aproximado',
+    arquivo: 'logic.generated.js',
+    trocar: 'return { x: p.x, y: p.y, nome: c.nome, cidade: c.cidade, fit: c.fit,',
+    por: "return { x: p.x, y: p.y, aprox: pr && pr.aprox ? 'true' : 'false', semLocal: 'false', nome: c.nome, cidade: c.cidade + (pr && pr.aprox ? ' (local aproximado)' : ''), fit: c.fit,"
+  },
+  {
+    regra: 'mapa real: marcador "Sem localização" no oceano e textos da legenda',
+    arquivo: 'logic.generated.js',
+    trocar: "      const regs = ['Brasil', 'Norte', 'Nordeste', 'Centro-Oeste', 'Sudeste', 'Sul'];",
+    por: "      if (real) {\n" +
+      "        m.semLocal = semLocalReal.length; cont.SL = semLocalReal.length;\n" +
+      "        if (semLocalReal.length) { const xy = proj(0.5, -35.5), p = pct(xy[0], xy[1]);\n" +
+      "          m.pins.push({ x: p.x, y: p.y, aprox: 'false', semLocal: 'true', nome: 'Sem localização', cidade: semLocalReal.length + (semLocalReal.length === 1 ? ' conta sem endereço' : ' contas sem endereço'), fit: '—', nivel: '0', chamas: [], dim: 'false',\n" +
+      "            rotulo: 'Sem localização: ' + semLocalReal.length + (semLocalReal.length === 1 ? ' conta' : ' contas') + '. Ver quais', abrir: () => this.setState({ mapaUf: this.state.mapaUf === 'SL' ? null : 'SL' }) }); }\n" +
+      "      }\n" +
+      "      m.semLocalTexto = real ? (m.semLocal ? m.semLocal + (m.semLocal === 1 ? ' conta sem endereço fica' : ' contas sem endereço ficam') + ' no marcador \"Sem localização\", no oceano. O enriquecimento completa sozinho quando achar o endereço.' : 'Todas as contas estão no mapa.') : m.semLocal + ' contas sem endereço ainda ficam fora do mapa.';\n" +
+      "      m.legendaPins = real ? ' cada pin é uma conta. Contorno tracejado = local aproximado (só a cidade ou o estado). Os números agrupam por estado; clique no estado para ver as contas dele.' : ' o mapa mostra contas com sinal no período escolhido. Os números agrupam por estado; os pins mostram as contas com comitê mapeado. Clique no estado para ver as contas dele.';\n" +
+      "      const regs = ['Brasil', 'Norte', 'Nordeste', 'Centro-Oeste', 'Sudeste', 'Sul'];"
+  },
+  {
+    regra: 'mapa real: clicar em "Sem localização" lista as contas sem endereço',
+    arquivo: 'logic.generated.js',
+    trocar: 'if (uSel) { const u = MAPA_UFS.find(x => x.uf === uSel), cs = contas.filter(c => ufDe(c) === uSel && (MAPA_GEO[c.id] || [0, 0, 0])[2] <= diasMax);',
+    por: "if (uSel) { const u = MAPA_UFS.find(x => x.uf === uSel) || { nome: 'Sem localização', uf: 'SL', regiao: 'sem endereço' }, cs = uSel === 'SL' ? semLocalReal : contas.filter(c => ufDe(c) === uSel && (MAPA_GEO[c.id] || [0, 0, 0])[2] <= diasMax);"
+  },
+  {
+    regra: 'mapa real: o pin leva as marcas de aproximado e de sem localização',
+    arquivo: 'template.generated.tsx',
+    trocar: '<button className={"mapa-pin"} data-nivel={p?.nivel} data-dim={p?.dim}',
+    por: '<button className={"mapa-pin"} data-nivel={p?.nivel} data-dim={p?.dim} data-aprox={p?.aprox} data-semlocal={p?.semLocal}'
+  },
+  {
+    regra: 'mapa real: legenda explica os pins',
+    arquivo: 'template.generated.tsx',
+    trocar: '{" o mapa mostra contas com sinal no período escolhido. Os números agrupam por estado; os pins mostram as contas com comitê mapeado. Clique no estado para ver as contas dele."}',
+    por: '{__t($v.mapa?.legendaPins)}'
+  },
+  {
+    regra: 'mapa real: legenda diz onde ficam as contas sem endereço',
+    arquivo: 'template.generated.tsx',
+    trocar: '{__t($v.mapa?.semLocal)}{" contas sem endereço ainda ficam fora do mapa."}',
+    por: '{__t($v.mapa?.semLocalTexto)}'
+  },
+  {
+    regra: 'mapa real: estilo do pin aproximado (contorno tracejado) e do "Sem localização"',
+    arquivo: 'althius.css',
+    trocar: '.mapa-pin[data-dim="true"] { opacity: 0.2; pointer-events: none; }',
+    por: '.mapa-pin[data-dim="true"] { opacity: 0.2; pointer-events: none; }\n' +
+      '  .mapa-pin[data-aprox="true"] path { fill: var(--paper); stroke: var(--ink); stroke-dasharray: 3 2; } .mapa-pin[data-aprox="true"] circle { fill: var(--ink); }\n' +
+      '  .mapa-pin[data-semlocal="true"] path { fill: var(--paper); stroke: var(--graphite); stroke-width: 2; stroke-dasharray: 2 2; } .mapa-pin[data-semlocal="true"] circle { fill: var(--graphite); }'
+  },
+  {
+    regra: 'conta real: salvar o site grava no banco (o logo e o enriquecimento usam o site)',
+    arquivo: 'logic.generated.js',
+    trocar: "this.avisar('mod', 'Site salvo. O logo vem do próprio ' + d + ' e aparece aqui, na lista de contas e no Pipeline.'); };",
+    por: "if (this.modoDemo === false && this.salvarSiteDaConta) this.salvarSiteDaConta(contaSel.id, d);\n            this.avisar('mod', 'Site salvo. O logo vem do próprio ' + d + ' e aparece aqui, na lista de contas e no Pipeline.'); };"
+  }
 ];

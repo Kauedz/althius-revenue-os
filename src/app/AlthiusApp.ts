@@ -546,7 +546,40 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     return ws ? listarContas(this.props.supabase, ws.uuid) : Promise.resolve([]);
   }
 
+  // Site e ponto no mapa de cada conta (do banco: digitados ou achados pelo enriquecimento, ADR 0062).
+  private sitesDasContas: Record<string, string> = {};
+  private geoDasContas: Record<string, NonNullable<ContaTela['geo']>> = {};
+
+  /** O site da conta: o que a pessoa acabou de editar na tela vale; senão, o do banco. O logo sai do site. */
+  siteDe(id: string): string {
+    if (!id) return '';
+    const editado = (this.state.sites || {})[id];
+    return typeof editado === 'string' ? editado : this.sitesDasContas[id] || '';
+  }
+
+  /** Ponto da conta no mapa do Início (nulo: sem coordenada). Lido pela regra do mapa em scripts/v18/patches.mjs. */
+  geoDaContaNoMapa(id: string): NonNullable<ContaTela['geo']> | null {
+    return this.geoDasContas[id] ?? null;
+  }
+
+  /** "Salvar site" na conta grava o domínio no banco (antes só ficava na tela). Limpar o campo não apaga o site. */
+  salvarSiteDaConta(id: string, dominio: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId || !dominio) return;
+    const anterior = this.sitesDasContas[id] || '';
+    editarConta(this.props.supabase, ws.membroId, { id, dominio }).then(
+      () => { this.sitesDasContas[id] = dominio; },
+      falha => {
+        if (!this.vivo) return;
+        this.setState({ sites: Object.assign({}, this.state.sites, { [id]: anterior }) });
+        this.avisarFalha('Não foi possível salvar o site da conta', falha);
+      }
+    );
+  }
+
   private publicarContas(contas: ContaTela[]) {
+    this.sitesDasContas = Object.fromEntries(contas.filter(c => c.dominio).map(c => [c.id, String(c.dominio)]));
+    this.geoDasContas = Object.fromEntries(contas.filter(c => c.geo).map(c => [c.id, c.geo!]));
     if (typeof window === 'undefined') return;
     const mod = (window as any).ALTHIUS_MOD;
     if (mod?.accounts) {

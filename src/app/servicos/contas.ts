@@ -28,6 +28,10 @@ export interface ContaTela {
   decisor: string;
   dominio?: string;
   logoUrl?: string | null;
+  /** UF da conta (para o mapa do Início), ou nulo */
+  uf?: string | null;
+  /** Ponto no mapa (do enriquecimento ou digitado). `aprox`: só a cidade é conhecida. Nulo: sem coordenada. */
+  geo?: { lat: number; lng: number; aprox: boolean } | null;
   /** Texto pronto da coluna "Último contato" (das nossas mensagens). Sem mensagem: "Sem contato ainda". */
   ultimoContato: string;
   comite?: ContatoComiteTela[];
@@ -68,7 +72,7 @@ export function textoUltimoContato(
 export async function listarContas(cliente: SupabaseClient, workspaceId: string): Promise<ContaTela[]> {
   const { data, error } = await cliente
     .from('accounts')
-    .select('id, name, domain, logo_url, segment, fit, temperature, last_signal_text, owner_member_id, city, state_uf, status')
+    .select('id, name, domain, logo_url, segment, fit, temperature, last_signal_text, owner_member_id, city, state_uf, status, lat, lng, localizacao_precisao')
     .eq('workspace_id', workspaceId)
     .eq('status', 'ativa')
     .order('fit', { ascending: false });
@@ -99,10 +103,12 @@ export async function listarContas(cliente: SupabaseClient, workspaceId: string)
   if (errCanais) throw new Error('Não foi possível carregar os canais dos contatos.', { cause: errCanais });
 
   // Agrupa canais por contato
-  const canaisPorContato = new Map<string, { emails: string[]; fones: string[] }>();
+  const canaisPorContato = new Map<string, { emails: string[]; fones: string[]; linkedin?: string }>();
   for (const canal of canaisData || []) {
     const atual = canaisPorContato.get(canal.contact_id) || { emails: [], fones: [] };
-    if (canal.type === 'email') {
+    if (canal.type === 'linkedin' && !atual.linkedin) {
+      atual.linkedin = linkedinDoPerfil(canal.value) ?? undefined;
+    } else if (canal.type === 'email') {
       atual.emails.push(canal.value);
     } else if (canal.type === 'phone' || canal.type === 'whatsapp') {
       atual.fones.push(canal.value);
@@ -130,7 +136,8 @@ export async function listarContas(cliente: SupabaseClient, workspaceId: string)
       cargo: c.job_title || '',
       papel: (c.buying_role || 'influenciador') as 'decisor' | 'influenciador' | 'campeao',
       foto: c.photo_url || '',
-      linkedin: `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(c.name)}`,
+      // O perfil guardado (do enriquecimento ou digitado); sem ele, a busca pelo nome.
+      linkedin: canais.linkedin || `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(c.name)}`,
       emails: canais.emails,
       fones: canais.fones
     });
@@ -161,12 +168,31 @@ export async function listarContas(cliente: SupabaseClient, workspaceId: string)
       decisor: decisorContato ? decisorContato.nome : 'A mapear',
       dominio: a.domain,
       logoUrl: a.logo_url,
+      uf: a.state_uf || null,
+      geo: geoDaConta(a),
       ultimoContato: textoUltimoContato(ultimoPorConta.has(a.id)
         ? { quando: ultimoPorConta.get(a.id)!.last_contact_at, direcao: ultimoPorConta.get(a.id)!.last_direction, canal: ultimoPorConta.get(a.id)!.last_channel }
         : null),
       comite
     };
   });
+}
+
+/** Endereço do perfil no LinkedIn a partir do valor guardado (endereço completo ou só o identificador). */
+export function linkedinDoPerfil(valor: string | null | undefined): string | null {
+  const v = String(valor || '').trim();
+  if (!v) return null;
+  const m = v.match(/linkedin\.com\/in\/([^/?#\s]+)/i);
+  if (m) return `https://www.linkedin.com/in/${m[1]}`;
+  return /^[A-Za-z0-9][A-Za-z0-9_%-]{1,99}$/.test(v) ? `https://www.linkedin.com/in/${v}` : null;
+}
+
+/** Coordenada da conta para o mapa. Fora do Brasil ou incompleta: nula (nunca um ponto inventado). */
+export function geoDaConta(a: { lat?: number | null; lng?: number | null; localizacao_precisao?: string | null }): ContaTela['geo'] {
+  const lat = Number(a.lat), lng = Number(a.lng);
+  if (a.lat == null || a.lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -34.5 || lat > 5.5 || lng < -74.5 || lng > -28.5) return null;
+  return { lat, lng, aprox: a.localizacao_precisao !== 'endereco' && a.localizacao_precisao !== 'cep' };
 }
 
 async function nomesDosMembros(cliente: SupabaseClient, membroIds: string[]): Promise<Map<string, string>> {

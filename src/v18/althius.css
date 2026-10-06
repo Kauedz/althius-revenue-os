@@ -465,6 +465,8 @@
   .mapa-pin[data-nivel="3"] path { fill: var(--signal); } .mapa-pin[data-nivel="3"] circle { fill: #FFFFFF; }
   .mapa-pin:hover > svg, .mapa-pin:focus-visible > svg { transform: scale(1.2); }
   .mapa-pin[data-dim="true"] { opacity: 0.2; pointer-events: none; }
+  .mapa-pin[data-aprox="true"] path { fill: var(--paper); stroke: var(--ink); stroke-dasharray: 3 2; } .mapa-pin[data-aprox="true"] circle { fill: var(--ink); }
+  .mapa-pin[data-semlocal="true"] path { fill: var(--paper); stroke: var(--graphite); stroke-width: 2; stroke-dasharray: 2 2; } .mapa-pin[data-semlocal="true"] circle { fill: var(--graphite); }
   .pin-tip { position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); display: none; flex-direction: column; align-items: flex-start; gap: 2px; width: max-content; max-width: 240px; padding: 8px 10px; border: 1px solid var(--rule); border-radius: 10px; background: var(--paper); color: var(--ink); font-size: 12px; text-align: left; box-shadow: 0 2px 4px rgba(19,19,19,0.06), 0 14px 18px -12px rgba(19,19,19,0.28); z-index: 5; }
   .pin-tip b { font-weight: 500; font-size: 13px; } .pin-tip > span { color: var(--graphite); }
   .mapa-pin:hover .pin-tip, .mapa-pin:focus-visible .pin-tip { display: flex; }

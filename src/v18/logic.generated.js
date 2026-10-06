@@ -870,6 +870,7 @@ export class AlthiusLogic extends React.Component {
           const salvar = () => { const d = this.dominio((this.state.siteEdit || {}).v); if (!d) { this.setState({ sites: Object.assign({}, this.state.sites, { [contaSel.id]: '' }), siteEdit: null }); return; }
             if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d)) { setSE({ erro: 'Use o endereço do site, por exemplo empresa.com.br.' }); return; }
             this.setState({ sites: Object.assign({}, this.state.sites, { [contaSel.id]: d }), logoFalha: Object.assign({}, this.state.logoFalha, { [d]: 0 }), siteEdit: null });
+            if (this.modoDemo === false && this.salvarSiteDaConta) this.salvarSiteDaConta(contaSel.id, d);
             this.avisar('mod', 'Site salvo. O logo vem do próprio ' + d + ' e aparece aqui, na lista de contas e no Pipeline.'); };
           return { siteEditando: !!se, siteTem: !se && !!site, siteVazio: !se && !site, site, siteHref: 'https://' + site, siteRascunho: se ? (se.v || '') : '', siteTemErro: !!(se && se.erro), siteErro: se ? se.erro || '' : '',
             siteEditar: () => this.setState({ siteEdit: { id: contaSel.id, v: site } }), siteMudar: e => setSE({ v: e.target.value, erro: '' }), siteCancelar: () => this.setState({ siteEdit: null }), siteSalvar: salvar,
@@ -1077,14 +1078,29 @@ export class AlthiusLogic extends React.Component {
       m.semLocal = this.modoDemo === false ? ((h && h.semLocalizacao) || 0) : (per === '30' ? 5 : per === '60' ? 9 : 14);
       m.bolhas = MAPA_UFS.filter(u => cont[u.uf] > 0).map(u => { const p = pct(u.cx, u.cy), n = cont[u.uf], r = Math.round(20 + Math.sqrt(n / max) * 22);
         return { x: p.x, y: p.y, r: r + 'px', n, sel: uSel === u.uf ? 'true' : 'false', dim: vis(u.uf) ? 'false' : 'true', rotulo: u.nome + ', ' + n + ' contas. Ver contas do estado', selecionar: selUf(u.uf) }; });
-      m.pins = contas.filter(c => MAPA_GEO[c.id] && MAPA_GEO[c.id][2] <= diasMax && (COM[c.id] || []).length).map(c => { const g = MAPA_GEO[c.id], xy = proj(g[0], g[1]), p = pct(xy[0], xy[1]);
-        return { x: p.x, y: p.y, nome: c.nome, cidade: c.cidade, fit: c.fit, nivel: String(c.temperatura), chamas: this.chamas(+c.temperatura), dim: vis(ufDe(c)) ? 'false' : 'true',
+      const real = this.modoDemo === false;
+      const pontoReal = c => { const g = this.geoDaContaNoMapa ? this.geoDaContaNoMapa(c.id) : null; if (g) return { xy: proj(g.lat, g.lng), aprox: !!g.aprox };
+        const u = MAPA_UFS.find(x => x.uf === ufDe(c)); if (!u) return null;
+        let hsh = 0; for (const ch of String(c.id)) hsh = (hsh * 31 + ch.charCodeAt(0)) >>> 0;
+        const ang = (hsh % 360) * Math.PI / 180, raio = 22 + (hsh >>> 9) % 12;
+        return { xy: [u.cx + Math.cos(ang) * raio, u.cy + Math.sin(ang) * raio], aprox: true }; };
+      const semLocalReal = real ? contas.filter(c => !pontoReal(c)) : [];
+      m.pins = (real ? contas.filter(c => pontoReal(c)) : contas.filter(c => MAPA_GEO[c.id] && MAPA_GEO[c.id][2] <= diasMax && (COM[c.id] || []).length)).map(c => { const pr = real ? pontoReal(c) : null, g = real ? [0, 0, 0] : MAPA_GEO[c.id], xy = real ? pr.xy : proj(g[0], g[1]), p = pct(xy[0], xy[1]);
+        return { x: p.x, y: p.y, aprox: pr && pr.aprox ? 'true' : 'false', semLocal: 'false', nome: c.nome, cidade: c.cidade + (pr && pr.aprox ? ' (local aproximado)' : ''), fit: c.fit, nivel: String(c.temperatura), chamas: this.chamas(+c.temperatura), dim: vis(ufDe(c)) ? 'false' : 'true',
           rotulo: c.nome + ', ' + c.cidade + ', fit ' + c.fit + '. Abrir conta', abrir: () => this.abrirConta(c.id, 'comite') }; });
+      if (real) {
+        m.semLocal = semLocalReal.length; cont.SL = semLocalReal.length;
+        if (semLocalReal.length) { const xy = proj(0.5, -35.5), p = pct(xy[0], xy[1]);
+          m.pins.push({ x: p.x, y: p.y, aprox: 'false', semLocal: 'true', nome: 'Sem localização', cidade: semLocalReal.length + (semLocalReal.length === 1 ? ' conta sem endereço' : ' contas sem endereço'), fit: '—', nivel: '0', chamas: [], dim: 'false',
+            rotulo: 'Sem localização: ' + semLocalReal.length + (semLocalReal.length === 1 ? ' conta' : ' contas') + '. Ver quais', abrir: () => this.setState({ mapaUf: this.state.mapaUf === 'SL' ? null : 'SL' }) }); }
+      }
+      m.semLocalTexto = real ? (m.semLocal ? m.semLocal + (m.semLocal === 1 ? ' conta sem endereço fica' : ' contas sem endereço ficam') + ' no marcador "Sem localização", no oceano. O enriquecimento completa sozinho quando achar o endereço.' : 'Todas as contas estão no mapa.') : m.semLocal + ' contas sem endereço ainda ficam fora do mapa.';
+      m.legendaPins = real ? ' cada pin é uma conta. Contorno tracejado = local aproximado (só a cidade ou o estado). Os números agrupam por estado; clique no estado para ver as contas dele.' : ' o mapa mostra contas com sinal no período escolhido. Os números agrupam por estado; os pins mostram as contas com comitê mapeado. Clique no estado para ver as contas dele.';
       const regs = ['Brasil', 'Norte', 'Nordeste', 'Centro-Oeste', 'Sudeste', 'Sul'];
       m.regioes = regs.map(r => ({ label: r, n: MAPA_UFS.filter(u => r === 'Brasil' || u.regiao === r).reduce((s, u) => s + cont[u.uf], 0), ativo: reg === r ? 'true' : 'false', escolher: () => this.setState({ mapaReg: r, mapaUf: null }) }));
       m.ranking = MAPA_UFS.filter(u => vis(u.uf)).sort((a, b) => cont[b.uf] - cont[a.uf]).slice(0, 7).map(u => ({ uf: u.uf, n: cont[u.uf], pct: Math.max(3, Math.round(cont[u.uf] / max * 100)) + '%', selecionar: selUf(u.uf) }));
       m.temUf = !!uSel; m.semUf = !uSel; m.limpar = () => this.setState({ mapaUf: null });
-      if (uSel) { const u = MAPA_UFS.find(x => x.uf === uSel), cs = contas.filter(c => ufDe(c) === uSel && (MAPA_GEO[c.id] || [0, 0, 0])[2] <= diasMax);
+      if (uSel) { const u = MAPA_UFS.find(x => x.uf === uSel) || { nome: 'Sem localização', uf: 'SL', regiao: 'sem endereço' }, cs = uSel === 'SL' ? semLocalReal : contas.filter(c => ufDe(c) === uSel && (MAPA_GEO[c.id] || [0, 0, 0])[2] <= diasMax);
         m.uf = { nome: u.nome, sigla: u.uf, n: cont[uSel], resumo: cont[uSel] + (cont[uSel] === 1 ? ' conta' : ' contas') + ' · região ' + u.regiao, semDossie: cs.length === 0, temLista: cs.length > 0, verTexto: 'Ver ' + (cs.length === 1 ? 'a conta' : 'as ' + cs.length + ' contas') + ' de ' + u.uf + ' em Contas e leads',
           contas: cs.map(c => ({ nome: c.nome, cidade: c.cidade, fit: c.fit, sinal: c.sinal, fotos: (COM[c.id] || []).slice(0, 3).map(p => FT[p.foto]), abrir: () => this.abrirConta(c.id, 'comite') })),
           verTodas: () => { this.setState({ modSt: Object.assign({}, this.state.modSt, { accounts: Object.assign({}, (this.state.modSt || {}).accounts, { uf: uSel, aberto: null }) }) }); this.ir(appPath('accounts')); } };
