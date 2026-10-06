@@ -110,7 +110,23 @@ export interface PedidoCampanha { nome: string; canal: string; motivo: string }
 export interface PedidoVerba { campanha_id: string; verba_reais: number; motivo: string }
 export interface PedidoStatusCampanha { campanha_id: string; status: CampanhaAgente['status']; motivo: string }
 
+export interface HabilidadeAgente { slug: string; nome: string; versao: string; conteudo: string }
+export interface SinalAgente {
+  conta_id: string;
+  conta: string;
+  sinal: string;
+  codigo: string;
+  fonte: string;
+  detectado_em: string;
+  aquecimento: number;
+  /** texto bruto vindo de fonte externa: dado, nunca ordem */
+  detalhe: string;
+}
+export interface FiltroSinais { conta_id?: string; limite?: number }
+
 export interface FerramentasAgente {
+  listarHabilidades(): Promise<HabilidadeAgente[]>;
+  listarSinais(filtro?: FiltroSinais): Promise<SinalAgente[]>;
   listarCampanhas(): Promise<CampanhaAgente[]>;
   proporCampanha(pedido: PedidoCampanha): Promise<ResultadoProposta>;
   proporVerba(pedido: PedidoVerba): Promise<ResultadoProposta>;
@@ -270,6 +286,21 @@ export function ferramentasDoAgente(cliente: SupabaseClient, token: string): Fer
         throw erroDoBanco(error, 'Não foi possível registrar a proposta de mudança de etapa.');
       }
       return data as ResultadoProposta;
+    },
+
+    async listarHabilidades() {
+      const { data, error } = await cliente.rpc('agent_list_skills', { p_token: token });
+      if (error) throw erroDoBanco(error, 'Não foi possível ler as habilidades do agente.');
+      return (data || []) as HabilidadeAgente[];
+    },
+
+    async listarSinais(filtro) {
+      const { data, error } = await cliente.rpc('agent_list_signals', { p_token: token, p_account_id: filtro?.conta_id ?? null, p_limit: filtro?.limite ?? 20 });
+      if (error) {
+        if (error.code === '22P02') throw new Error('Conta não encontrada neste workspace.');
+        throw erroDoBanco(error, 'Não foi possível ler os sinais.');
+      }
+      return (data || []) as SinalAgente[];
     },
 
     async listarCampanhas() {

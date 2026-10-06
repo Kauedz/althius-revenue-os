@@ -69,5 +69,5 @@ O Nan escreve num canal da equipe e o agente responde com um modelo de IA real, 
 ## Further Notes
 
 - Modelo de IA e quem paga a chave é decisão do dono (ADR 0047/0050).
-- ADRs a respeitar: 0021, 0023, 0024, 0043, 0045, 0047, 0048, 0050, 0051, 0056. Uma ADR nova (0057) registrará a ponte agente–integrações.
+- ADRs a respeitar: 0021, 0023, 0024, 0043, 0045, 0047, 0048, 0050, 0051, 0056. As ADRs 0057 (conhecer a empresa) e 0058 (ponte) agente–integrações.
 - O que não sei e os tickets devem confirmar: onde o ICP está guardado; se as ferramentas de leitura de cada app são mesmo marcadas como somente leitura pelo servidor oficial (o Notion e o HubSpot listaram ferramentas, mas não conferi as marcas).

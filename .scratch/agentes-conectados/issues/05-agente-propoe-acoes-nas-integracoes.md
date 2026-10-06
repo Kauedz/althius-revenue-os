@@ -11,4 +11,4 @@
 - [ ] Aprovar duas vezes ou repetir o pedido não executa duas vezes (chave de idempotência).
 - [ ] Aprovação mostra app, conta e ação com clareza; recusar não executa nada.
 - [ ] Auditoria da proposta, da aprovação e da execução.
-- [ ] ADR 0057 registra a ponte agente–integrações.
+- [ ] ADR 0058 registra a ponte agente–integrações.

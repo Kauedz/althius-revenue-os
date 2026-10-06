@@ -4,6 +4,7 @@
 import { bancoHarnessViaApi, rodarCicloHarness } from './harness.ts';
 import { executorHermes } from './hermes.ts';
 import { registroDeExecutores } from './hosts.ts';
+import { playbookViaApi } from './playbook.ts';
 
 const base = process.env.BANCO_URL ?? '';
 const chave = process.env.SERVICE_ROLE_KEY ?? '';
@@ -18,7 +19,7 @@ const simultaneos = Math.max(1, Number(process.env.AGENTES_SIMULTANEOS ?? 8));
 
 const registro = registroDeExecutores(arquivo, msg => log({ nivel: 'aviso', msg: 'agentes_executores', detalhe: msg }));
 const banco = bancoHarnessViaApi(base, chave);
-const executor = executorHermes({ resolver: registro.resolver });
+const executor = executorHermes({ resolver: registro.resolver, playbook: playbookViaApi(base, chave) });
 
 // Vários ciclos podem andar juntos (um agente demorando não trava os outros); o banco garante um lote por agente.
 let emAndamento = 0;
