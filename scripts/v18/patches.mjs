@@ -552,6 +552,59 @@ export const PATCHES = [
     por: "md.temPorConta = page === 'cadences' && !vazio && this.modoDemo !== false;"
   },
 
+  // ---- Aprendizado compartilhado entre contas (Claude, ADR 0052): seção em Configurações + botão "Agora não" no aviso
+  {
+    regra: 'aprendizado: nova seção "Aprendizado" em Configurações (menos para o BDR)',
+    arquivo: 'logic.generated.js',
+    trocar: "['Agentes', 'Configuração por agente']].filter(s => papel !== 'bdr'",
+    por: "['Agentes', 'Configuração por agente'], ['Aprendizado', 'Compartilhar para melhorar os agentes']].filter(s => papel !== 'bdr'"
+  },
+  {
+    regra: 'aprendizado: descrição da seção',
+    arquivo: 'logic.generated.js',
+    trocar: "const DESC = { 'Minha conta':",
+    por: "const DESC = { 'Aprendizado': 'Ajude os agentes a aprender mais rápido, com o que funciona em contas parecidas com a sua.', 'Minha conta':"
+  },
+  {
+    regra: 'aprendizado: dados da seção vêm da camada do app (banco no modo real, local na demonstração)',
+    arquivo: 'logic.generated.js',
+    trocar: "v.cfgToggles = secAtual === 'Notificações';",
+    por: "v.cfgToggles = secAtual === 'Notificações'; v.cfgAprendizado = secAtual === 'Aprendizado'; v.aprendizado = this.aprendizadoTela ? this.aprendizadoTela() : { titulo: 'Ajudar a melhorar o aprendizado dos agentes', desc: 'Quando as contas compartilham o que funciona, todos os agentes aprendem mais rápido, os seus também.', on: st.aprendizadoDemo ? 'true' : 'false', travado: false, nota: '', alternar: () => this.setState({ aprendizadoDemo: !this.state.aprendizadoDemo }) };"
+  },
+  {
+    regra: 'aprendizado: interruptor da seção em Configurações',
+    arquivo: 'template.generated.tsx',
+    aplicar: texto => {
+      const marca = '{$v.cfgAgentes ? (<>';
+      if (texto.split(marca).length !== 2) throw new Error('Regra "aprendizado": ponto de inserção em Configurações não encontrado (ou repetido).');
+      const bloco = `{$v.cfgAprendizado ? (<>
+                    <section className={"cfg-box"}>
+                      <div className={"cfg-row cfg-row-line"}>
+                        <span style={{"flex":"1 1 auto","minWidth":"0","display":"flex","flexDirection":"column","gap":"2px"}}>
+                          <span style={{"fontSize":"14px","fontWeight":"500"}}>{__t($v.aprendizado?.titulo)}</span>
+                          <span style={{"fontSize":"13px","color":"var(--graphite)"}}>{__t($v.aprendizado?.desc)}</span>
+                          {$v.aprendizado?.nota ? (<span style={{"fontSize":"13px","color":"var(--graphite)"}}>{__t($v.aprendizado?.nota)}</span>) : null}
+                        </span>
+                        <button className={"switch"} role="switch" aria-checked={$v.aprendizado?.on} aria-label={$v.aprendizado?.titulo} onClick={$v.aprendizado?.alternar} disabled={$v.aprendizado?.travado}>
+                          <span></span>
+                        </button>
+                      </div>
+                    </section>
+                  </>) : null}
+                  `;
+      return texto.replace(marca, () => bloco + marca);
+    }
+  },
+  {
+    regra: 'aprendizado: o botão de cancelar da janela de confirmação pode ter outro texto (ex.: "Agora não")',
+    arquivo: 'template.generated.tsx',
+    aplicar: texto => {
+      const re = /(onClick=\{\$v\.confirmCancelar\}[^>]*>\s*)\{"Cancelar"\}/;
+      if (!re.test(texto)) throw new Error('Regra "aprendizado": botão Cancelar da janela de confirmação não encontrado.');
+      return texto.replace(re, (_m, antes) => antes + '{__t($v.confirm?.cancelar || "Cancelar")}');
+    }
+  },
+
   // ---- Relatórios, Sinais e Prospecção (Grok)
   // Relatórios, no modo real, troca os números na própria tela (AlthiusApp).
   // Sem patch no arquivo gerado. Sinais e Prospecção entram nesta seção depois.
