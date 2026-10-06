@@ -827,13 +827,13 @@ export class AlthiusLogic extends React.Component {
       const q = (st.catBusca || '').trim().toLowerCase(), fc = st.catFiltro || 'todos';
       const lista = KC.lista.filter(c => !q || (c.nome + ' ' + c.empresa).toLowerCase().indexOf(q) >= 0);
       const nCon = KC.lista.filter(c => cons[c.id]).length;
-      v.cat.resumo = this.modoDemo === false ? 'Em breve: estes conectores ainda não estão disponíveis. Suas contas de e-mail, WhatsApp, LinkedIn e Instagram você conecta na Caixa de entrada.' : nCon + ' conectados de ' + KC.lista.length + ' disponíveis · cada conexão é autorizada na página oficial da ferramenta';
+      v.cat.resumo = this.modoDemo === false ? this.resumoDosConectores() : nCon + ' conectados de ' + KC.lista.length + ' disponíveis · cada conexão é autorizada na página oficial da ferramenta';
       v.cat.busca = st.catBusca || ''; v.cat.mudarBusca = ev => this.setState({ catBusca: ev.target.value });
       v.cat.filtros = [{ id: 'todos', nome: 'Todos' }, { id: 'conectados', nome: 'Conectados' }].concat(KC.cats).map(c => ({ label: c.nome, ativo: fc === c.id ? 'true' : 'false', ir: () => this.setState({ catFiltro: c.id }),
         n: c.id === 'todos' ? lista.length : c.id === 'conectados' ? lista.filter(x => cons[x.id]).length : lista.filter(x => x.cat === c.id).length }));
       v.cat.grupos = KC.cats.map(g => ({ nome: g.nome, desc: g.desc, itens: lista.filter(c => c.cat === g.id && (fc === 'todos' || fc === g.id || (fc === 'conectados' && cons[c.id]))).map(c => {
-        const k = cons[c.id], ok = !!k && !k.erro, erro = !!k && !!k.erro, em = this.modoDemo === false;
-        return { nome: c.nome, desc: c.desc, auth: c.auth, logo: LG[c.id], conectado: ok, erro, estado: ok ? 'ok' : erro ? 'erro' : 'off', usoTexto: k ? 'usado por ' + usoTexto(k) : '', emBreve: em,
+        const k = cons[c.id], ok = !!k && !k.erro, erro = !!k && !!k.erro, em = this.modoDemo === false && !(this.conectorReal && this.conectorReal(c.id));
+        return { nome: c.nome, desc: this.modoDemo === false ? (em ? c.desc + ' Em breve: ' + this.motivoDoConector(c.id) : erro ? c.desc + ' Precisa reconectar.' : c.desc) : c.desc, auth: c.auth, logo: LG[c.id], conectado: ok, erro, estado: ok ? 'ok' : erro ? 'erro' : 'off', usoTexto: this.modoDemo === false ? (k && !erro ? 'Conta: ' + k.conta : '') : (k ? 'usado por ' + usoTexto(k) : ''), emBreve: em,
           btnCls: em || ok ? 'con-btn-sec' : 'con-btn', acaoLabel: em ? 'Em breve' : ok ? 'Gerenciar' : erro ? 'Reconectar' : 'Conectar', acaoRotulo: em ? c.nome + ' (em breve)' : (ok ? 'Gerenciar ' : 'Conectar ') + c.nome, acao: () => { if (!em) this.abrirOauth(c.id); } };
       }) })).filter(g => g.itens.length);
       v.cat.vazio = v.cat.grupos.length === 0;

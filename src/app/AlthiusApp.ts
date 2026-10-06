@@ -25,6 +25,8 @@ import { listarAgentes, pausarAgente, salvarCapacidades, type AgenteBase, type A
 import { alterarSenha, lerMinhaConta, removerFoto, sairDosOutrosDispositivos, salvarMinhaConta, salvarPreferencias, trocarFoto } from './servicos/conta';
 import { decidirAprendizado, lerPlaybooks, listarSugestoes, publicarPlaybook } from './servicos/aprendizados';
 import { desconectarConta, iniciarConexaoConta, provedorDoCanal } from './servicos/conexoes';
+import { carregarIntegracoes, desconectarIntegracao, iniciarConexaoIntegracao, montarConexoes, resultadoDaConexao } from './servicos/integracoes';
+import { PERFIS } from '../server/integracoes/perfis';
 import { excluirContatoDoCrm, listarCaixa, marcarLida, minhasConexoes, pedirSugestaoDeResposta, type CaixaTela, type ConexoesTela } from './servicos/caixa';
 import * as admin from './servicos/admin';
 import { decidirConsentimento, lerConsentimento, marcarAvisoVisto, type EstadoAprendizado } from './servicos/aprendizado';
@@ -958,9 +960,71 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (mod?.integrations) Object.assign(mod.integrations, { linhas: [], kpis: [], acao: undefined, acoesLinha: [] });
   }
 
-  /** No modo real nenhum conector do catálogo está conectado (o protótipo trazia HubSpot, Gmail etc. de exemplo). */
+  /**
+   * No modo real, os cartões conectados são os de verdade: os apps (OAuth) que a pessoa conectou e as contas de mensagem
+   * da Caixa de entrada. O protótipo trazia HubSpot, Gmail etc. de exemplo; no modo real nada disso existe.
+   */
   conexoes() {
-    return this.modoDemo === false ? {} : (AlthiusLogic.prototype as any).conexoes.call(this);
+    if (this.modoDemo !== false) return (AlthiusLogic.prototype as any).conexoes.call(this);
+    return montarConexoes(this.state.integracoesReais || {}, this.state.conexoesReais || null);
+  }
+
+  /** Só conecta o conector que tem perfil disponível (servidor oficial ou canal de mensagem). O resto fica "Em breve". */
+  conectorReal(id: string): boolean {
+    return PERFIS[id]?.situacao === 'disponivel';
+  }
+
+  /** Por que um conector ainda é "Em breve" (texto do perfil). */
+  motivoDoConector(id: string): string {
+    return PERFIS[id]?.motivo ?? 'Ainda não está disponível.';
+  }
+
+  resumoDosConectores(): string {
+    const n = Object.values(PERFIS).filter(p => p.situacao === 'disponivel').length;
+    return n + ' conectores disponíveis para conectar. Os demais aparecem como "Em breve", com o motivo.';
+  }
+
+  /** Clique no cartão: conecta (apps e canais pelo mesmo caminho) ou, se já conectado, oferece desconectar. */
+  abrirOauth(id: string) {
+    if (this.modoDemo !== false) return (AlthiusLogic.prototype as any).abrirOauth.call(this, id);
+    void this.tratarCartaoReal(id);
+  }
+
+  private async tratarCartaoReal(id: string) {
+    const perfil = PERFIS[id];
+    const ws = this.workspaceAtual();
+    if (!perfil || perfil.situacao !== 'disponivel' || !ws?.membroId) return;
+    const atual = (this.conexoes() as Record<string, { conta: string; erro?: boolean }>)[id];
+    if (atual && !atual.erro) {
+      this.confirmar(`Gerenciar ${perfil.nome}`, `Conta conectada: ${atual.conta}. Desconectar tira só o seu acesso; nada do que já foi trazido para a Althius é apagado.`, 'Desconectar', () => { void this.desconectarCartaoReal(id); });
+      return;
+    }
+    const r = await iniciarConexaoIntegracao(this.props.supabase, ws.uuid, ws.membroId, id);
+    if (!r.ok) return this.confirmar('Não foi possível conectar', r.mensagem, 'Entendi', () => {});
+    this.abrirJanelaDeConexao(r.url);
+  }
+
+  private async desconectarCartaoReal(id: string) {
+    const ws = this.workspaceAtual();
+    if (!ws) return;
+    if (PERFIS[id]?.via === 'mensagens') {
+      // Contas de mensagem: o mesmo caminho da Caixa de entrada (e-mail pelo Gmail ou Outlook; os demais pelo próprio canal).
+      const email = id === 'gmail' || id === 'outlook';
+      return this.desconectarContaReal(email ? 'email' : id, email ? { via: id } : null);
+    }
+    const r = await desconectarIntegracao(this.props.supabase, ws.uuid, id);
+    if (!r.ok) return this.confirmar('Não foi possível desconectar', r.mensagem, 'Entendi', () => {});
+    await this.carregarConexoes();
+    this.avisar('mod', 'Conexão removida.');
+  }
+
+  /** Quando o app devolve a pessoa (`/?conexao=ok|erro&integracao=...`), diz o resultado uma vez e limpa o endereço. */
+  private avisarRetornoDaConexao() {
+    if (typeof window === 'undefined' || this.modoDemo !== false) return;
+    const r = resultadoDaConexao(window.location.search);
+    if (!r) return;
+    window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+    this.confirmar(r.titulo, r.mensagem, 'Entendi', () => {});
   }
 
   /** No modo real, as conexões pessoais são as da pessoa no banco (o protótipo trazia as da Camila). */
@@ -971,14 +1035,17 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   private async carregarConexoes() {
     const ws = this.workspaceAtual();
-    this.setState({ conexoesReais: null });
+    this.setState({ conexoesReais: null, integracoesReais: null });
     if (!ws) return;
-    try {
-      const conexoesReais = await minhasConexoes(this.props.supabase, ws.uuid);
-      if (this.vivo && this.workspaceAtual()?.uuid === ws.uuid) this.setState({ conexoesReais });
-    } catch (falha) {
-      console.error(falha);
-    }
+    const [contas, apps] = await Promise.allSettled([minhasConexoes(this.props.supabase, ws.uuid), carregarIntegracoes(this.props.supabase, ws.uuid)]);
+    if (contas.status === 'rejected') console.error(contas.reason);
+    if (apps.status === 'rejected') console.error(apps.reason);
+    if (!this.vivo || this.workspaceAtual()?.uuid !== ws.uuid) return;
+    this.setState({
+      ...(contas.status === 'fulfilled' ? { conexoesReais: contas.value } : {}),
+      ...(apps.status === 'fulfilled' ? { integracoesReais: apps.value } : {})
+    });
+    this.avisarRetornoDaConexao();
   }
 
   /** Conectar a PRÓPRIA conta de mensagem: pede o link ao backend e abre a janela segura do provedor. */

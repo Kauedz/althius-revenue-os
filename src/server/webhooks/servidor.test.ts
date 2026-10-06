@@ -194,7 +194,7 @@ describe('servidor: integrações do catálogo (ADR 0056)', () => {
     ferramentas: async (jwt, corpo) => { vistos.push(['ferramentas', jwt, corpo]); return { status: 200, corpo: { ferramentas: [] } }; },
     desconectar: async (jwt, corpo) => { vistos.push(['desconectar', jwt, corpo]); return { status: 200, corpo: { ok: true } }; },
     retirar: async (jwt, corpo) => { vistos.push(['retirar', jwt, corpo]); return { status: 200, corpo: { ok: true } }; },
-    retorno: async query => { vistos.push(['retorno', '', query]); return { status: 302, destino: 'https://site.test/#/integrations?conexao=ok&integracao=notion' }; }
+    retorno: async query => { vistos.push(['retorno', '', query]); return { status: 302, destino: 'https://site.test/?conexao=ok&integracao=notion#/integrations' }; }
   });
 
   it('sem login: 401 antes de ler o corpo; com login mas sem as integrações ligadas: 503', async () => {
@@ -220,7 +220,7 @@ describe('servidor: integrações do catálogo (ADR 0056)', () => {
     const url = await subirComIntegracoes(rotas());
     const r = await fetch(url + '/integracoes/retorno?code=abc&state=xyz', { redirect: 'manual' });
     expect(r.status).toBe(302);
-    expect(r.headers.get('location')).toBe('https://site.test/#/integrations?conexao=ok&integracao=notion');
+    expect(r.headers.get('location')).toBe('https://site.test/?conexao=ok&integracao=notion#/integrations');
     expect(vistos[0]).toEqual(['retorno', '', { code: 'abc', state: 'xyz', error: undefined }]);
   });
 

@@ -605,18 +605,18 @@ export const PATCHES = [
     }
   },
 
-  // ---- Conectores (Claude): nenhum conector do catálogo conecta de verdade ainda; no modo real ficam "Em breve"
+  // ---- Conectores (Claude): no modo real só conecta o que tem perfil disponível (AlthiusApp.conectorReal); o resto fica "Em breve" com o motivo
   {
-    regra: 'conectores: no modo real todo conector do catálogo aparece como "Em breve" (sem autorização simulada)',
+    regra: 'conectores: no modo real só o que existe de verdade conecta; o resto aparece como "Em breve" com o motivo (sem autorização simulada)',
     arquivo: 'logic.generated.js',
     trocar: "const k = cons[c.id], ok = !!k && !k.erro, erro = !!k && !!k.erro;\n        return { nome: c.nome, desc: c.desc, auth: c.auth, logo: LG[c.id], conectado: ok, erro, estado: ok ? 'ok' : erro ? 'erro' : 'off', usoTexto: k ? 'usado por ' + usoTexto(k) : '',\n          btnCls: ok ? 'con-btn-sec' : 'con-btn', acaoLabel: ok ? 'Gerenciar' : erro ? 'Reconectar' : 'Conectar', acaoRotulo: (ok ? 'Gerenciar ' : 'Conectar ') + c.nome, acao: () => this.abrirOauth(c.id) };",
-    por: "const k = cons[c.id], ok = !!k && !k.erro, erro = !!k && !!k.erro, em = this.modoDemo === false;\n        return { nome: c.nome, desc: c.desc, auth: c.auth, logo: LG[c.id], conectado: ok, erro, estado: ok ? 'ok' : erro ? 'erro' : 'off', usoTexto: k ? 'usado por ' + usoTexto(k) : '', emBreve: em,\n          btnCls: em || ok ? 'con-btn-sec' : 'con-btn', acaoLabel: em ? 'Em breve' : ok ? 'Gerenciar' : erro ? 'Reconectar' : 'Conectar', acaoRotulo: em ? c.nome + ' (em breve)' : (ok ? 'Gerenciar ' : 'Conectar ') + c.nome, acao: () => { if (!em) this.abrirOauth(c.id); } };"
+    por: "const k = cons[c.id], ok = !!k && !k.erro, erro = !!k && !!k.erro, em = this.modoDemo === false && !(this.conectorReal && this.conectorReal(c.id));\n        return { nome: c.nome, desc: this.modoDemo === false ? (em ? c.desc + ' Em breve: ' + this.motivoDoConector(c.id) : erro ? c.desc + ' Precisa reconectar.' : c.desc) : c.desc, auth: c.auth, logo: LG[c.id], conectado: ok, erro, estado: ok ? 'ok' : erro ? 'erro' : 'off', usoTexto: this.modoDemo === false ? (k && !erro ? 'Conta: ' + k.conta : '') : (k ? 'usado por ' + usoTexto(k) : ''), emBreve: em,\n          btnCls: em || ok ? 'con-btn-sec' : 'con-btn', acaoLabel: em ? 'Em breve' : ok ? 'Gerenciar' : erro ? 'Reconectar' : 'Conectar', acaoRotulo: em ? c.nome + ' (em breve)' : (ok ? 'Gerenciar ' : 'Conectar ') + c.nome, acao: () => { if (!em) this.abrirOauth(c.id); } };"
   },
   {
-    regra: 'conectores: o resumo do modo real explica onde conectar as contas de mensagem',
+    regra: 'conectores: o resumo do modo real diz quantos conectores já conectam e que os demais chegam em breve',
     arquivo: 'logic.generated.js',
     trocar: "v.cat.resumo = nCon + ' conectados de ' + KC.lista.length + ' disponíveis · cada conexão é autorizada na página oficial da ferramenta';",
-    por: "v.cat.resumo = this.modoDemo === false ? 'Em breve: estes conectores ainda não estão disponíveis. Suas contas de e-mail, WhatsApp, LinkedIn e Instagram você conecta na Caixa de entrada.' : nCon + ' conectados de ' + KC.lista.length + ' disponíveis · cada conexão é autorizada na página oficial da ferramenta';"
+    por: "v.cat.resumo = this.modoDemo === false ? this.resumoDosConectores() : nCon + ' conectados de ' + KC.lista.length + ' disponíveis · cada conexão é autorizada na página oficial da ferramenta';"
   },
   {
     regra: 'conectores: a autorização simulada não abre no modo real',

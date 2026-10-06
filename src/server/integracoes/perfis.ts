@@ -26,9 +26,9 @@ export interface PerfilDeIntegracao {
   motivo?: string;
   /** O primeiro acesso fixa o portal do workspace (ex.: o portal do HubSpot). */
   portalFixo: boolean;
-  /** `mcp` (padrão): OAuth no servidor MCP oficial. `unipile`: conta de mensagem conectada pelo assistente hospedado da Unipile (o mesmo canal da Caixa de entrada, sem outro conector). */
-  via?: 'mcp' | 'unipile';
-  /** Só `via: 'unipile'`: o provedor da conta de mensagem. */
+  /** `mcp` (padrão): OAuth no servidor MCP oficial. `mensagens`: conta de mensagem conectada pelo assistente hospedado da Unipile (o mesmo canal da Caixa de entrada, sem outro conector). */
+  via?: 'mcp' | 'mensagens';
+  /** Só `via: 'mensagens'`: o provedor da conta de mensagem. */
   canal?: CanalUnipile;
   mcp?: PerfilMcp;
   /** Onde achar a conta e o portal na resposta do endpoint de token (caminhos alternativos; vale o primeiro que existir). */
@@ -43,7 +43,7 @@ const SEM_SERVIDOR = 'O fornecedor não oferece um servidor oficial para terceir
 
 const emBreve = (id: string, nome: string, motivo: string): PerfilDeIntegracao => ({ id, nome, situacao: 'em_breve', motivo, portalFixo: false });
 // Canais de mensagem: o cartão do catálogo conecta pela Unipile (a conta é da PESSOA; a permissão é a da Caixa, `inbox.connect`).
-const canal = (id: string, nome: string, canal: CanalUnipile): PerfilDeIntegracao => ({ id, nome, situacao: 'disponivel', via: 'unipile', canal, portalFixo: false });
+const canal = (id: string, nome: string, canal: CanalUnipile): PerfilDeIntegracao => ({ id, nome, situacao: 'disponivel', via: 'mensagens', canal, portalFixo: false });
 
 export const PERFIS: Record<string, PerfilDeIntegracao> = Object.fromEntries([
   {
@@ -64,17 +64,17 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = Object.fromEntries([
   emBreve('gong', 'Gong', 'O servidor da Gong está em preview fechado, só para alguns clientes.'),
   emBreve('fireflies', 'Fireflies.ai', 'Só conecta por chave da própria conta, sem login oficial para terceiros.'),
   emBreve('fathom', 'Fathom', 'Não há servidor oficial confirmado.'),
-  emBreve('slack', 'Slack', APP_DO_FORNECEDOR),
-  emBreve('zoom', 'Zoom', APP_DO_FORNECEDOR),
+  emBreve('slack', 'Slack', 'O Slack só deixa apps publicados no Marketplace dele (ou internos) usarem o MCP. A Althius precisa publicar um app e passar pela revisão do Slack.'),
+  emBreve('zoom', 'Zoom', 'Exige um app da Althius criado no Zoom Marketplace (registro manual, sem registro automático). Em preparação.'),
   emBreve('gsheets', 'Google Sheets', APP_DO_FORNECEDOR),
-  emBreve('gcal', 'Google Calendar', APP_DO_FORNECEDOR),
+  emBreve('gcal', 'Google Calendar', 'Vai usar a conta Google já conectada pelo canal de mensagens (a agenda do Google). Falta construir e testar.'),
   emBreve('gdrive', 'Google Drive', APP_DO_FORNECEDOR),
   emBreve('meet', 'Google Meet', APP_DO_FORNECEDOR),
   emBreve('meta', 'Meta Ads', APP_DO_FORNECEDOR),
   emBreve('salesforce', 'Salesforce', POR_CLIENTE),
   emBreve('dynamics', 'Dynamics 365 Sales', POR_CLIENTE),
-  emBreve('zoho', 'Zoho CRM', POR_CLIENTE),
-  emBreve('rdstation', 'RD Station CRM', POR_CLIENTE),
+  emBreve('zoho', 'Zoho CRM', 'Dá para conectar por login, pela API do Zoho, com um app da Althius, mas precisa de ferramentas próprias (não há MCP aberto a terceiros). Em avaliação.'),
+  emBreve('rdstation', 'RD Station CRM', 'A RD Station tem servidor oficial, mas cada cliente gera a própria URL e o token no catálogo MCP deles. Em avaliação.'),
   emBreve('teams', 'Microsoft Teams', POR_CLIENTE),
   emBreve('sharepoint', 'SharePoint', POR_CLIENTE),
   emBreve('m365', 'Microsoft 365', POR_CLIENTE),

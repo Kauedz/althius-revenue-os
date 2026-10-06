@@ -17,7 +17,7 @@ export interface DepsIntegracoes {
   siteUrl: string;
   buscar?: typeof fetch;
   agora?: () => number;
-  /** A conexão de contas de mensagem da Unipile (`webhooks/conexoes.ts`): é ela que atende os cartões `via: 'unipile'`. */
+  /** A conexão de contas de mensagem da Unipile (`webhooks/conexoes.ts`): é ela que atende os cartões `via: 'mensagens'`. */
   canais?: (jwt: string, corpo: Record<string, unknown>) => Promise<Resp>;
   /** texto aleatório seguro para URL, com o tamanho pedido (padrão: do sistema) */
   aleatorio?: (tamanho: number) => string;
@@ -31,13 +31,14 @@ const resposta = (status: number, corpo: Record<string, unknown>): Resp => ({ st
 const texto = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 const sorteio = (d: DepsIntegracoes, tamanho: number): string => d.aleatorio ? d.aleatorio(tamanho) : randomBytes(Math.ceil(tamanho * 0.75) + 1).toString('base64url').slice(0, tamanho);
 const retornoUrl = (d: DepsIntegracoes) => `${d.siteUrl.replace(/\/$/, '')}/integracoes/retorno`;
-/** Rota da página de Integrações no front (a tela lê o resultado da conexão na query). */
-const volta = (d: DepsIntegracoes, params: Record<string, string>) => `${d.siteUrl.replace(/\/$/, '')}/#/integrations?${new URLSearchParams(params)}`;
+/** Endereço de volta para a página de Integrações, com o resultado da conexão. */
+// O resultado vai ANTES do `#`: o roteador da tela lê o `#`, e a tela mostra o aviso e limpa o endereço.
+const volta = (d: DepsIntegracoes, params: Record<string, string>) => `${d.siteUrl.replace(/\/$/, '')}/?${new URLSearchParams(params)}#/integrations`;
 
 function perfilDisponivel(id: string): { ok: true; perfil: PerfilDeIntegracao } | { ok: false; r: Resp } {
   const perfil = PERFIS[id];
   if (!perfil) return { ok: false, r: resposta(404, { erro: 'integracao_desconhecida' }) };
-  if (perfil.situacao !== 'disponivel' || (!perfil.mcp && perfil.via !== 'unipile')) return { ok: false, r: resposta(409, { erro: 'em_breve', motivo: perfil.motivo ?? 'Ainda não está disponível.' }) };
+  if (perfil.situacao !== 'disponivel' || (!perfil.mcp && perfil.via !== 'mensagens')) return { ok: false, r: resposta(409, { erro: 'em_breve', motivo: perfil.motivo ?? 'Ainda não está disponível.' }) };
   return { ok: true, perfil };
 }
 
@@ -77,7 +78,7 @@ function corpoDe(c: unknown): { workspaceId: string; integracao: string } {
   return { workspaceId: texto(o.workspaceId), integracao: texto(o.integracao) };
 }
 
-const ehCanal = (integracao: string) => PERFIS[integracao]?.via === 'unipile';
+const ehCanal = (integracao: string) => PERFIS[integracao]?.via === 'mensagens';
 const recusaDeCanal = () => resposta(409, { erro: 'canal_de_mensagens', mensagem: 'Este canal é uma conta de mensagem: conecte e gerencie pela Caixa de entrada.' });
 
 /** Passo 1: devolve o endereço de consentimento do app. A tentativa fica guardada (uso único, 10 minutos). */
@@ -88,7 +89,7 @@ export async function iniciarConexao(d: DepsIntegracoes, jwt: string, corpo: unk
   const p = perfilDisponivel(integracao);
   if (!p.ok) return p.r;
   const perfil = p.perfil;
-  if (perfil.via === 'unipile') {
+  if (perfil.via === 'mensagens') {
     // Canais de mensagem: o mesmo cartão do catálogo, mas quem conecta é a Unipile (assistente hospedado). A permissão é a da
     // Caixa de entrada e quem a confere é o banco, dentro da conexão da Unipile (não a de "integrações").
     const membroId = texto((corpo as Record<string, unknown>).membroId);

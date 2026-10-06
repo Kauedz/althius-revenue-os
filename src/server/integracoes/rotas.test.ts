@@ -188,7 +188,7 @@ describe('retorno do consentimento', () => {
     const m = montar();
     const { volta } = await conectar(m);
     expect(volta.status).toBe(302);
-    expect(volta.destino).toBe(`${SITE}/#/integrations?conexao=ok&integracao=notion`);
+    expect(volta.destino).toBe(`${SITE}/?conexao=ok&integracao=notion#/integrations`);
     const a = m.banco.acessos.get(`${WS}|m-aline|notion`)!;
     expect(a.conta).toBe('Acme Ltda');
     expect(a.accessCifrado).not.toContain('acc-1');
@@ -353,7 +353,7 @@ describe('canais de mensagem pela Unipile (o mesmo catálogo, sem outro conector
   it('os cinco cartões do catálogo estão disponíveis e conectam pela Unipile', () => {
     for (const [id, canal] of CANAIS) {
       expect(PERFIS[id].situacao, id).toBe('disponivel');
-      expect(PERFIS[id].via, id).toBe('unipile');
+      expect(PERFIS[id].via, id).toBe('mensagens');
       expect(PERFIS[id].canal, id).toBe(canal);
       expect(PERFIS[id].mcp, id).toBeUndefined();
     }

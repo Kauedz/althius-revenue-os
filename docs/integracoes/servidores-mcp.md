@@ -23,8 +23,8 @@ Data: 06/10/2026. Complementa a pesquisa do protótipo (`AppAlthius/.scratch/con
 | Conector | Servidor | Evidência |
 | --- | --- | --- |
 | HubSpot | `https://mcp.hubspot.com` | Verificado hoje: **sem** registro automático; precisa do MCP Auth App (limite de 25 instalações enquanto não estiver no marketplace) |
-| Slack | `https://mcp.slack.com/mcp` | Verificado hoje: sem registro automático; precisa de app Slack |
-| Zoom | `https://mcp.zoom.us/mcp/zoom/streamable` | Verificado hoje: sem registro automático; precisa de app no Zoom Marketplace |
+| Slack | `https://mcp.slack.com/mcp` | Verificado hoje: sem registro automático. **A documentação oficial só deixa usar o MCP apps publicados no Marketplace do Slack ou internos**; para clientes, a Althius precisa publicar o app (revisão do Slack) |
+| Zoom | `https://mcp.zoom.us/mcp/zoom/streamable` | Verificado hoje: sem registro automático; app "General" no Zoom Marketplace. Se precisa publicar para outras contas: **não confirmado** |
 | Google Sheets, Google Calendar, Google Drive, Gmail, Google Meet | endereços `*.googleapis.com` (Sheets e Calendar vieram da pesquisa antiga) | Pesquisa na web: exigem cliente OAuth no Google Cloud e **verificação do app pelo Google** (pode levar dias). Os endereços de Drive e Gmail **não confirmei** (as sondagens deram 404) |
 | Meta Ads | `https://mcp.facebook.com/ads` | Pesquisa antiga: app de desenvolvedor Meta próprio. Sondagem de hoje deu 404 no endereço raiz; **não confirmado** |
 
@@ -66,3 +66,6 @@ WhatsApp Business, Gmail, Outlook, Instagram e LinkedIn **não precisam de outro
 - Otter.ai: https://mcpservers.org/remote-mcp-servers/otter-ai
 - Granola: https://www.gamut.so/mcp/communication/granola
 - Pesquisa do protótipo de 02/10/2026 para os demais.
+
+## Atualização (06/10/2026, segunda leitura)
+Passo a passo de cada app, em linguagem simples, em [`guia-do-dono.md`](./guia-do-dono.md). Novidades: o Google (Gmail e Agenda) vai pela Unipile com credenciais dela (sem o dono registrar app no Google); a RD Station tem MCP oficial, mas cada cliente gera URL e token no Catálogo MCP deles (página: rdstation.com/mcp-rd-station); o Zoho CRM só serve por login via API com app da Althius (o MCP dele é por cliente); Salesforce, Dynamics e Teams ficam "Em breve" por decisão do dono.

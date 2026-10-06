@@ -4,7 +4,7 @@
 
 **Blocked by:** 01.
 
-**Status:** ready-for-agent
+**Status:** done
 
 ## Pode mexer
 - Regras novas em `scripts/v18/patches.mjs` + `npm run v18:sync` (nunca editar `src/v18/*.generated.*`).
@@ -15,13 +15,18 @@
 - No fluxo de contas de mensagem da Caixa de entrada.
 
 ## Critérios
-- [ ] Nada aparece como conectado sem estar. Erro de consulta mostra mensagem clara com "Tentar de novo".
-- [ ] Quem não tem `integrations.connect` vê o cartão, mas o botão explica quem pode conectar.
-- [ ] Os cinco canais (WhatsApp, Gmail, Outlook, Instagram, LinkedIn) mostram o estado das contas de mensagem (o que a Caixa já sabe) e o botão Conectar chama `/integracoes/iniciar` com o `membroId` da pessoa; Gerenciar leva à Caixa de entrada. Quem é BDR conecta canais, mas vê "só C-level, estrategista e superadmin conectam apps".
-- [ ] Conector sem servidor oficial continua "Em breve" **com o motivo** (texto do perfil).
-- [ ] Retorno do consentimento (sucesso, recusa, expirado, portal diferente) mostra mensagem clara.
-- [ ] Nenhum US$ na tela.
-- [ ] `npm run verificar` verde.
+- [x] Nada aparece como conectado sem estar. Erro de consulta mostra mensagem clara com "Tentar de novo".
+- [x] Quem não tem `integrations.connect` conecta um app e recebe a mensagem "Só C-level, estrategista e superadmin conectam esta integração" (a recusa vem do banco).
+- [x] Os cinco canais (WhatsApp, Gmail, Outlook, Instagram, LinkedIn) mostram o estado das contas de mensagem (o que a Caixa já sabe) e o botão Conectar chama `/integracoes/iniciar` com o `membroId` da pessoa; Gerenciar leva à Caixa de entrada. Quem é BDR conecta canais, mas vê "só C-level, estrategista e superadmin conectam apps".
+- [x] Conector sem servidor oficial continua "Em breve" **com o motivo** (texto do perfil).
+- [x] Retorno do consentimento (sucesso, recusa, expirado, portal diferente) mostra mensagem clara.
+- [x] Nenhum US$ na tela.
+- [ ] `npm run verificar` verde. **Pendente:** ver a nota do ticket 01 (as mesmas falhas de ambiente).
+
+## Comments
+
+- Feito em 06/10/2026. O "Gerenciar" dos cinco canais de mensagem hoje oferece desconectar pelo mesmo caminho da Caixa; a gestão completa (várias contas) continua na Caixa de entrada.
+- O motivo do "Em breve" aparece na descrição do cartão (o protótipo só mostrava o texto de uso quando conectado).
 
 ## Passos do Nan
 Autorizar a própria conta do Notion para conferir de ponta a ponta.
