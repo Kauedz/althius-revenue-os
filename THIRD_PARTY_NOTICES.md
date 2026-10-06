@@ -297,3 +297,23 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## 3. Buzz — harness de canal para agentes (desenho, sem cópia de código)
+
+| Campo | Valor |
+|---|---|
+| Projeto | Buzz — https://github.com/block/buzz |
+| Origem | `crates/buzz-acp/src/queue.rs` (fila por canal, lote, tentativas), `filter.rs` (regra de quando o agente responde) e `session_model_channel.md` (uma sessão por canal) |
+| Commit | `f0eb5575ffc9d5f57af4ed3f574529d997c83a0d` |
+| Licença | Apache License 2.0 (texto completo na seção 1) |
+| Copyright | Copyright 2026 Block, Inc. |
+| Destino | `supabase/migrations/20261002000110_canais_agentes_harness.sql`, `src/server/agentes/harness.ts` (testes: `supabase/tests/database/00062_canais_agentes_harness.sql`, `src/server/agentes/harness.test.ts`) |
+
+**O que foi adaptado (o código em Rust não foi copiado; o desenho foi reescrito em Postgres e TypeScript):**
+
+- Fila por canal; ao pegar, o canal com o pedido mais antigo entrega **todos** os pendentes de uma vez, em um lote de até 50 (`MAX_BATCH_EVENTS`); teto de 500 pedidos esperando por canal (`MAX_PENDING_PER_CHANNEL`), o mais antigo cai primeiro.
+- Tentativas: espera de 5 s dobrando a cada falha, no máximo 300 s (`BASE_RETRY_DELAY_SECS`, `MAX_RETRY_DELAY_SECS`); 10 falhas e o pedido é dado como perdido (`MAX_RETRIES`).
+- Prazo máximo do lote em andamento (`in_flight` deadline).
+- Política de resposta do agente (menção, dono, sempre), inspirada em `require_mention` do `filter.rs`; o filtro por expressão do Buzz **não** foi portado.
+- Nostr (`Event`, pubkey, tags) → `chat_messages` do Althius; memória do processo → tabelas no Postgres, com RLS e acesso só do sistema.
+- Acrescentado, sem equivalente no Buzz: um pedido por vez por agente por workspace, agrupamento por "silêncio" do canal, batimento de vida com recolhimento, reserva e consumo de créditos e a política Hermes antes de entrar na fila.
