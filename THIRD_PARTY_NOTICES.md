@@ -317,3 +317,22 @@ SOFTWARE.
 - Política de resposta do agente (menção, dono, sempre), inspirada em `require_mention` do `filter.rs`; o filtro por expressão do Buzz **não** foi portado.
 - Nostr (`Event`, pubkey, tags) → `chat_messages` do Althius; memória do processo → tabelas no Postgres, com RLS e acesso só do sistema.
 - Acrescentado, sem equivalente no Buzz: um pedido por vez por agente por workspace, agrupamento por "silêncio" do canal, batimento de vida com recolhimento, reserva e consumo de créditos e a política Hermes antes de entrar na fila.
+
+## 4. Buzz — aprovação por link de uso único (desenho, sem cópia de código)
+
+| Campo | Valor |
+|---|---|
+| Projeto | Buzz — https://github.com/block/buzz |
+| Origem | `migrations/0001_initial_schema.sql` (tabela `workflow_approvals`) e `crates/buzz-db/src/store/workflow.rs` (`hash_approval_token`, criação e decisão da aprovação) |
+| Commit | `f0eb5575ffc9d5f57af4ed3f574529d997c83a0d` |
+| Licença | Apache License 2.0 (texto completo na seção 1) |
+| Copyright | Copyright 2026 Block, Inc. |
+| Destino | `supabase/migrations/20261002000111_aprovacao_por_link.sql`, `src/app/servicos/aprovacaoPorLink.ts`, `src/server/aprovacoes/links.ts` (testes: `supabase/tests/database/00063_aprovacao_por_link.sql` e os `.test.ts` ao lado) |
+
+**O que foi adaptado (o código em Rust não foi copiado; o desenho foi reescrito em Postgres e TypeScript):**
+
+- O banco guarda só o **hash SHA-256 do token** (no Buzz, `token BYTEA` = o hash); o token em texto sai uma única vez, na emissão.
+- Aprovação com **prazo** (`expires_at`) e de **uso único** (no Buzz, estados pending/granted/denied/expired; aqui `used_at`, `revoked_at` e o estado da própria aprovação).
+- `community_id` → `workspace_id`; `approver_pubkey` → `decider_member_id` (membro do workspace).
+- Acrescentado, sem equivalente no Buzz: conferência do conteúdo contra o `payload_hash` (o link morre se o conteúdo mudar), "quem paga decide o gasto" (só C-level e superadmin decidem gasto, pela mesma `approval_decide` da tela), isolamento por workspace, limite de links ativos e auditoria.
+- Não usado: o `buzz-workflow` (ADR 0038, item 5).
