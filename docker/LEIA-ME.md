@@ -53,6 +53,13 @@ A Unipile é só um canal: toda a ligação com ela (chave, endereço, assinatur
 - O serviço `aprendizado` (ADR 0052 e 0053) roda a cada 6 horas (`APRENDIZADO_INTERVALO_HORAS`). Ele só olha clientes que **aceitaram** (aviso único e Configurações → Aprendizado), só publica padrões com **3 ou mais clientes** e só **sugere** ao estrategista, que aplica ou descarta em Playbook → Aprendizados.
 - Ver o que está acontecendo: `docker compose logs -f aprendizado` (linhas `aprendizado_ciclo` com quantos clientes contribuem, padrões e sugestões novas; nunca texto nem nomes).
 
+### Integrações do catálogo
+
+As rotas `/integracoes/*` (ADR 0056) rodam no serviço `webhooks` e precisam de `SITE_URL`, `ANON_KEY` e `COFRE_CHAVE_MESTRA` (os tokens ficam cifrados com ela). Sem isso, o log mostra `integrações desligadas` e o resto segue normal.
+
+- O app autoriza e volta para `SITE_URL/integracoes/retorno`; esse endereço precisa estar acessível pela internet (o Caddy já encaminha).
+- Conectores com registro automático (Notion e, depois, Apollo, Pipedrive, Granola, Confluence) não pedem nenhum cadastro. HubSpot, Slack, Zoom e Google exigem um app criado por você no fornecedor; o Client ID e o Secret entram no cofre, nunca no chat.
+
 ### Coleta de sinais
 
 O serviço `sinais` (ADR 0055) roda a cada 30 minutos (`SINAIS_INTERVALO_MINUTOS`). O banco escolhe as contas que precisam de coleta, reserva o crédito e o serviço busca o dado na Apify (as chaves vêm do cofre, na tela Fornecedores). **Nada coleta até o superadmin ligar a receita de cada sinal.**

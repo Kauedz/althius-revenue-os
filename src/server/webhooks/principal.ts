@@ -8,6 +8,9 @@ import { cofreDoAmbiente } from '../cofre/ambiente.ts';
 import { configDoCofre, segredoDoWebhook } from '../cofre/consumidores.ts';
 import { chaveMestra } from '../cofre/cifra.ts';
 import type { DepsCofre } from '../cofre/rotas.ts';
+import { bancoIntegracoes } from '../integracoes/banco.ts';
+import { desconectar, ferramentas, iniciarConexao, retirar, retornoDoConsentimento, type DepsIntegracoes } from '../integracoes/rotas.ts';
+import type { RotasIntegracoes } from './servidor.ts';
 
 const base = process.env.BANCO_URL ?? '';
 const chave = process.env.SERVICE_ROLE_KEY ?? '';
@@ -39,7 +42,22 @@ const rotasCofre: DepsCofre | undefined = cofre && chaveAnon
   ? { baseBanco: base, chaveAnon, chaveServico: chave, chave: chaveMestra(), cofre }
   : undefined;
 
-const { servidor } = criarServidor({ segredo, banco: bancoViaApi(base, chave), conexoes, cofre: rotasCofre });
+// Integrações do catálogo (ADR 0056): os tokens são cifrados com a chave mestra do cofre, então sem ela ficam desligadas.
+const depsIntegracoes: DepsIntegracoes | undefined = siteUrl && chaveAnon && (process.env.COFRE_CHAVE_MESTRA ?? '').trim()
+  ? { banco: bancoIntegracoes({ base, chaveAnon, chaveServico: chave }), chave: chaveMestra(), siteUrl }
+  : undefined;
+if (!depsIntegracoes) {
+  console.warn(JSON.stringify({ nivel: 'aviso', msg: 'integrações desligadas: faltam SITE_URL, ANON_KEY ou COFRE_CHAVE_MESTRA' }));
+}
+const integracoes: RotasIntegracoes | undefined = depsIntegracoes && {
+  iniciar: (jwt, corpo) => iniciarConexao(depsIntegracoes, jwt, corpo),
+  ferramentas: (jwt, corpo) => ferramentas(depsIntegracoes, jwt, corpo),
+  desconectar: (jwt, corpo) => desconectar(depsIntegracoes, jwt, corpo),
+  retirar: (jwt, corpo) => retirar(depsIntegracoes, jwt, corpo),
+  retorno: query => retornoDoConsentimento(depsIntegracoes, query)
+};
+
+const { servidor } = criarServidor({ segredo, banco: bancoViaApi(base, chave), conexoes, cofre: rotasCofre, integracoes });
 const porta = Number(process.env.PORT ?? 3100);
 servidor.listen(porta, '0.0.0.0', () => console.log(JSON.stringify({ nivel: 'info', msg: 'webhooks no ar', porta })));
 for (const sinal of ['SIGTERM', 'SIGINT'] as const) process.on(sinal, () => servidor.close(() => process.exit(0)));

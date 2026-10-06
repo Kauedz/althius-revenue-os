@@ -176,3 +176,76 @@ describe('servidor: cofre de chaves (ADR 0049)', () => {
     expect(r.status).toBe(401);
   });
 });
+
+describe('servidor: integrações do catálogo (ADR 0056)', () => {
+  type Rotas = NonNullable<Parameters<typeof criarServidor>[0]['integracoes']>;
+  async function subirComIntegracoes(integracoes?: Rotas) {
+    const { servidor } = criarServidor({ segredo: SEGREDO, banco: { ingerirMensagem: async () => ({ action: 'persisted' }), definirStatus: async () => ({}), novaRelacao: async () => ({}), concluirConexao: async () => ({}) } as unknown as Banco, log: () => {}, integracoes });
+    await new Promise<void>(r => servidor.listen(0, '127.0.0.1', r));
+    abertos.push(() => new Promise<void>(r => servidor.close(() => r())));
+    return `http://127.0.0.1:${(servidor.address() as AddressInfo).port}`;
+  }
+  const post = (url: string, caminho: string, corpo: unknown, auth?: string) => fetch(url + caminho, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) }, body: JSON.stringify(corpo)
+  });
+  const vistos: Array<[string, string, unknown]> = [];
+  const rotas = (): Rotas => ({
+    iniciar: async (jwt, corpo) => { vistos.push(['iniciar', jwt, corpo]); return { status: 200, corpo: { url: 'https://app.test/consentir' } }; },
+    ferramentas: async (jwt, corpo) => { vistos.push(['ferramentas', jwt, corpo]); return { status: 200, corpo: { ferramentas: [] } }; },
+    desconectar: async (jwt, corpo) => { vistos.push(['desconectar', jwt, corpo]); return { status: 200, corpo: { ok: true } }; },
+    retirar: async (jwt, corpo) => { vistos.push(['retirar', jwt, corpo]); return { status: 200, corpo: { ok: true } }; },
+    retorno: async query => { vistos.push(['retorno', '', query]); return { status: 302, destino: 'https://site.test/#/integrations?conexao=ok&integracao=notion' }; }
+  });
+
+  it('sem login: 401 antes de ler o corpo; com login mas sem as integrações ligadas: 503', async () => {
+    const url = await subirComIntegracoes();
+    expect((await post(url, '/integracoes/iniciar', {})).status).toBe(401);
+    expect((await post(url, '/integracoes/iniciar', {}, 'jwt')).status).toBe(503);
+  });
+
+  it('cada rota repassa o login (JWT) e o corpo à função certa', async () => {
+    vistos.length = 0;
+    const url = await subirComIntegracoes(rotas());
+    for (const nome of ['iniciar', 'ferramentas', 'desconectar', 'retirar']) {
+      const r = await post(url, `/integracoes/${nome}`, { workspaceId: 'w', integracao: 'notion' }, 'meu-jwt');
+      expect(r.status).toBe(200);
+    }
+    expect(vistos.map(v => v[0])).toEqual(['iniciar', 'ferramentas', 'desconectar', 'retirar']);
+    expect(vistos.every(v => v[1] === 'meu-jwt')).toBe(true);
+    expect(vistos[0][2]).toEqual({ workspaceId: 'w', integracao: 'notion' });
+  });
+
+  it('o retorno do consentimento é um GET sem login: redireciona (302) para onde a função mandar, sem seguir o redirecionamento', async () => {
+    vistos.length = 0;
+    const url = await subirComIntegracoes(rotas());
+    const r = await fetch(url + '/integracoes/retorno?code=abc&state=xyz', { redirect: 'manual' });
+    expect(r.status).toBe(302);
+    expect(r.headers.get('location')).toBe('https://site.test/#/integrations?conexao=ok&integracao=notion');
+    expect(vistos[0]).toEqual(['retorno', '', { code: 'abc', state: 'xyz', error: undefined }]);
+  });
+
+  it('retorno com o app avisando erro (recusa) passa o error adiante', async () => {
+    vistos.length = 0;
+    const url = await subirComIntegracoes(rotas());
+    await fetch(url + '/integracoes/retorno?error=access_denied&state=xyz', { redirect: 'manual' });
+    expect(vistos[0][2]).toEqual({ code: undefined, state: 'xyz', error: 'access_denied' });
+  });
+
+  it('retorno sem as integrações ligadas: 503; método errado: 405; rota inventada: 404', async () => {
+    const sem = await subirComIntegracoes();
+    expect((await fetch(sem + '/integracoes/retorno?state=x', { redirect: 'manual' })).status).toBe(503);
+    const url = await subirComIntegracoes(rotas());
+    expect((await fetch(url + '/integracoes/iniciar')).status).toBe(405);
+    expect((await post(url, '/integracoes/retorno', {}, 'jwt')).status).toBe(405);
+    expect((await post(url, '/integracoes/inventada', {}, 'jwt')).status).toBe(404);
+  });
+
+  it('falha inesperada na função vira 502 sem vazar detalhe', async () => {
+    const r = rotas();
+    r.iniciar = async () => { throw new Error('segredo-que-nao-pode-vazar'); };
+    const url = await subirComIntegracoes(r);
+    const resp = await post(url, '/integracoes/iniciar', {}, 'jwt');
+    expect(resp.status).toBe(502);
+    expect(await resp.text()).not.toContain('segredo-que-nao-pode-vazar');
+  });
+});

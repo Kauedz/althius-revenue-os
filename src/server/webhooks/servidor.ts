@@ -4,6 +4,15 @@ import { iniciarConexao, type DepsConexoes } from './conexoes.ts';
 import { guardarSegredo, testarSegredo, type DepsCofre } from '../cofre/rotas.ts';
 import { assinaturaValida, CABECALHO_ASSINATURA, interpretar, processar, type Banco, type EventoUnipile } from './unipile.ts';
 
+/** As rotas das integrações do catálogo (ADR 0056); o servidor só despacha, as funções ficam em `integracoes/rotas.ts`. */
+export interface RotasIntegracoes {
+  iniciar(jwt: string, corpo: unknown): Promise<{ status: number; corpo: Record<string, unknown> }>;
+  ferramentas(jwt: string, corpo: unknown): Promise<{ status: number; corpo: Record<string, unknown> }>;
+  desconectar(jwt: string, corpo: unknown): Promise<{ status: number; corpo: Record<string, unknown> }>;
+  retirar(jwt: string, corpo: unknown): Promise<{ status: number; corpo: Record<string, unknown> }>;
+  retorno(query: { code?: string; state?: string; error?: string }): Promise<{ status: 302; destino: string }>;
+}
+
 export interface OpcoesServidor {
   /** segredo do endpoint de webhook (a própria Unipile o gera); assina cada aviso */
   segredo: string | (() => string | Promise<string>);
@@ -17,6 +26,8 @@ export interface OpcoesServidor {
   conexoes?: DepsConexoes;
   /** Liga as rotas do cofre de chaves (ADR 0049). Sem isto, /cofre/* responde 503. */
   cofre?: DepsCofre;
+  /** Liga as rotas das integrações (ADR 0056). Sem isto, /integracoes/* responde 503. */
+  integracoes?: RotasIntegracoes;
 }
 
 export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: () => Promise<void> } {
@@ -48,16 +59,28 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
     const [url] = (req.url ?? '').split('?');
 
     if (url === '/saude') return responder(200, { ok: true });
+    // Retorno do consentimento do app: um redirecionamento do navegador (GET, sem login). A prova é o `state` de uso único.
+    if (url === '/integracoes/retorno') {
+      if (req.method !== 'GET') return responder(405, { erro: 'metodo_nao_permitido' });
+      if (!o.integracoes) return responder(503, { erro: 'integracoes_indisponiveis' });
+      const q = new URL(req.url ?? '', 'http://interno').searchParams;
+      o.integracoes.retorno({ code: q.get('code') ?? undefined, state: q.get('state') ?? undefined, error: q.get('error') ?? undefined }).then(
+        r => { res.writeHead(302, { Location: r.destino, 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' }); res.end(); },
+        () => responder(502, { erro: 'falha_nas_integracoes' })
+      );
+      return;
+    }
     const ehWebhook = url === '/webhooks/unipile';
     const ehLink = url === '/conexoes/link';
     const ehCofre = url === '/cofre/guardar' || url === '/cofre/testar';
-    if (!ehWebhook && !ehLink && !ehCofre) return responder(404, { erro: 'nao_encontrado' });
+    const ehIntegracao = ['/integracoes/iniciar', '/integracoes/ferramentas', '/integracoes/desconectar', '/integracoes/retirar'].includes(url);
+    if (!ehWebhook && !ehLink && !ehCofre && !ehIntegracao) return responder(404, { erro: 'nao_encontrado' });
     if (req.method !== 'POST') return responder(405, { erro: 'metodo_nao_permitido' });
 
     // A prova do link de conexão é o login da pessoa, conferido ANTES de ler o corpo. A do webhook é a assinatura do
     // corpo bruto: só dá para conferir depois de ler (o limite de tamanho protege a memória).
     let jwt = '';
-    if (ehLink || ehCofre) {
+    if (ehLink || ehCofre || ehIntegracao) {
       const m = /^Bearer (.+)$/.exec(req.headers.authorization ?? '');
       jwt = m?.[1] ?? '';
       if (!jwt) { req.resume(); return responder(401, { erro: 'nao_autorizado' }); }
@@ -82,6 +105,12 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
           if (!o.cofre) return responder(503, { erro: 'cofre_indisponivel' });
           const rota = url === '/cofre/guardar' ? guardarSegredo : testarSegredo;
           rota(o.cofre, jwt, payload).then(r => responder(r.status, r.corpo), () => responder(502, { erro: 'falha_no_cofre' }));
+          return;
+        }
+        if (ehIntegracao) {
+          if (!o.integracoes) return responder(503, { erro: 'integracoes_indisponiveis' });
+          const rota = o.integracoes[url.slice('/integracoes/'.length) as 'iniciar' | 'ferramentas' | 'desconectar' | 'retirar'];
+          rota(jwt, payload).then(r => responder(r.status, r.corpo), () => responder(502, { erro: 'falha_nas_integracoes' }));
           return;
         }
         if (ehLink) {

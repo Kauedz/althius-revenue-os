@@ -4,7 +4,7 @@
 
 **Blocked by:** None.
 
-**Status:** in-progress
+**Status:** done
 
 ## Pode mexer
 
@@ -21,14 +21,20 @@
 
 ## Critérios
 
-- [ ] Só quem tem `integrations.connect` inicia conexão (BDR recusado); a conferência é do banco.
-- [ ] O retorno do OAuth só vale com `state` de uma tentativa pendente, dentro do prazo, de uma pessoa ainda ativa no workspace, uma única vez.
-- [ ] Token e segredo do cliente ficam cifrados e nunca voltam em resposta, log ou erro.
-- [ ] Cada pessoa vê só o próprio acesso; ninguém lê o de outro (nem superadmin pela tela).
-- [ ] Renovação de token automática; token recusado marca "precisa reconectar".
-- [ ] Desconectar e retirar a integração não apagam contas, contatos nem vínculos.
-- [ ] Isolamento entre workspaces testado.
-- [ ] `npm run verificar` verde.
+- [x] Só quem tem `integrations.connect` inicia conexão (BDR recusado); a conferência é do banco.
+- [x] O retorno do OAuth só vale com `state` de uma tentativa pendente, dentro do prazo, de uma pessoa ainda ativa no workspace, uma única vez.
+- [x] Token e segredo do cliente ficam cifrados e nunca voltam em resposta, log ou erro.
+- [x] Cada pessoa vê só o próprio acesso; ninguém lê o de outro (nem superadmin pela tela).
+- [x] Renovação de token automática; token recusado marca "precisa reconectar".
+- [x] Desconectar e retirar a integração não apagam contas, contatos nem vínculos.
+- [x] Isolamento entre workspaces testado.
+- [ ] `npm run verificar` verde. **Pendente:** banco (68 arquivos, 1.708 verificações), tipos e build passam; no front as mesmas 8 falhas de ambiente de antes (6 do executor do Hermes por rede local, 1 de permissão 0600 do Windows, 1 de tela do aprendizado), que falham igual sem este ticket.
+
+## Comments
+
+- Provado contra o **Notion real** em 06/10/2026: descoberta, registro automático e link de consentimento com PKCE (sem autorizar nenhuma conta). Falta uma conexão autorizada por uma pessoa, que depende da tela (ticket 02) e do site no ar.
+- Código e testes portados do protótipo (26 testes de OAuth e MCP) mais 22 de rotas, 6 do servidor e 5 contra o banco local; o teste de banco 00071.
+- Decisão: sem passo de "habilitar" (a primeira conexão habilita e fixa o portal). Ver ADR 0056.
 
 ## Passos do Nan
 
