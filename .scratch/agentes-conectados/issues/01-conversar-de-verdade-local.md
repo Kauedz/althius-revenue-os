@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** feito e conferido de verdade em 06/10/2026: Hermes oficial no Docker local, modelo pelo login do Codex (nome `gpt-6-luna` aceito), canal `geral` da Evolut, Zoe respondeu "8 contas e 0 negócios abertos" em 12 s, igual ao banco.
 
 ## Pode mexer
 Scripts de agentes (`scripts/agentes/`), documentação em `docs/agentes/`, composição Docker dos agentes (arquivos gerados fora do git), testes dos scripts.
@@ -13,10 +13,10 @@ Scripts de agentes (`scripts/agentes/`), documentação em `docs/agentes/`, comp
 Migrations antigas, arquivos gerados do protótipo, regras de segurança do perfil do Hermes (sem terminal, sem arquivos).
 
 ## Critérios
-- [ ] Um passo a passo curto em português (`docs/agentes/conversar-local.md`) que o Nan consegue seguir sem programar.
-- [ ] O provisionamento local funciona com o banco do Supabase CLI e o modo `--modelo-oauth luna`, sem chave de API em lugar nenhum.
-- [ ] Sem login feito, a conferência avisa "falta entrar no Codex" em vez de mostrar a mensagem de erro do Hermes como se fosse resposta do agente (ADR 0051, item 4).
-- [ ] Teste de ponta a ponta (Hermes e modelo falsos) segue verde; o resultado real é conferido pelo Nan.
+- [x] Um passo a passo curto em português (`docs/agentes/conversar-local.md`) que o Nan consegue seguir sem programar.
+- [x] O provisionamento local funciona com o banco do Supabase CLI e o modo `--modelo-oauth luna`, sem chave de API em lugar nenhum.
+- [x] Sem login feito, a conferência avisa "falta entrar no Codex" em vez de mostrar a mensagem de erro do Hermes como se fosse resposta do agente (ADR 0051, item 4).
+- [x] Teste de ponta a ponta (Hermes e modelo falsos) segue verde; o resultado real é conferido pelo Nan.
 
 ## Passos do Nan
 1. Docker Desktop aberto.
