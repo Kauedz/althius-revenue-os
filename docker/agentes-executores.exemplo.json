@@ -1,0 +1,7 @@
+{
+  "_ajuda": "Copie para agentes-executores.json (esse NÃO vai para o git: tem chaves). Uma entrada por cliente e agente. A url é a do servidor de API do Hermes daquele cliente, SEM /v1 (com /p/<perfil> quando um gateway serve vários perfis).",
+  "executores": {
+    "00000000-0000-0000-0000-000000000000/comercial": { "url": "http://hermes-cliente-exemplo:8642/p/comercial", "chave": "TROQUE-pela-API_SERVER_KEY-do-perfil", "modelo": "comercial" },
+    "00000000-0000-0000-0000-000000000000/marketing": { "url": "http://hermes-cliente-exemplo:8642/p/marketing", "chave": "TROQUE-pela-API_SERVER_KEY-do-perfil", "modelo": "marketing" }
+  }
+}

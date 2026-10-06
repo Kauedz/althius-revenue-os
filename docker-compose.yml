@@ -183,6 +183,26 @@ services:
       CADENCIA_INTERVALO_SEGUNDOS: ${CADENCIA_INTERVALO_SEGUNDOS:-60}
     networks: [interna]
 
+  # Harness dos agentes (PR 14): entrega os pedidos dos canais ao Hermes Agent de cada cliente e grava a resposta.
+  # Só roda para quem tem executor em ./docker/agentes-executores.json (copie de agentes-executores.exemplo.json).
+  # Sem arquivo ou sem entrada para o agente, o pedido espera na fila: nunca existe resposta de mentira.
+  agentes:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.agentes
+    restart: unless-stopped
+    depends_on:
+      rest:
+        condition: service_started
+    environment:
+      BANCO_URL: http://rest:3000
+      SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      AGENTES_EXECUTORES_ARQUIVO: /config/agentes-executores.json
+      AGENTES_INTERVALO_SEGUNDOS: ${AGENTES_INTERVALO_SEGUNDOS:-3}
+    volumes:
+      - ./docker/agentes-executores.json:/config/agentes-executores.json:ro
+    networks: [interna]
+
   # Backup agendado do banco e dos arquivos, em ./backups (copie para fora do servidor).
   backup:
     image: supabase/postgres:17.11.0.002

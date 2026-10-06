@@ -8,3 +8,4 @@ buzz-reference
 supabase/.branches
 .scratch/desenvolvimento/
 backups
+docker/agentes-executores.json

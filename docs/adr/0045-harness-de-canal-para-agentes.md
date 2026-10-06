@@ -19,6 +19,6 @@ O estado fica no Postgres (migration 0110); o Hermes Agent só consome pelo exec
 
 ## Consequências
 - Quem tem política `always` gasta 2 créditos por lote de mensagens: o dono do canal decide isso conscientemente.
-- O executor real (Hermes por cliente, em contêiner) ainda não existe: por isso **não há serviço novo no Docker** nesta entrega. Quando existir, ele implementa `ExecutorAgente` e roda `rodarCicloHarness` a cada poucos segundos.
+- O executor real (Hermes) entrou na ADR 0047: o serviço `agentes` roda `rodarCicloHarness` com o executor do Hermes e só pega agentes que têm executor registrado.
 - A tela de canais ainda não mostra nem muda a política; hoje se muda pela função `chat_set_agent_policy`.
 - Peça vinda do Buzz (desenho, sem cópia de código): ver `THIRD_PARTY_NOTICES.md`, seção 3.
