@@ -1,8 +1,10 @@
-// `npm run agentes:provisionar -- --workspace <uuid> --responsavel <membro-uuid> --slug <nome-curto> --modelo-url <url> --modelo-nome <nome>`
+// `npm run agentes:provisionar -- --workspace <uuid> --responsavel <membro-uuid> --slug <nome-curto>`
+// (opcional: --modelo-url <url> --modelo-nome <nome> para apontar para outro modelo; o padrão é o gateway da Althius)
 // Prepara o Hermes Agent de UM cliente (ADR 0048): cria os 4 tokens dos agentes (uma vez só), os 4 perfis (só o MCP da
 // Althius, nenhuma ferramenta embutida), o perfil padrão fechado, o compose do cliente e a linha de cada agente no
 // registro de executores. Rodar de novo não troca tokens nem chaves: só completa o que falta.
-// Ambiente (do .env do projeto): SITE_URL, ANON_KEY, SERVICE_ROLE_KEY; HERMES_MODELO_CHAVE (chave do provedor de modelo).
+// Ambiente (do .env do projeto): SITE_URL, ANON_KEY, SERVICE_ROLE_KEY. A chave do modelo NÃO vai para o Hermes: o Hermes
+// usa o token do próprio agente no gateway, e a chave real do provedor fica no cofre (tela do superadmin).
 // Opcional: BANCO_API_URL (padrão SITE_URL/rest/v1).
 import { randomBytes } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -15,6 +17,9 @@ import { empacotarMcp } from './empacotar-mcp.mjs';
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 /** Como os contêineres chegam na API do banco: o ouvinte interno do Caddy (docker/Caddyfile), sem passar pela internet. */
 export const URL_BANCO_INTERNA = 'http://web:8081';
+/** O gateway do modelo (docker-compose.yml) na rede interna; o nome do modelo é lógico (o gateway escolhe o real). */
+export const URL_GATEWAY = 'http://gateway:3300/v1';
+export const NOME_GATEWAY = 'althius';
 
 export function lerArgumentos(argv) {
   const r = {};
@@ -39,9 +44,12 @@ export async function provisionar(o, io = {}) {
   if (!uuidValido(o.workspace ?? '')) throw new Error('--workspace precisa ser o id (uuid) do workspace do cliente.');
   if (!uuidValido(o.responsavel ?? '')) throw new Error('--responsavel precisa ser o id (uuid) do membro que responde pelos agentes (estrategista, C-level ou superadmin).');
   if (!slugValido(o.slug ?? '')) throw new Error('--slug precisa ser um nome curto: letras minúsculas, números e hífen (ex.: evolut).');
-  if (!o['modelo-url'] || !/^https?:\/\//.test(o['modelo-url'])) throw new Error('--modelo-url precisa ser o endereço (com /v1) do provedor de modelo compatível com OpenAI.');
-  if (!o['modelo-nome']) throw new Error('--modelo-nome precisa ser o nome do modelo no provedor.');
-  for (const v of ['urlBanco', 'chavePublica', 'chaveServico', 'chaveModelo']) if (!o[v]) throw new Error(`Falta ${v} (veja o cabeçalho do script).`);
+  // Por padrão o modelo é o gateway da Althius (ADR 0050): a chave do provedor fica no cofre, nunca no Hermes.
+  const modeloUrl = o['modelo-url'] ?? URL_GATEWAY;
+  const modeloNome = o['modelo-nome'] ?? NOME_GATEWAY;
+  if (!/^https?:\/\//.test(modeloUrl)) throw new Error('--modelo-url precisa ser um endereço http(s) (com /v1) compatível com OpenAI.');
+  if (!modeloNome) throw new Error('--modelo-nome precisa ser o nome do modelo.');
+  for (const v of ['urlBanco', 'chavePublica', 'chaveServico']) if (!o[v]) throw new Error(`Falta ${v} (veja o cabeçalho do script).`);
 
   const dados = path.join(pasta, 'docker', 'hermes', o.slug, 'data');
   const chaves = {};
@@ -64,8 +72,8 @@ export async function provisionar(o, io = {}) {
       criados.push(agente);
     }
     chaveApi = chaveApi ?? aleatoria('alt_hermes_');
-    escrever(path.join(dir, 'config.yaml'), perfilDoAgente({ urlBanco: URL_BANCO_INTERNA, chavePublica: o.chavePublica, token, modelo: { url: o['modelo-url'], nome: o['modelo-nome'] } }));
-    escrever(path.join(dir, '.env'), envDoPerfil({ chaveApi, chaveModelo: o.chaveModelo }));
+    escrever(path.join(dir, 'config.yaml'), perfilDoAgente({ urlBanco: URL_BANCO_INTERNA, chavePublica: o.chavePublica, token, modelo: { url: modeloUrl, nome: modeloNome } }));
+    escrever(path.join(dir, '.env'), envDoPerfil({ chaveApi, chaveModelo: token }));
     chaves[agente] = chaveApi;
   }
   // Perfil padrão: fechado e com chave aleatória que ninguém recebe (só ele abre o ouvinte HTTP).
@@ -102,7 +110,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     await provisionar({
       ...a,
       urlBanco: process.env.BANCO_API_URL || (site ? `${site}/rest/v1` : ''),
-      chavePublica: process.env.ANON_KEY, chaveServico: process.env.SERVICE_ROLE_KEY, chaveModelo: process.env.HERMES_MODELO_CHAVE
+      chavePublica: process.env.ANON_KEY, chaveServico: process.env.SERVICE_ROLE_KEY
     });
   } catch (e) {
     console.error(e.message);

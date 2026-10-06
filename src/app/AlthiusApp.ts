@@ -1406,7 +1406,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     'admin/workspaces': { titulo: 'Workspaces', sub: 'Clientes da Althius', busca: true, filtro: 'status',
       colunas: [['nome', 'Cliente', '2fr'], ['slug', 'Endereço', '1fr'], ['clevel', 'C-level', '1.4fr'], ['membros', 'Membros', '90px'], ['saldo', 'Saldo', '1.2fr'], ['status', 'Status', '1fr']] },
     'admin/usage': { titulo: 'Uso global', sub: 'Consumo de créditos por cliente no ciclo', busca: true,
-      colunas: [['nome', 'Cliente', '2fr'], ['consumido', 'Consumido no ciclo', '1.4fr'], ['saldo', 'Saldo', '1.2fr'], ['execucoes', 'Execuções no mês', '1fr'], ['ultimo', 'Último uso', '1fr']] },
+      colunas: [['nome', 'Cliente', '2fr'], ['consumido', 'Consumido no ciclo', '1.4fr'], ['saldo', 'Saldo', '1.2fr'], ['execucoes', 'Execuções no mês', '1fr'], ['tokens', 'Tokens do modelo no mês', '1.2fr'], ['custoModelo', 'Custo real do modelo', '1.2fr'], ['ultimo', 'Último uso', '1fr']] },
     'admin/providers': { titulo: 'Fornecedores', sub: 'Chaves de coleta, mensagens e modelo de IA. Só os 4 últimos caracteres aparecem.', filtro: 'tipo',
       colunas: [['nome', 'Fornecedor', '1.6fr'], ['tipo', 'Tipo', '1.4fr'], ['status', 'Status', '1fr'], ['uso', 'Custo real no mês', '1.2fr'], ['detalhe', 'Detalhe', '2fr']] },
     'admin/margins': { titulo: 'Margens', sub: 'Preço em créditos de cada capacidade', busca: true,
@@ -1478,8 +1478,12 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
         { k: 'provedor', label: 'Fornecedor', valor: 'apify', opcoes: (Object.keys(ROTULO_PROVEDOR) as ProvedorCofre[]).map(k => ({ valor: k, label: ROTULO_PROVEDOR[k] })) },
         { k: 'rotulo', label: 'Nome da chave', valor: '', placeholder: 'Ex.: Apify conta 6 · Reserva' },
         { k: 'segredo', label: 'Chave (não aparece de novo)', valor: '', tipo: 'password', placeholder: 'Cole a chave aqui' },
-        { k: 'endereco', label: 'Endereço da API (só modelo de IA, ou Unipile se tiver outro)', valor: '', placeholder: 'https://api.openai.com/v1' },
-        { k: 'modelo', label: 'Nome do modelo (só modelo de IA)', valor: '', placeholder: 'Ex.: o nome exato que o fornecedor deu' }
+        { k: 'api', label: 'Tipo de API (só modelo de IA)', valor: 'openai', opcoes: [{ valor: 'openai', label: 'OpenAI e compatíveis' }, { valor: 'anthropic', label: 'Claude (Anthropic)' }] },
+        { k: 'endereco', label: 'Endereço da API (modelo de IA; na Claude pode ficar vazio)', valor: '', placeholder: 'https://api.openai.com/v1' },
+        { k: 'modelo', label: 'Nome do modelo (só modelo de IA)', valor: '', placeholder: 'Copie o nome exato do painel do fornecedor' },
+        { k: 'prioridade', label: 'Prioridade (1 = principal; números maiores = reserva)', valor: '', placeholder: 'Ex.: 1' },
+        { k: 'preco_entrada', label: 'Preço por 1 milhão de tokens de entrada, em US$ (opcional, só superadmin)', valor: '', placeholder: 'Para calcular o custo real' },
+        { k: 'preco_saida', label: 'Preço por 1 milhão de tokens de saída, em US$ (opcional, só superadmin)', valor: '', placeholder: 'Preencha os dois ou nenhum' }
       ] });
       return true;
     }
@@ -1525,8 +1529,15 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (!val('rotulo')) return falhou('Dê um nome para a chave.');
     if (val('segredo').length < 8) return falhou('Cole a chave inteira.');
     const config: Record<string, string> = {};
-    if (provedor === 'modelo_ia') { config.base_url = val('endereco'); config.modelo = val('modelo'); }
-    else if (provedor === 'unipile' && val('endereco')) config.url = val('endereco');
+    if (provedor === 'modelo_ia') {
+      config.api = val('api');
+      if (val('endereco')) config.base_url = val('endereco');
+      config.modelo = val('modelo');
+      if (val('prioridade')) config.prioridade = val('prioridade');
+      if (val('preco_entrada')) config.preco_entrada = val('preco_entrada');
+      if (val('preco_saida')) config.preco_saida = val('preco_saida');
+    }
+    else if (provedor === 'mensagens' && val('endereco')) config.url = val('endereco');
     const r = await guardarChave(this.props.supabase, { provedor, rotulo: val('rotulo'), segredo: val('segredo'), config });
     if (!this.vivo) return;
     if (!r.ok) return falhou(r.mensagem);

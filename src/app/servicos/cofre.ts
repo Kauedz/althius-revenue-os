@@ -2,15 +2,15 @@
 // confere o superadmin, cifra e guarda. A tela nunca recebe a chave de volta: só os 4 últimos caracteres na lista.
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export type ProvedorCofre = 'apify' | 'unipile' | 'unipile_webhook' | 'modelo_ia';
+export type ProvedorCofre = 'apify' | 'mensagens' | 'mensagens_webhook' | 'modelo_ia';
 export type ResultadoCofre = { ok: true; mensagem?: string } | { ok: false; mensagem: string };
 export interface NovaChave { provedor: ProvedorCofre; rotulo: string; segredo: string; config?: Record<string, string> }
 
 export const ROTULO_PROVEDOR: Record<ProvedorCofre, string> = {
   apify: 'Apify (coleta de dados)',
-  modelo_ia: 'Modelo de IA do Hermes (fica guardada; entra em uso na próxima etapa)',
-  unipile: 'Unipile (chave da API)',
-  unipile_webhook: 'Unipile (segredo do webhook)'
+  modelo_ia: 'Modelo de IA dos agentes',
+  mensagens: 'Canal de mensagens (chave da API)',
+  mensagens_webhook: 'Canal de mensagens (segredo do webhook)'
 };
 
 const FALHA = 'Não foi possível falar com o servidor agora. Tente de novo.';

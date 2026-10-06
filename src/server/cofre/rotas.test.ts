@@ -20,7 +20,8 @@ function montar(opcoes: { papel?: 'superadmin' | 'outro' | 'sem_login'; lidos?: 
     }
     if (u.includes('/rpc/cofre_guardar')) { gravado.push(JSON.parse(String(init.body))); return Response.json('id-novo'); }
     if (u.startsWith('https://')) {
-      const auth = String((init.headers as Record<string, string>).Authorization);
+      const h = init.headers as Record<string, string>;
+      const auth = String(h.Authorization ?? h['x-api-key']);
       sondas.push({ url: u, auth });
       return new Response('{}', { status: (opcoes.sonda ?? (() => 200))(u, auth) });
     }
@@ -66,14 +67,36 @@ describe('guardar segredo', () => {
     ]) expect((await guardarSegredo(m.deps, 'jwt', corpo)).status).toBe(400);
     expect(m.gravado).toHaveLength(0);
   });
-  it('modelo de IA exige endereço https e nome do modelo; Unipile aceita endereço opcional', async () => {
+  it('modelo de IA (OpenAI): exige endereço https e nome; guarda tipo, prioridade e preços; Unipile aceita endereço opcional', async () => {
     const m = montar();
-    expect((await guardarSegredo(m.deps, 'jwt', { provedor: 'modelo_ia', rotulo: 'm', segredo: 'sk-abcdefgh1234' })).status).toBe(400);
-    expect((await guardarSegredo(m.deps, 'jwt', { provedor: 'modelo_ia', rotulo: 'm', segredo: 'sk-abcdefgh1234', config: { base_url: 'http://exemplo.com/v1', modelo: 'x' } })).status).toBe(400);
-    expect((await guardarSegredo(m.deps, 'jwt', { provedor: 'modelo_ia', rotulo: 'm', segredo: 'sk-abcdefgh1234', config: { base_url: 'https://api.exemplo.com/v1/', modelo: 'gpt-x' } })).status).toBe(200);
-    expect(m.gravado[0].p_config).toEqual({ base_url: 'https://api.exemplo.com/v1', modelo: 'gpt-x' });
+    const base = { provedor: 'modelo_ia', rotulo: 'm', segredo: 'sk-abcdefgh1234' };
+    expect((await guardarSegredo(m.deps, 'jwt', base)).status).toBe(400);
+    expect((await guardarSegredo(m.deps, 'jwt', { ...base, config: { base_url: 'http://exemplo.com/v1', modelo: 'x' } })).status).toBe(400);
+    expect((await guardarSegredo(m.deps, 'jwt', { ...base, config: { base_url: 'https://api.exemplo.com/v1/', modelo: 'gpt-x' } })).status).toBe(200);
+    expect(m.gravado[0].p_config).toEqual({ api: 'openai', base_url: 'https://api.exemplo.com/v1', modelo: 'gpt-x', prioridade: 50 });
+    expect((await guardarSegredo(m.deps, 'jwt', { ...base, rotulo: 'm2', config: { api: 'openai', base_url: 'https://api.exemplo.com/v1', modelo: 'gpt-x', prioridade: '5', preco_entrada: '2,5', preco_saida: '10' } })).status).toBe(200);
+    expect(m.gravado[1].p_config).toEqual({ api: 'openai', base_url: 'https://api.exemplo.com/v1', modelo: 'gpt-x', prioridade: 5, preco_entrada: 2.5, preco_saida: 10 });
     expect((await guardarSegredo(m.deps, 'jwt', { provedor: 'unipile', rotulo: 'u', segredo: 'unipile-abcdefgh', config: { url: 'ftp://x' } })).status).toBe(400);
     expect((await guardarSegredo(m.deps, 'jwt', { provedor: 'unipile', rotulo: 'u', segredo: 'unipile-abcdefgh' })).status).toBe(200);
+  });
+  it('modelo de IA (Claude): endereço é opcional (usa o padrão); tipo de API e números inválidos são recusados', async () => {
+    const m = montar();
+    const base = { provedor: 'modelo_ia', rotulo: 'c', segredo: 'sk-ant-abcdefgh1234' };
+    expect((await guardarSegredo(m.deps, 'jwt', { ...base, config: { api: 'anthropic', modelo: 'claude-x' } })).status).toBe(200);
+    expect(m.gravado[0].p_config).toEqual({ api: 'anthropic', modelo: 'claude-x', prioridade: 50 });
+    for (const config of [
+      { api: 'outra', base_url: 'https://a.com/v1', modelo: 'x' },
+      { api: 'openai', base_url: 'https://a.com/v1', modelo: 'x', prioridade: 'alta' },
+      { api: 'openai', base_url: 'https://a.com/v1', modelo: 'x', prioridade: 0 },
+      { api: 'openai', base_url: 'https://a.com/v1', modelo: 'x', preco_entrada: -1, preco_saida: 1 },
+      { api: 'openai', base_url: 'https://a.com/v1', modelo: 'x', preco_entrada: 1 }
+    ]) expect((await guardarSegredo(m.deps, 'jwt', { ...base, rotulo: 'z', config })).status).toBe(400);
+  });
+  it('a tela usa nomes neutros para o canal de mensagens; o servidor traduz para o nome do banco', async () => {
+    const m = montar();
+    expect((await guardarSegredo(m.deps, 'jwt', { provedor: 'mensagens', rotulo: 'u', segredo: 'chave-abcdefgh' })).status).toBe(200);
+    expect((await guardarSegredo(m.deps, 'jwt', { provedor: 'mensagens_webhook', rotulo: 'w', segredo: 'segredo-abcdefgh' })).status).toBe(200);
+    expect(m.gravado.map(g => g.p_provedor)).toEqual(['unipile', 'unipile_webhook']);
   });
   it('config desconhecida é descartada (só entra o que o fornecedor usa)', async () => {
     const m = montar();
@@ -109,6 +132,13 @@ describe('testar segredo', () => {
     const m = montar({ lidos });
     await testarSegredo(m.deps, 'jwt', { id: 'm1' });
     expect(m.sondas[0]).toEqual({ url: 'https://api.exemplo.com/v1/models', auth: 'Bearer sk-modelo-1234' });
+  });
+  it('Modelo de IA da Claude: chama {endereço padrão}/models com x-api-key e a versão', async () => {
+    const m = montar({ lidos: { modelo_ia: [{ id: 'c1', rotulo: 'C', segredo: 'sk-ant-1234', config: { api: 'anthropic', modelo: 'claude-x' } }] } });
+    const r = await testarSegredo(m.deps, 'jwt', { id: 'c1' });
+    expect(r.corpo).toEqual({ ok: true });
+    expect(m.sondas[0].url).toBe('https://api.anthropic.com/v1/models');
+    expect(m.sondas[0].auth).toBe('sk-ant-1234');
   });
   it('Unipile: sem teste automático (não inventamos endereço de teste)', async () => {
     const m = montar({ lidos });

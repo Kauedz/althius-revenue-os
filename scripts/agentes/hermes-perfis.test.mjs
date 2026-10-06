@@ -53,6 +53,7 @@ describe('montarCompose', () => {
     expect(c).toContain('./docker/hermes/evolut/data:/opt/data');
     expect(c).toContain('./docker/hermes/mcp:/opt/althius:ro');
     expect(c).toContain('networks: [interna]');
+    expect(c).toMatch(/gateway:\n\s+condition: service_started/); // o Hermes só sobe depois do gateway do modelo
     expect(c).not.toContain('ports:');
   });
   it('sem clientes, um arquivo válido e vazio; slug estranho é recusado', () => {

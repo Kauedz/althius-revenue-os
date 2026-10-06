@@ -77,14 +77,15 @@ export async function revogarChavesDosAgentes(cliente: SupabaseClient, workspace
 // ---------------------------------------------------------------- Telas só leitura
 
 export async function usoGlobal(cliente: SupabaseClient) {
-  const lista = await ler<{ id: string; nome: string; consumido: number; saldo: number; execucoes_mes: number; ultimo_uso: string | null }>(cliente, 'admin_usage');
+  const lista = await ler<{ id: string; nome: string; consumido: number; saldo: number; execucoes_mes: number; ultimo_uso: string | null; tokens_mes?: number; custo_modelo_usd?: number }>(cliente, 'admin_usage');
   return {
     kpis: [
       ['Créditos consumidos no ciclo', nf(lista.reduce((s, u) => s + Number(u.consumido), 0)), 'todos os clientes'],
       ['Execuções no mês', nf(lista.reduce((s, u) => s + Number(u.execucoes_mes), 0)), '']
     ] as Kpi[],
     linhas: lista.map(u => ({ id: u.id, nome: u.nome, consumido: nf(Number(u.consumido)) + ' créditos', saldo: nf(Number(u.saldo)) + ' créditos',
-      execucoes: nf(Number(u.execucoes_mes)), ultimo: data(u.ultimo_uso) }))
+      execucoes: nf(Number(u.execucoes_mes)), ultimo: data(u.ultimo_uso), tokens: nf(Number(u.tokens_mes ?? 0)),
+      custoModelo: Number(u.custo_modelo_usd ?? 0) > 0 ? 'US$ ' + Number(u.custo_modelo_usd).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '—' })) // custo real do modelo: só superadmin
   };
 }
 

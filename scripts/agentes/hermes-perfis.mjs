@@ -78,6 +78,8 @@ export function montarCompose(slugs, imagem = HERMES_IMAGEM) {
       '    depends_on:',
       '      web:',
       '        condition: service_started',
+      '      gateway:',
+      '        condition: service_started',
       '    networks: [interna]',
       ''
     );
