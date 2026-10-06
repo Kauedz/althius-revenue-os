@@ -32,6 +32,15 @@ describe.skipIf(!bancoLocalNoAr)('Campanhas e Cadências (banco local)', () => {
     await adm.from('cadences').delete().eq('workspace_id', WS);
   });
 
+  it('Campanhas: os cartões de canal só citam conectores que existem (nada de código cru nem app que saiu do catálogo)', async () => {
+    await entrar('camila@althius.com.br', 'campaigns', 'Nova campanha');
+    for (const bruto of ['liads', 'gads', 'ga4', 'gdrive', 'eventbrite', 'gsc']) expect(screen.queryByText(bruto, { exact: true }), bruto).not.toBeInTheDocument();
+    for (const nome of ['Google Analytics 4', 'Google Drive', 'Eventbrite', 'Google Search Console']) expect(screen.queryByText(nome, { exact: true }), nome).not.toBeInTheDocument();
+    expect(screen.getByText(/0 de 3 conectores ativos/)).toBeInTheDocument();
+    // O Meta Ads continua no catálogo (Em breve), então aparece como conector do canal Meta Ads.
+    expect(screen.getAllByText('Meta Ads').length).toBeGreaterThan(1);
+  });
+
   it('Campanhas: sem nada do protótipo; a estrategista cria a campanha e a verba vira pedido ao C-level', async () => {
     await entrar('camila@althius.com.br', 'campaigns', 'Nova campanha');
     for (const nome of PROTOTIPO) expect(screen.queryByText(nome, { exact: false }), nome).not.toBeInTheDocument();

@@ -75,7 +75,7 @@ describe('quem pode usar a ponte', () => {
   it('integração desconhecida: 404; "em breve": 409; canal de mensagens: 409 (conta de mensagem não é desta ponte)', async () => {
     const m = montar();
     expect((await ferramentasDoAgente(m.deps, TOKEN_ZOE, { integracao: 'inventada' })).status).toBe(404);
-    expect((await ferramentasDoAgente(m.deps, TOKEN_ZOE, { integracao: 'slack' })).status).toBe(409);
+    expect((await ferramentasDoAgente(m.deps, TOKEN_ZOE, { integracao: 'rdstation' })).status).toBe(409);
     const canal = await ferramentasDoAgente(m.deps, TOKEN_ZOE, { integracao: 'gmail' });
     expect(canal.status).toBe(409);
     expect(canal.corpo.erro).toBe('canal_de_mensagens');

@@ -101,7 +101,9 @@ describe('iniciar a conexão', () => {
   it('integração que não existe: 404; que ainda não pode conectar: 409 com o motivo, sem chamar o app', async () => {
     const m = montar();
     expect((await iniciarConexao(m.deps, 'jwt-aline', { workspaceId: WS, integracao: 'inventada' })).status).toBe(404);
-    const emBreve = await iniciarConexao(m.deps, 'jwt-aline', { workspaceId: WS, integracao: 'salesforce' });
+    const removido = await iniciarConexao(m.deps, 'jwt-aline', { workspaceId: WS, integracao: 'salesforce' });
+    expect(removido.status).toBe(404); // saiu do catálogo (ADR 0063)
+    const emBreve = await iniciarConexao(m.deps, 'jwt-aline', { workspaceId: WS, integracao: 'rdstation' });
     expect(emBreve.status).toBe(409);
     expect((emBreve.corpo as { erro: string }).erro).toBe('em_breve');
     expect(String((emBreve.corpo as { motivo: string }).motivo).length).toBeGreaterThan(10);

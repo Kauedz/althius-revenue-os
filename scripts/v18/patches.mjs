@@ -783,5 +783,67 @@ export const PATCHES = [
     arquivo: 'althius.css',
     trocar: '.mapa-pin[data-semlocal="true"] path {',
     por: '.mapa-pin[data-semlocal="true"] .pin-tip { left: auto; right: 0; transform: none; }\n  .mapa-pin[data-semlocal="true"] path {'
+  },
+  {
+    // ADR 0063: o Nan enxugou o catálogo em 06/10/2026. Fica o que conecta hoje (HubSpot, Pipedrive, Notion, Apollo, canais de
+    // mensagem...) mais o que ele quer ter: RD Station, Google Agenda e Meta Ads (os três "Em breve"). O resto, que não existe, sai.
+    regra: 'catálogo de conectores: só os que existem ou foram pedidos (ADR 0063)',
+    arquivo: 'module.js',
+    aplicar: texto => {
+      const FICAM = ['hubspot', 'pipedrive', 'rdstation', 'whatsapp', 'instagram', 'gmail', 'gcal', 'outlook', 'granola', 'otter', 'notion', 'confluence', 'apollo', 'linkedin', 'calendly', 'meta'];
+      const inicio = texto.indexOf('window.ALTHIUS_CONECTORES = ');
+      if (inicio < 0) throw new Error('Regra "catálogo de conectores": não achei window.ALTHIUS_CONECTORES. O design mudou? Revise scripts/v18/patches.mjs.');
+      const fimLinha = texto.indexOf('\n', inicio) < 0 ? texto.length : texto.indexOf('\n', inicio);
+      const catalogo = JSON.parse(texto.slice(inicio + 'window.ALTHIUS_CONECTORES = '.length, fimLinha).replace(/;\s*$/, ''));
+      const faltam = FICAM.filter(id => !catalogo.lista.some(c => c.id === id));
+      if (faltam.length) throw new Error(`Regra "catálogo de conectores": o design não traz mais ${faltam.join(', ')}. Revise scripts/v18/patches.mjs.`);
+      catalogo.lista = catalogo.lista.filter(c => FICAM.includes(c.id));
+      catalogo.cats = catalogo.cats.filter(cat => catalogo.lista.some(c => c.cat === cat.id));
+      return texto.slice(0, inicio) + 'window.ALTHIUS_CONECTORES = ' + JSON.stringify(catalogo) + ';' + texto.slice(fimLinha);
+    }
+  },
+  {
+    // ADR 0063: os cartões de canal da tela de Campanhas ligavam cada canal a conectores que saíram do catálogo (apareciam
+    // com o código cru, como "liads"). O canal continua (é como a campanha é classificada); só cita o conector que existe.
+    regra: 'campanhas: cartões de canal só citam conectores que existem (ADR 0063)',
+    arquivo: 'logic.generated.js',
+    trocar: "['LinkedIn Ads', ['liads'], 'ABM com as contas do ICP: anúncio só para quem está na lista.'",
+    por: "['LinkedIn Ads', [], 'ABM com as contas do ICP: anúncio só para quem está na lista.'"
+  },
+  {
+    regra: 'campanhas: Google Ads sem conectores que saíram do catálogo (ADR 0063)',
+    arquivo: 'logic.generated.js',
+    trocar: "['Google Ads', ['gads', 'ga4'],",
+    por: "['Google Ads', [],"
+  },
+  {
+    regra: 'campanhas: Orgânico sem Google Drive (ADR 0063)',
+    arquivo: 'logic.generated.js',
+    trocar: "['Orgânico', ['notion', 'gdrive'],",
+    por: "['Orgânico', ['notion'],"
+  },
+  {
+    regra: 'campanhas: Evento sem Eventbrite (ADR 0063)',
+    arquivo: 'logic.generated.js',
+    trocar: "['Evento', ['eventbrite', 'hubspot'],",
+    por: "['Evento', ['hubspot'],"
+  },
+  {
+    regra: 'campanhas: SEO/GEO sem Search Console nem Analytics (ADR 0063)',
+    arquivo: 'logic.generated.js',
+    trocar: "['SEO/GEO', ['gsc', 'ga4'],",
+    por: "['SEO/GEO', [],"
+  },
+  {
+    regra: 'agentes: Jax não cita Google Ads nem LinkedIn Ads, que saíram do catálogo (ADR 0063)',
+    arquivo: 'data.js',
+    trocar: "I('Mídia paga','Meta Ads','Leitura'), I('Mídia paga','Google Ads','Leitura'), I('Mídia paga','LinkedIn Ads','Leitura')",
+    por: "I('Mídia paga','Meta Ads','Leitura')"
+  },
+  {
+    regra: 'agentes: Neo não cita Google Sheets, que saiu do catálogo (ADR 0063)',
+    arquivo: 'data.js',
+    trocar: "I('CRM','HubSpot','Leitura e escrita'), I('Planilhas','Google Sheets','Escrita')",
+    por: "I('CRM','HubSpot','Leitura e escrita')"
   }
 ];

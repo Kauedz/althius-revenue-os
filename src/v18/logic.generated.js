@@ -596,12 +596,12 @@ export class AlthiusLogic extends React.Component {
         status: e === 'on' ? 'Conectado · ' + CX[id].conta : e === 'erro' ? 'Falha na conexão' : 'Não conectado', cor: e === 'on' ? 'var(--graphite)' : e === 'erro' ? 'var(--err)' : 'var(--muted)',
         btnCls: e === 'on' ? 'con-btn-sec' : 'con-btn', acaoLabel: e === 'on' ? 'Gerenciar' : e === 'erro' ? 'Reconectar' : 'Conectar', acao: () => this.abrirOauth(id) }; };
       const CANAIS = [
-        ['LinkedIn Ads', ['liads'], 'ABM com as contas do ICP: anúncio só para quem está na lista.', 'Monta o público a partir das contas qualificadas, lê CPL por cargo e sugere onde pôr ou tirar verba.'],
+        ['LinkedIn Ads', [], 'ABM com as contas do ICP: anúncio só para quem está na lista.', 'Monta o público a partir das contas qualificadas, lê CPL por cargo e sugere onde pôr ou tirar verba.'],
         ['Meta Ads', ['meta'], 'Remarketing e públicos parecidos com os clientes atuais.', 'Sobe a lista de clientes como público, acompanha frequência e avisa quando o anúncio cansa.'],
-        ['Google Ads', ['gads', 'ga4'], 'Busca por intenção: quem procura importação e conta e ordem.', 'Lê termos de busca, corta palavras que só trazem curioso e cruza conversão com o GA4.'],
-        ['Orgânico', ['notion', 'gdrive'], 'Posts e materiais do calendário editorial.', 'Define a pauta pelos sinais das contas. O Lia escreve, o Jax mede alcance e leads.'],
-        ['Evento', ['eventbrite', 'hubspot'], 'Feiras, webinars e encontros com o ICP.', 'Cruza inscritos com contas do CRM e coloca quem foi numa cadência pós-evento.'],
-        ['SEO/GEO', ['gsc', 'ga4'], 'Aparecer no Google e nas respostas de ChatGPT, Gemini e Perplexity.', 'Acompanha buscas e páginas que trazem visita e indica que conteúdo falta para a IA citar a marca.']
+        ['Google Ads', [], 'Busca por intenção: quem procura importação e conta e ordem.', 'Lê termos de busca, corta palavras que só trazem curioso e cruza conversão com o GA4.'],
+        ['Orgânico', ['notion'], 'Posts e materiais do calendário editorial.', 'Define a pauta pelos sinais das contas. O Lia escreve, o Jax mede alcance e leads.'],
+        ['Evento', ['hubspot'], 'Feiras, webinars e encontros com o ICP.', 'Cruza inscritos com contas do CRM e coloca quem foi numa cadência pós-evento.'],
+        ['SEO/GEO', [], 'Aparecer no Google e nas respostas de ChatGPT, Gemini e Perplexity.', 'Acompanha buscas e páginas que trazem visita e indica que conteúdo falta para a IA citar a marca.']
       ];
       const num = s => parseFloat(String(s).replace(/[^0-9,]/g, '').replace(',', '.')) || 0;
       const todos = []; CANAIS.forEach(c => c[1].forEach(id => { if (todos.indexOf(id) < 0) todos.push(id); }));
