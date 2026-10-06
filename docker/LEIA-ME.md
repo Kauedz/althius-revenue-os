@@ -83,5 +83,6 @@ O contêiner `agentes` (ADR 0047) pega os pedidos dos canais e os entrega ao Her
 - Ver o que está acontecendo: `docker compose logs -f agentes` (linhas `agentes_ciclo`, `harness_lote_respondido`, `harness_lote_falhou`; o log nunca mostra o texto das mensagens).
 - Adicionar um cliente ou agente: acrescente a entrada no arquivo; o serviço relê sozinho, sem reiniciar.
 - **Teste de ponta a ponta** (prova canal → fila → Hermes → banco → resposta): `scripts/agentes/teste-ponta-a-ponta.mjs` (variáveis no cabeçalho do arquivo). Sem chave de modelo, use `scripts/agentes/modelo-de-mentira.mjs` como modelo de IA do perfil de teste.
-- **Ainda não existe:** o Hermes rodando por cliente dentro do Docker e um modelo de IA de verdade configurado.
+- **Preparar o Hermes de um cliente** (ADR 0048): `npm run agentes:provisionar -- --workspace <uuid do cliente> --responsavel <uuid do membro estrategista/C-level> --slug <nome-curto> --modelo-url <endereço do provedor, com /v1> --modelo-nome <modelo>`, com `HERMES_MODELO_CHAVE` no `.env`. Depois `npm run docker:subir`. Ele cria os 4 tokens, os 4 perfis (só as ferramentas da Althius), o contêiner do cliente e as linhas do `agentes-executores.json`. Rodar de novo não troca tokens nem chaves. Mudou perfis com o contêiner no ar? `docker compose restart hermes-<slug>`.
+- **Ainda não existe:** um modelo de IA de verdade escolhido (decisão do dono: provedor e quem paga a chave).
 

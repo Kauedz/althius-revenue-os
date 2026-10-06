@@ -23,6 +23,6 @@ Com o Hermes real, o nosso MCP real e o banco local (só o modelo de IA era de m
 
 ## Consequências
 - **Falta um modelo de IA de verdade:** o Hermes de cada cliente precisa de um provedor de modelo (decisão do dono: qual provedor e quem paga; a ADR 0024 diz que a chave do modelo fica no nosso backend). O teste usa modelo de mentira.
-- **Falta provisionar o Hermes por cliente** (criar os 4 perfis, os tokens dos agentes, o contêiner e a linha no arquivo de executores): próximo PR.
+- **Provisionar o Hermes por cliente** (4 perfis, tokens, contêiner e registro): ADR 0048.
 - O custo dos tokens do modelo ainda não entra no extrato (hoje o cliente paga 2 créditos fixos por lote).
 - `scripts/agentes/teste-ponta-a-ponta.mjs` repete essa prova em qualquer servidor.

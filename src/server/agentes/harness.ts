@@ -26,7 +26,8 @@ export interface BancoHarness {
   recolher(semBatidaS: number): Promise<number>;
   pegar(opcoes: OpcoesPegar): Promise<LoteHarness[]>;
   batida(runId: string): Promise<boolean>;
-  terminar(runId: string, resultado: { ok: boolean; resposta?: string; erro?: string }): Promise<void>;
+  /** 'answered' = a resposta foi gravada no canal; 'failed' = o banco devolveu o lote à fila; 'unchanged' = o lote já não era mais nosso. */
+  terminar(runId: string, resultado: { ok: boolean; resposta?: string; erro?: string }): Promise<'answered' | 'failed' | 'unchanged'>;
 }
 
 export interface ExecutorAgente {
@@ -70,7 +71,13 @@ export async function rodarCicloHarness(o: OpcoesCiclo): Promise<ResumoCiclo> {
     try {
       const resposta = await o.executor.responder(lote, controle.signal);
       if (recolhido) { log({ nivel: 'aviso', msg: 'harness_lote_recolhido', run_id: lote.run_id }); return; }
-      await o.banco.terminar(lote.run_id, { ok: true, resposta });
+      const gravado = await o.banco.terminar(lote.run_id, { ok: true, resposta });
+      if (gravado !== 'answered') {
+        // O banco não aceitou a resposta (lote recolhido ou resposta recusada): não conta como respondido.
+        resumo.falhas++;
+        log({ nivel: 'aviso', msg: 'harness_resposta_nao_gravada', run_id: lote.run_id, agente: lote.agente, resultado: gravado });
+        return;
+      }
       resumo.respondidos++;
       log({ nivel: 'info', msg: 'harness_lote_respondido', run_id: lote.run_id, agente: lote.agente, mensagens: lote.mensagens.length });
     } catch (e) {
@@ -105,7 +112,8 @@ export function bancoHarnessViaApi(base: string, chaveServico: string, buscar: t
     }),
     batida: runId => chamar<boolean>('agent_harness_heartbeat', { p_run_id: runId }),
     terminar: async (runId, r) => {
-      await chamar('agent_harness_finish', { p_run_id: runId, p_ok: r.ok, p_reply: r.resposta ?? null, p_error: r.erro ?? null });
+      const d = await chamar<{ action?: string }>('agent_harness_finish', { p_run_id: runId, p_ok: r.ok, p_reply: r.resposta ?? null, p_error: r.erro ?? null });
+      return d?.action === 'answered' ? 'answered' : d?.action === 'failed' ? 'failed' : 'unchanged';
     }
   };
 }

@@ -24,7 +24,7 @@
 		reverse_proxy storage:5000
 	}
 
-	# Webhooks da Unipile. O segredo (cabeçalho Unipile-Auth) é conferido pelo próprio receptor.
+	# Webhooks da Unipile. A assinatura de cada aviso (cabeçalho unipile-signature) é conferida pelo próprio receptor.
 	handle /webhooks/unipile* {
 		request_body {
 			max_size 1MB
@@ -54,3 +54,13 @@
 		file_server
 	}
 }
+
+# Só para os contêineres por dentro da rede (o Hermes dos agentes): a API do banco sem passar pela internet.
+# A porta 8081 NÃO é publicada no docker-compose.yml; só quem está na rede interna chega aqui.
+:8081 {
+	handle_path /rest/v1/* {
+		reverse_proxy rest:3000
+	}
+	respond 404
+}
+

@@ -20,7 +20,9 @@
     "prepare": "git config core.hooksPath .githooks",
     "docker:env": "node scripts/docker/gerar-env.mjs",
     "docker:env:demo": "node scripts/docker/gerar-env.mjs --demo",
-    "docker:subir": "node scripts/docker/garantir-executores.mjs && docker compose up -d --build",
+    "docker:subir": "node scripts/docker/subir.mjs",
+    "agentes:mcp": "node scripts/agentes/empacotar-mcp.mjs",
+    "agentes:provisionar": "node scripts/agentes/provisionar-hermes.mjs",
     "docker:parar": "docker compose down",
     "docker:chave-unipile": "node scripts/docker/trocar-chave-unipile.mjs",
     "criar-superadmin": "node scripts/docker/criar-superadmin.mjs"
