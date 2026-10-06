@@ -227,6 +227,22 @@ services:
       - ./docker/agentes-executores.json:/config/agentes-executores.json:ro
     networks: [interna]
 
+  # Aprendizado compartilhado entre contas (PR 19, ADR 0052): a cada poucas horas o banco recalcula os padrões (só de
+  # clientes que aceitaram, mínimo de 3 clientes por padrão) e emite SUGESTÕES para o estrategista aplicar ou descartar.
+  aprendizado:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.aprendizado
+    restart: unless-stopped
+    depends_on:
+      rest:
+        condition: service_started
+    environment:
+      BANCO_URL: http://rest:3000
+      SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      APRENDIZADO_INTERVALO_HORAS: ${APRENDIZADO_INTERVALO_HORAS:-6}
+    networks: [interna]
+
   # Backup agendado do banco e dos arquivos, em ./backups (copie para fora do servidor).
   backup:
     image: supabase/postgres:17.11.0.002
