@@ -4220,6 +4220,20 @@ export function renderTemplate($v: Record<string, any>) {
                     {"\n              "}
                   </>) : null}
                   {"\n\n              "}
+                  {$v.cfgAprendizado ? (<>
+                    <section className={"cfg-box"}>
+                      <div className={"cfg-row cfg-row-line"}>
+                        <span style={{"flex":"1 1 auto","minWidth":"0","display":"flex","flexDirection":"column","gap":"2px"}}>
+                          <span style={{"fontSize":"14px","fontWeight":"500"}}>{__t($v.aprendizado?.titulo)}</span>
+                          <span style={{"fontSize":"13px","color":"var(--graphite)"}}>{__t($v.aprendizado?.desc)}</span>
+                          {$v.aprendizado?.nota ? (<span style={{"fontSize":"13px","color":"var(--graphite)"}}>{__t($v.aprendizado?.nota)}</span>) : null}
+                        </span>
+                        <button className={"switch"} role="switch" aria-checked={$v.aprendizado?.on} aria-label={$v.aprendizado?.titulo} onClick={$v.aprendizado?.alternar} disabled={$v.aprendizado?.travado}>
+                          <span></span>
+                        </button>
+                      </div>
+                    </section>
+                  </>) : null}
                   {$v.cfgAgentes ? (<>
                     {"\n                "}
                     <section className={"cfg-box"}>
@@ -8035,7 +8049,7 @@ export function renderTemplate($v: Record<string, any>) {
             <div style={{"display":"flex","gap":"8px","justifyContent":"flex-end","flexWrap":"wrap"}}>
               {"\n          "}
               <button className={"b-sec"} onClick={$v.confirmCancelar} style={{"minHeight":"44px","padding":"0 16px","border":"1px solid var(--steel)","background":"var(--paper)","fontFamily":"inherit","fontSize":"13px","cursor":"pointer","borderRadius":"10px"}}>
-                {"Cancelar"}
+                {__t($v.confirm?.cancelar || "Cancelar")}
               </button>
               {"\n          "}
               <button className={"b-pri"} onClick={$v.confirmOk} style={{"minHeight":"44px","padding":"0 16px","border":"1px solid var(--ink)","background":"var(--ink)","color":"var(--paper)","fontFamily":"inherit","fontSize":"13px","cursor":"pointer","borderRadius":"10px"}}>

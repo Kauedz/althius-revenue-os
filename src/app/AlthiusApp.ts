@@ -27,6 +27,7 @@ import { decidirAprendizado, lerPlaybooks, listarSugestoes, publicarPlaybook } f
 import { desconectarConta, iniciarConexaoConta, provedorDoCanal } from './servicos/conexoes';
 import { excluirContatoDoCrm, listarCaixa, marcarLida, minhasConexoes, pedirSugestaoDeResposta, type CaixaTela, type ConexoesTela } from './servicos/caixa';
 import * as admin from './servicos/admin';
+import { decidirConsentimento, lerConsentimento, marcarAvisoVisto, type EstadoAprendizado } from './servicos/aprendizado';
 import { alternarChave, guardarChave, removerChave, ROTULO_PROVEDOR, testarChave, type ProvedorCofre } from './servicos/cofre';
 import { arquivarCanal, criarCanal, editarMensagem, enviarNoCanal, lerMensagens, listarCanais, mudarCanal, reagir, type CanalTela } from './servicos/canais';
 import { pedirAoCopiloto } from './servicos/copiloto';
@@ -879,6 +880,58 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     }
   }
 
+  // ---- Aprendizado compartilhado entre contas (ADR 0052): começa desligado; o C-level vê o aviso uma vez só
+
+  /** Dados do interruptor em Configurações → Aprendizado (o gerado só desenha). */
+  aprendizadoTela() {
+    const base = {
+      titulo: 'Ajudar a melhorar o aprendizado dos agentes',
+      desc: 'Quando as contas compartilham o que funciona, todos os agentes aprendem mais rápido, os seus também. Nada que identifique sua empresa ou seus contatos é compartilhado.'
+    };
+    if (this.modoDemo !== false) {
+      const on = !!this.state.aprendizadoDemo;
+      return { ...base, on: on ? 'true' : 'false', travado: false, nota: '', alternar: () => this.setState({ aprendizadoDemo: !on }) };
+    }
+    const est = this.state.aprendizadoReal as EstadoAprendizado | null | undefined;
+    if (!est) return { ...base, on: 'false', travado: true, nota: 'Carregando…', alternar: () => {} };
+    return { ...base, on: est.aceito ? 'true' : 'false', travado: !est.podeDecidir, nota: est.podeDecidir ? '' : 'Só o C-level do workspace decide.', alternar: () => void this.decidirAprendizado(!est.aceito) };
+  }
+
+  private async carregarAprendizado() {
+    if (this.modoDemo !== false) return;
+    const ws = this.workspaceAtual();
+    this.setState({ aprendizadoReal: null });
+    if (!ws?.membroId) return;
+    const r = await lerConsentimento(this.props.supabase, ws.uuid, ws.membroId);
+    if (!this.vivo || this.workspaceAtual()?.uuid !== ws.uuid || !r.ok) return;
+    this.setState({ aprendizadoReal: r.estado });
+    // O aviso aparece uma vez só, para quem decide e ainda não viu. O banco garante a "primeira vez"; se outra janela
+    // estiver aberta, só uma mostra. Não atropela uma janela de confirmação que já esteja na tela.
+    if (!r.estado.podeDecidir || r.estado.avisoVisto || r.estado.aceito || this.state.confirm) return;
+    if (!(await marcarAvisoVisto(this.props.supabase, ws.uuid, ws.membroId))) return;
+    if (!this.vivo || this.workspaceAtual()?.uuid !== ws.uuid || this.state.confirm) return;
+    this.setState({ confirm: {
+      titulo: 'Deixe seus agentes ainda mais espertos',
+      texto: 'Quando as contas compartilham o que funciona, todos os agentes aprendem mais rápido, e os seus também. Ative para receber sugestões mais certeiras e ajudar a melhorar o aprendizado dos agentes. Nada que identifique sua empresa ou seus contatos é compartilhado. Você muda isso quando quiser em Configurações.',
+      rotulo: 'Quero ajudar e melhorar',
+      cancelar: 'Agora não',
+      acao: () => void this.decidirAprendizado(true, 'aviso')
+    } });
+  }
+
+  private async decidirAprendizado(aceito: boolean, origem: 'aviso' | 'cfg' = 'cfg') {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await decidirConsentimento(this.props.supabase, ws.uuid, ws.membroId, aceito);
+    if (!this.vivo) return;
+    if (!r.ok) return this.confirmar('Não foi possível salvar', r.mensagem, 'Entendi', () => {});
+    const atual = (this.state.aprendizadoReal || { avisoVisto: true, podeDecidir: true }) as EstadoAprendizado;
+    this.setState({ aprendizadoReal: { ...atual, aceito, avisoVisto: true } });
+    // Vindo do aviso (qualquer página), o agradecimento tem que aparecer onde a pessoa está; em Configurações, o aviso da seção.
+    if (origem === 'aviso') this.confirmar('Obrigado!', 'Seus agentes vão aprender com o que funciona em contas parecidas com a sua. Você pode desligar quando quiser em Configurações.', 'Fechar', () => {});
+    else this.avisarCfg(aceito ? 'Obrigado! Seus agentes vão aprender com o que funciona em contas parecidas.' : 'Compartilhamento desligado.');
+  }
+
   // ---- Páginas carregadas sob demanda (Claude): só buscam no banco quando a pessoa abre a página
 
   private carregarPaginaSobDemanda(prev: Readonly<Record<string, any>>) {
@@ -891,7 +944,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (rota.page === 'campaigns') void this.carregarCampanhas();
     if (rota.page === 'cadences') void this.carregarCadencias();
     if (String(rota.page || '').startsWith('admin/')) void this.carregarAdmin(rota.page);
-    if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) { void this.carregarConexoes(); void this.carregarCanais(); }
+    if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) { void this.carregarConexoes(); void this.carregarCanais(); void this.carregarAprendizado(); }
     if (rota.page === 'channels' && (rota.id !== antes.id || rota.page !== antes.page || rota.ws !== antes.ws || (this.state.pronto && !prev.pronto))) void this.carregarMensagens();
   }
 
