@@ -31,6 +31,8 @@ describe.skipIf(!bancoLocalNoAr)('Conversa direta com o agente (banco local)', (
     if (ids.length) {
       await admin.from('agent_channel_queue').delete().in('channel_id', ids);
       await admin.from('agent_channel_runs').delete().in('channel_id', ids);
+      // O pedido ao agente também abre uma execução (fila de Execuções): sem apagar, as telas de Execuções e Início contam uma a mais.
+      await admin.from('executions').delete().eq('workspace_id', EVOLUT).in('metadata_json->>channel_id', ids);
       await admin.from('chat_channels').delete().in('id', ids);
     }
   });
