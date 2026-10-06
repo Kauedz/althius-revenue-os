@@ -608,6 +608,26 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       }
     }
     (window as any).ALTHIUS_COMITES = comites;
+    this.publicarFotosDosContatos(contas);
+  }
+
+  /** Fotos que o banco trouxe e que estão em ALTHIUS_FOTOS, para tirar quando a lista mudar (as da demonstração ficam). */
+  private fotosPublicadas: string[] = [];
+
+  /** A tela acha a foto pela chave em ALTHIUS_FOTOS; a foto do banco é um endereço https e vira a própria chave. */
+  private publicarFotosDosContatos(contas: ContaTela[]) {
+    const w = window as any;
+    w.ALTHIUS_FOTOS = w.ALTHIUS_FOTOS || {};
+    for (const url of this.fotosPublicadas) delete w.ALTHIUS_FOTOS[url];
+    this.fotosPublicadas = [];
+    for (const conta of contas) {
+      for (const pessoa of conta.comite || []) {
+        const url = pessoa.foto;
+        if (!/^https:\/\//i.test(url) || url in w.ALTHIUS_FOTOS) continue;
+        w.ALTHIUS_FOTOS[url] = url;
+        this.fotosPublicadas.push(url);
+      }
+    }
   }
 
   private avisarFalha(titulo: string, falha: unknown) {

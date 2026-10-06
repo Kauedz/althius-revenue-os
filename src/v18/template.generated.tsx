@@ -1090,7 +1090,7 @@ export function renderTemplate($v: Record<string, any>) {
                                 </React.Fragment>))}
                               </span>
                               <span style={{"color":"var(--signal)"}}>
-                                {"Abrir conta e comitê"}
+                                {__t(p?.dica)}
                               </span>
                             </span>
                             {"\n                    "}

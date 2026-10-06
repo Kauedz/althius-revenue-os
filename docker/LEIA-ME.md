@@ -111,7 +111,7 @@ npm run docker:subir                         # sobe o resto
 As versões estão fixas no `docker-compose.yml`. Troque a versão num PR, teste em homologação com uma cópia de backup e depois: `docker compose pull && npm run docker:subir`.
 
 ## Ainda não está aqui (entra quando existir ponto de entrada)
-Outros workers das filas (enriquecimento, raspagem), servidor MCP e Hermes Agent. Hoje só existe o Redis das filas.
+Outros workers das filas (raspagem). O enriquecimento tem contêiner próprio (veja abaixo).
 
 ## Agentes respondendo (Hermes Agent)
 O contêiner `agentes` (ADR 0047) pega os pedidos dos canais e os entrega ao Hermes Agent de cada cliente. Ele **só responde por quem está em `docker/agentes-executores.json`** (copie de `docker/agentes-executores.exemplo.json`; o arquivo não vai para o git porque tem chaves). Sem entrada para o agente, o pedido espera na fila e nada é respondido: não existe resposta de mentira.
@@ -122,3 +122,15 @@ O contêiner `agentes` (ADR 0047) pega os pedidos dos canais e os entrega ao Her
 - **Testar de graça pela assinatura do ChatGPT/Codex (só teste, ADR 0051):** `npm run agentes:provisionar -- --workspace <uuid> --responsavel <uuid> --slug <nome-curto> --modelo-oauth <nome do modelo>` (ex.: `gpt-6-luna`; para ver os nomes que a sua conta tem: `docker exec -it hermes-<slug> hermes model`). Depois `npm run docker:subir` e faça o login uma vez: `docker exec -it hermes-<slug> hermes auth add openai-codex` (abre um código para digitar no navegador; se a organização bloquear, `... --browser`). Se algum agente ainda disser "No Codex credentials stored", repita com `hermes -p comercial auth add openai-codex` (e os outros perfis). Para voltar ao gateway com chave de API, rode o provisionar de novo **sem** `--modelo-oauth`. Não use assinatura pessoal para atender clientes sem conferir os termos da OpenAI.
 - **Modelo de IA:** cadastre em Fornecedores → Nova chave → "Modelo de IA dos agentes" (tipo OpenAI ou Claude, endereço, nome do modelo, prioridade; preço opcional para medir o custo real). Pode cadastrar mais de um: o de menor número é o principal e os outros são reserva automática. Sem nenhum cadastrado, o agente não responde (nada de resposta de mentira). Uso e custo real por cliente: Uso global do superadmin.
 
+## Enriquecimento de contas (ADR 0062)
+O contêiner `enriquecimento` completa sozinho cada conta nova: site, logo, CNPJ, Receita Federal, localização no mapa e até 5 pessoas com foto e LinkedIn. A cada rodada o banco diz quais contas enriquecer e reserva os créditos (5 por conta, 2 por pessoa achada); o contêiner só busca fora. Falha devolve o crédito.
+- **Chaves:** a etapa da empresa usa só fontes públicas, sem chave, e parte do site que a conta já tem. A etapa das pessoas usa a Apify, com as chaves do cofre (a mesma tela de Fornecedores da coleta de sinais). Sem chave da Apify, as pessoas esperam e o log avisa; nada é inventado.
+- **Ver o que está acontecendo:** `docker compose logs -f enriquecimento` (só números, nunca nome, CNPJ, telefone nem chave).
+- **Variáveis (todas opcionais, no `.env`):**
+  - `ENRIQ_INTERVALO_MINUTOS` (padrão 5): de quanto em quanto tempo olha a fila.
+  - `ENRIQ_PEDIDOS_POR_RODADA` (padrão 10): quantos trabalhos pega por vez.
+  - `ENRIQ_CONCORRENCIA` (padrão 2): quantos roda ao mesmo tempo.
+  - `ENRIQ_TELEFONE_ATOR` e `ENRIQ_TELEFONE_ENTRADA`: fonte do telefone pessoal na Apify (nome do ator e a entrada em JSON, com `{{linkedin_url}}` ou `{{linkedin_urls}}`). **Sem as duas, as pessoas entram sem telefone.** Antes de ligar, confirme a base legal da LGPD com um advogado.
+- **Custo:** o preço atual (5 + 2 por pessoa) é provisório. O custo real de cada trabalho fica em `internal.account_enrichments.custo_usd` (só o superadmin vê). Meça com algumas contas reais antes de fixar o preço.
+- **Contas que já existiam** não entram sozinhas na fila; um gestor pede o enriquecimento pela função `account_enrichment_request`.
+- **Pessoa pediu para sair (LGPD):** `contact_suppress` apaga o contato e guarda os dados dele numa lista de supressão, para o enriquecimento nunca recriá-lo.

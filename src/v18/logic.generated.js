@@ -897,7 +897,7 @@ export class AlthiusLogic extends React.Component {
                   if (v0 && !/^https?:\/\/([a-z]{2,3}\.)?linkedin\.com\/in\/[^\s/]+\/?$/i.test(v0)) { this.setState({ liEdit: Object.assign({}, this.state.liEdit, { [p.id]: { v: v0, erro: 'Use o link do perfil, no formato linkedin.com/in/nome.' } }) }); return; }
                   setLi({ url: v0 }); this.setState({ liEdit: Object.assign({}, this.state.liEdit, { [p.id]: null }) }); },
                 liTecla: e => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); setTimeout(() => { const b = document.activeElement; }, 0); } },
-                liStatus: [['nao', 'Sem conexão'], ['pendente', 'Convite enviado'], ['conectado', 'Conectado']].map(([k, label]) => ({ label, ativo: li.status === k ? 'true' : 'false', escolher: () => setLi({ status: k }) })) }; })(), nome: p.nome, cargo: p.cargo, foto: FT[p.foto], linkedin: p.linkedin, contato: (p.emails || [])[0] + ' · ' + (p.fones || [])[0], verCadencia: () => this.setState({ contaTab: 'cadencia', cadPessoa: p.id }) })) };
+                liStatus: [['nao', 'Sem conexão'], ['pendente', 'Convite enviado'], ['conectado', 'Conectado']].map(([k, label]) => ({ label, ativo: li.status === k ? 'true' : 'false', escolher: () => setLi({ status: k }) })) }; })(), nome: p.nome, cargo: p.cargo, foto: FT[p.foto], linkedin: p.linkedin, contato: [(p.emails || [])[0], (p.fones || [])[0]].filter(Boolean).join(' · ') || 'Sem e-mail nem telefone ainda', verCadencia: () => this.setState({ contaTab: 'cadencia', cadPessoa: p.id }) })) };
         }) };
       if (pessoas.length) {
         const pid = pessoas.find(p => p.id === st.cadPessoa) ? st.cadPessoa : pessoas[0].id, pessoa = pessoas.find(p => p.id === pid);
@@ -1086,12 +1086,12 @@ export class AlthiusLogic extends React.Component {
         return { xy: [u.cx + Math.cos(ang) * raio, u.cy + Math.sin(ang) * raio], aprox: true }; };
       const semLocalReal = real ? contas.filter(c => !pontoReal(c)) : [];
       m.pins = (real ? contas.filter(c => pontoReal(c)) : contas.filter(c => MAPA_GEO[c.id] && MAPA_GEO[c.id][2] <= diasMax && (COM[c.id] || []).length)).map(c => { const pr = real ? pontoReal(c) : null, g = real ? [0, 0, 0] : MAPA_GEO[c.id], xy = real ? pr.xy : proj(g[0], g[1]), p = pct(xy[0], xy[1]);
-        return { x: p.x, y: p.y, aprox: pr && pr.aprox ? 'true' : 'false', semLocal: 'false', nome: c.nome, cidade: c.cidade + (pr && pr.aprox ? ' (local aproximado)' : ''), fit: c.fit, nivel: String(c.temperatura), chamas: this.chamas(+c.temperatura), dim: vis(ufDe(c)) ? 'false' : 'true',
+        return { x: p.x, y: p.y, dica: 'Abrir conta e comitê', aprox: pr && pr.aprox ? 'true' : 'false', semLocal: 'false', nome: c.nome, cidade: c.cidade + (pr && pr.aprox ? ' (local aproximado)' : ''), fit: c.fit, nivel: String(c.temperatura), chamas: this.chamas(+c.temperatura), dim: vis(ufDe(c)) ? 'false' : 'true',
           rotulo: c.nome + ', ' + c.cidade + ', fit ' + c.fit + '. Abrir conta', abrir: () => this.abrirConta(c.id, 'comite') }; });
       if (real) {
         m.semLocal = semLocalReal.length; cont.SL = semLocalReal.length;
         if (semLocalReal.length) { const xy = proj(0.5, -35.5), p = pct(xy[0], xy[1]);
-          m.pins.push({ x: p.x, y: p.y, aprox: 'false', semLocal: 'true', nome: 'Sem localização', cidade: semLocalReal.length + (semLocalReal.length === 1 ? ' conta sem endereço' : ' contas sem endereço'), fit: '—', nivel: '0', chamas: [], dim: 'false',
+          m.pins.push({ x: p.x, y: p.y, dica: 'Ver quais contas', aprox: 'false', semLocal: 'true', nome: 'Sem localização', cidade: semLocalReal.length + (semLocalReal.length === 1 ? ' conta sem endereço' : ' contas sem endereço'), fit: '—', nivel: '0', chamas: [], dim: 'false',
             rotulo: 'Sem localização: ' + semLocalReal.length + (semLocalReal.length === 1 ? ' conta' : ' contas') + '. Ver quais', abrir: () => this.setState({ mapaUf: this.state.mapaUf === 'SL' ? null : 'SL' }) }); }
       }
       m.semLocalTexto = real ? (m.semLocal ? m.semLocal + (m.semLocal === 1 ? ' conta sem endereço fica' : ' contas sem endereço ficam') + ' no marcador "Sem localização", no oceano. O enriquecimento completa sozinho quando achar o endereço.' : 'Todas as contas estão no mapa.') : m.semLocal + ' contas sem endereço ainda ficam fora do mapa.';
@@ -1101,9 +1101,9 @@ export class AlthiusLogic extends React.Component {
       m.ranking = MAPA_UFS.filter(u => vis(u.uf)).sort((a, b) => cont[b.uf] - cont[a.uf]).slice(0, 7).map(u => ({ uf: u.uf, n: cont[u.uf], pct: Math.max(3, Math.round(cont[u.uf] / max * 100)) + '%', selecionar: selUf(u.uf) }));
       m.temUf = !!uSel; m.semUf = !uSel; m.limpar = () => this.setState({ mapaUf: null });
       if (uSel) { const u = MAPA_UFS.find(x => x.uf === uSel) || { nome: 'Sem localização', uf: 'SL', regiao: 'sem endereço' }, cs = uSel === 'SL' ? semLocalReal : contas.filter(c => ufDe(c) === uSel && (MAPA_GEO[c.id] || [0, 0, 0])[2] <= diasMax);
-        m.uf = { nome: u.nome, sigla: u.uf, n: cont[uSel], resumo: cont[uSel] + (cont[uSel] === 1 ? ' conta' : ' contas') + ' · região ' + u.regiao, semDossie: cs.length === 0, temLista: cs.length > 0, verTexto: 'Ver ' + (cs.length === 1 ? 'a conta' : 'as ' + cs.length + ' contas') + ' de ' + u.uf + ' em Contas e leads',
+        m.uf = { nome: u.nome, sigla: u.uf, n: cont[uSel], resumo: cont[uSel] + (cont[uSel] === 1 ? ' conta' : ' contas') + ' · região ' + u.regiao, semDossie: cs.length === 0, temLista: cs.length > 0, verTexto: 'Ver ' + (cs.length === 1 ? 'a conta' : 'as ' + cs.length + ' contas') + (uSel === 'SL' ? '' : ' de ' + u.uf) + ' em Contas e leads',
           contas: cs.map(c => ({ nome: c.nome, cidade: c.cidade, fit: c.fit, sinal: c.sinal, fotos: (COM[c.id] || []).slice(0, 3).map(p => FT[p.foto]), abrir: () => this.abrirConta(c.id, 'comite') })),
-          verTodas: () => { this.setState({ modSt: Object.assign({}, this.state.modSt, { accounts: Object.assign({}, (this.state.modSt || {}).accounts, { uf: uSel, aberto: null }) }) }); this.ir(appPath('accounts')); } };
+          verTodas: () => { this.setState({ modSt: Object.assign({}, this.state.modSt, { accounts: Object.assign({}, (this.state.modSt || {}).accounts, { uf: uSel === 'SL' ? null : uSel, aberto: null }) }) }); this.ir(appPath('accounts')); } };
       } else m.uf = { contas: [] };
       v.mapa = m;
     }

@@ -195,6 +195,136 @@ describe('contas no AlthiusApp', () => {
   });
 });
 
+describe('enriquecimento de contas na tela (ADR 0062)', () => {
+  const FOTO = 'https://media.licdn.com/dms/image/ana-lima.jpg';
+  const base = (id: string, nome: string, extra: Partial<contasServico.ContaTela> = {}): contasServico.ContaTela => ({
+    id, nome, segmento: 'Varejo', fit: 80, temperatura: 2, sinal: '—', dono: 'Pessoa Teste', cidade: '—', decisor: 'A mapear', ultimoContato: 'Sem contato ainda', comite: [], ...extra
+  });
+  const pin = (nome: string) => screen.findByRole('button', { name: new RegExp('^' + nome) });
+
+  it('a foto do contato (endereço https vindo do banco) fica disponível para a tela', async () => {
+    const conta = base('c-foto', 'Conta com Foto', {
+      decisor: 'Ana Lima',
+      comite: [{ id: 'p1', nome: 'Ana Lima', cargo: 'Diretora', papel: 'decisor', foto: FOTO, linkedin: '', emails: [], fones: [] }]
+    });
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue([conta]);
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/accounts');
+    await waitFor(() => expect((window as any).ALTHIUS_COMITES['c-foto']).toBeDefined());
+    expect((window as any).ALTHIUS_FOTOS[FOTO]).toBe(FOTO);
+    // As fotos de demonstração continuam lá.
+    expect(Object.keys((window as any).ALTHIUS_FOTOS).length).toBeGreaterThan(1);
+  });
+
+  it('ao sair, a foto do contato do cliente some da memória do navegador', async () => {
+    const conta = base('c-sai', 'Conta que Sai', {
+      comite: [{ id: 'p3', nome: 'Ana Lima', cargo: 'Diretora', papel: 'decisor', foto: FOTO, linkedin: '', emails: [], fones: [] }]
+    });
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue([conta]);
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/accounts');
+    await waitFor(() => expect((window as any).ALTHIUS_FOTOS[FOTO]).toBe(FOTO));
+    cleanup();
+    expect((window as any).ALTHIUS_FOTOS[FOTO]).toBeUndefined();
+  });
+
+  it('foto que não é endereço https não vira entrada em ALTHIUS_FOTOS', async () => {
+    const conta = base('c-js', 'Conta Foto Estranha', {
+      comite: [{ id: 'p2', nome: 'Beto', cargo: 'Diretor', papel: 'decisor', foto: 'javascript:alert(1)', linkedin: '', emails: [], fones: [] }]
+    });
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue([conta]);
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/accounts');
+    await waitFor(() => expect((window as any).ALTHIUS_COMITES['c-js']).toBeDefined());
+    expect((window as any).ALTHIUS_FOTOS['javascript:alert(1)']).toBeUndefined();
+  });
+
+  it('mapa do Início: coordenada vira pin exato, só o estado vira pin aproximado e sem nada vai para "Sem localização"', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue([
+      base('c-exata', 'Conta Exata', { cidade: 'Campinas, SP', uf: 'SP', geo: { lat: -22.9, lng: -47.06, aprox: false } }),
+      base('c-uf', 'Conta Só Estado', { cidade: 'Curitiba, PR', uf: 'PR', geo: null }),
+      base('c-nada', 'Conta Sem Nada')
+    ]);
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/home');
+    const exata = await pin('Conta Exata');
+    expect(exata).toHaveAttribute('data-aprox', 'false');
+    expect(exata).toHaveAttribute('data-semlocal', 'false');
+    const aprox = await pin('Conta Só Estado');
+    expect(aprox).toHaveAttribute('data-aprox', 'true');
+    // A conta sem nada não tem pin próprio: está só no marcador "Sem localização".
+    expect(screen.queryByRole('button', { name: /^Conta Sem Nada/ })).not.toBeInTheDocument();
+    const sem = await pin('Sem localização');
+    expect(sem).toHaveAttribute('data-semlocal', 'true');
+    expect(sem).toHaveAccessibleName(/1 conta\./);
+  });
+
+  it('clicar em "Sem localização" lista as contas sem endereço', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue([
+      base('c-exata', 'Conta Exata', { cidade: 'Campinas, SP', uf: 'SP', geo: { lat: -22.9, lng: -47.06, aprox: false } }),
+      base('c-nada', 'Conta Sem Nada')
+    ]);
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/home');
+    const sem = await pin('Sem localização');
+    expect(screen.queryByText('Conta Sem Nada')).not.toBeInTheDocument();
+    fireEvent.click(sem);
+    expect(await screen.findByText('Conta Sem Nada')).toBeInTheDocument();
+    // O painel é o de "Sem localização" (1 conta), não o de um estado.
+    expect(screen.getByText('1 conta · região sem endereço')).toBeInTheDocument();
+  });
+
+  it('o marcador "Sem localização" não promete abrir uma conta e a lista não fala de "SL"', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue([base('c-nada', 'Conta Sem Nada')]);
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/home');
+    const sem = await pin('Sem localização');
+    expect(within(sem).queryByText('Abrir conta e comitê')).not.toBeInTheDocument();
+    expect(within(sem).getByText('Ver quais contas')).toBeInTheDocument();
+    fireEvent.click(sem);
+    expect(await screen.findByRole('button', { name: 'Ver a conta em Contas e leads' })).toBeInTheDocument();
+    expect(screen.queryByText(/de SL/)).not.toBeInTheDocument();
+  });
+
+  it('todas as contas com endereço: nenhum marcador "Sem localização"', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue([
+      base('c-exata', 'Conta Exata', { cidade: 'Campinas, SP', uf: 'SP', geo: { lat: -22.9, lng: -47.06, aprox: false } })
+    ]);
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/home');
+    await pin('Conta Exata');
+    expect(screen.queryByRole('button', { name: /^Sem localização/ })).not.toBeInTheDocument();
+  });
+
+  it('pessoa achada pelo enriquecimento sem e-mail nem telefone não mostra "undefined" no comitê', async () => {
+    const conta = base('c-sem-canal', 'Conta Sem Canal', {
+      decisor: 'Ana Lima',
+      comite: [{ id: 'p4', nome: 'Ana Lima', cargo: 'Diretora', papel: 'decisor', foto: '', linkedin: '', emails: [], fones: [] }]
+    });
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue([conta]);
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/accounts');
+    fireEvent.click(await screen.findByText('Conta Sem Canal'));
+    expect(await screen.findByText('Diretora')).toBeInTheDocument();
+    expect(screen.queryByText(/undefined/)).not.toBeInTheDocument();
+    expect(screen.getByText('Sem e-mail nem telefone ainda')).toBeInTheDocument();
+  });
+
+  it('pessoa com só o e-mail mostra só o e-mail no comitê', async () => {
+    const conta = base('c-so-email', 'Conta Só Email', {
+      decisor: 'Ana Lima',
+      comite: [{ id: 'p5', nome: 'Ana Lima', cargo: 'Diretora', papel: 'decisor', foto: '', linkedin: '', emails: ['ana@cliente.com.br'], fones: [] }]
+    });
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue([conta]);
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/accounts');
+    fireEvent.click(await screen.findByText('Conta Só Email'));
+    expect(await screen.findByText('ana@cliente.com.br')).toBeInTheDocument();
+  });
+
+  it('salvar o site da conta grava o domínio no banco (update_account)', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue([base('c-site', 'Conta do Site')]);
+    const editar = vi.spyOn(contasServico, 'editarConta').mockResolvedValue({ id: 'c-site', nome: 'Conta do Site', dominio: 'contadosite.com.br' });
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/accounts');
+    fireEvent.click(await screen.findByText('Conta do Site'));
+    fireEvent.click(await screen.findByRole('button', { name: /Adicionar site e puxar o logo/ }));
+    fireEvent.change(await screen.findByLabelText('Site da empresa'), { target: { value: 'https://www.contadosite.com.br/' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Puxar logo' }));
+    await waitFor(() => expect(editar).toHaveBeenCalledWith(expect.anything(), 'm-alfa', { id: 'c-site', dominio: 'contadosite.com.br' }));
+  });
+});
+
 describe('relatórios no AlthiusApp', () => {
   it('não mostra os números fictícios do protótipo', async () => {
     const relatorio = relatoriosServico.relatorioSemDados();

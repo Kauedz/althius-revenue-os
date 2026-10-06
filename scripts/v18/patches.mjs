@@ -699,7 +699,7 @@ export const PATCHES = [
     regra: 'mapa real: pin aproximado se diferencia (contorno) e diz que o local é aproximado',
     arquivo: 'logic.generated.js',
     trocar: 'return { x: p.x, y: p.y, nome: c.nome, cidade: c.cidade, fit: c.fit,',
-    por: "return { x: p.x, y: p.y, aprox: pr && pr.aprox ? 'true' : 'false', semLocal: 'false', nome: c.nome, cidade: c.cidade + (pr && pr.aprox ? ' (local aproximado)' : ''), fit: c.fit,"
+    por: "return { x: p.x, y: p.y, dica: 'Abrir conta e comitê', aprox: pr && pr.aprox ? 'true' : 'false', semLocal: 'false', nome: c.nome, cidade: c.cidade + (pr && pr.aprox ? ' (local aproximado)' : ''), fit: c.fit,"
   },
   {
     regra: 'mapa real: marcador "Sem localização" no oceano e textos da legenda',
@@ -708,7 +708,7 @@ export const PATCHES = [
     por: "      if (real) {\n" +
       "        m.semLocal = semLocalReal.length; cont.SL = semLocalReal.length;\n" +
       "        if (semLocalReal.length) { const xy = proj(0.5, -35.5), p = pct(xy[0], xy[1]);\n" +
-      "          m.pins.push({ x: p.x, y: p.y, aprox: 'false', semLocal: 'true', nome: 'Sem localização', cidade: semLocalReal.length + (semLocalReal.length === 1 ? ' conta sem endereço' : ' contas sem endereço'), fit: '—', nivel: '0', chamas: [], dim: 'false',\n" +
+      "          m.pins.push({ x: p.x, y: p.y, dica: 'Ver quais contas', aprox: 'false', semLocal: 'true', nome: 'Sem localização', cidade: semLocalReal.length + (semLocalReal.length === 1 ? ' conta sem endereço' : ' contas sem endereço'), fit: '—', nivel: '0', chamas: [], dim: 'false',\n" +
       "            rotulo: 'Sem localização: ' + semLocalReal.length + (semLocalReal.length === 1 ? ' conta' : ' contas') + '. Ver quais', abrir: () => this.setState({ mapaUf: this.state.mapaUf === 'SL' ? null : 'SL' }) }); }\n" +
       "      }\n" +
       "      m.semLocalTexto = real ? (m.semLocal ? m.semLocal + (m.semLocal === 1 ? ' conta sem endereço fica' : ' contas sem endereço ficam') + ' no marcador \"Sem localização\", no oceano. O enriquecimento completa sozinho quando achar o endereço.' : 'Todas as contas estão no mapa.') : m.semLocal + ' contas sem endereço ainda ficam fora do mapa.';\n" +
@@ -752,5 +752,36 @@ export const PATCHES = [
     arquivo: 'logic.generated.js',
     trocar: "this.avisar('mod', 'Site salvo. O logo vem do próprio ' + d + ' e aparece aqui, na lista de contas e no Pipeline.'); };",
     por: "if (this.modoDemo === false && this.salvarSiteDaConta) this.salvarSiteDaConta(contaSel.id, d);\n            this.avisar('mod', 'Site salvo. O logo vem do próprio ' + d + ' e aparece aqui, na lista de contas e no Pipeline.'); };"
+  },
+  {
+    // Pessoa achada pelo enriquecimento costuma vir só com LinkedIn: sem isso a tela mostrava "undefined · undefined".
+    regra: 'comitê: contato sem e-mail ou telefone não mostra "undefined"',
+    arquivo: 'logic.generated.js',
+    trocar: "contato: (p.emails || [])[0] + ' · ' + (p.fones || [])[0],",
+    por: "contato: [(p.emails || [])[0], (p.fones || [])[0]].filter(Boolean).join(' · ') || 'Sem e-mail nem telefone ainda',"
+  },
+  {
+    regra: 'mapa real: a dica do pin diz o que o clique faz ("Sem localização" abre a lista, não uma conta)',
+    arquivo: 'template.generated.tsx',
+    trocar: '{"Abrir conta e comitê"}',
+    por: '{__t(p?.dica)}'
+  },
+  {
+    regra: 'mapa real: a lista "Sem localização" não fala de uma sigla de estado',
+    arquivo: 'logic.generated.js',
+    trocar: "' de ' + u.uf + ' em Contas e leads'",
+    por: "(uSel === 'SL' ? '' : ' de ' + u.uf) + ' em Contas e leads'"
+  },
+  {
+    regra: 'mapa real: "Ver as contas" da lista "Sem localização" não filtra por um estado que não existe',
+    arquivo: 'logic.generated.js',
+    trocar: '{ uf: uSel, aberto: null }',
+    por: "{ uf: uSel === 'SL' ? null : uSel, aberto: null }"
+  },
+  {
+    regra: 'mapa real: a dica do marcador "Sem localização" (na borda direita) não é cortada',
+    arquivo: 'althius.css',
+    trocar: '.mapa-pin[data-semlocal="true"] path {',
+    por: '.mapa-pin[data-semlocal="true"] .pin-tip { left: auto; right: 0; transform: none; }\n  .mapa-pin[data-semlocal="true"] path {'
   }
 ];
