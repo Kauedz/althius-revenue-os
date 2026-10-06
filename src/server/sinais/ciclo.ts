@@ -6,6 +6,7 @@ import type { AdaptadorApify, Frequencia } from './adaptadores/tipos.ts';
 import { adaptadorDePosts } from './adaptadores/posts.ts';
 import { adaptadorDeTrocaDeCargo } from './adaptadores/troca-cargo.ts';
 import { adaptadorDeVagas } from './adaptadores/vagas.ts';
+import { criarAdaptadorGenerico, type FonteGenerica } from './adaptadores/generico.ts';
 
 export const ADAPTADORES: Record<string, AdaptadorApify> = {
   vagas_cargo: adaptadorDeVagas,
@@ -13,7 +14,11 @@ export const ADAPTADORES: Record<string, AdaptadorApify> = {
   posts_decisor: adaptadorDePosts
 };
 
-interface FonteDaReceita { fonte: string; ator?: string; teto_usd?: number; max_itens?: number; build?: string; memoria_mb?: number; reserva?: boolean }
+// `entrada` + `mapeamento`: receita montada pelo agente e aprovada pelo cliente (ADR 0060), lida pelo adaptador genérico.
+interface FonteDaReceita {
+  fonte: string; ator?: string; teto_usd?: number; max_itens?: number; build?: string; memoria_mb?: number; reserva?: boolean;
+  entrada?: Record<string, unknown>; mapeamento?: FonteGenerica['mapeamento']; descricao?: string;
+}
 interface ContatoBruto { id: string; nome: string; papel?: string | null; linkedin_url: string; snapshot?: Record<string, unknown> | null }
 interface Pedido {
   run_id: string; account_name: string; account_domain: string; signal_code: string;
@@ -70,9 +75,11 @@ export async function rodarSinais(o: OpcoesRodada): Promise<ResultadoRodada> {
   }
 
   async function tratar(p: Pedido) {
-    const adaptador = adaptadores[p.signal_code];
-    if (!adaptador) return falhar(p, `Sinal ${p.signal_code} sem adaptador de coleta.`);
     const fontes = Array.isArray(p.fontes) ? p.fontes : [];
+    // Fonte com mapeamento usa o adaptador genérico; as outras, o adaptador escrito pela equipe para o sinal.
+    const adaptadorDe = (f: FonteDaReceita): AdaptadorApify | undefined =>
+      f.mapeamento && f.ator ? criarAdaptadorGenerico({ ator: f.ator, entrada: f.entrada ?? {}, mapeamento: f.mapeamento, descricao: f.descricao }) : adaptadores[p.signal_code];
+    if (fontes.length ? fontes.some(f => !adaptadorDe(f)) : !adaptadores[p.signal_code]) return falhar(p, `Sinal ${p.signal_code} sem adaptador de coleta.`);
     if (!fontes.length || fontes.some(f => f.fonte !== 'apify' || !f.ator)) return falhar(p, 'Fonte ainda não suportada pelo coletor.');
     const conta = {
       nome: p.account_name, dominio: p.account_domain, linkedinNome: p.linkedin_company_name ?? null, linkedinUrl: p.linkedin_company_url ?? null,
@@ -89,6 +96,7 @@ export async function rodarSinais(o: OpcoesRodada): Promise<ResultadoRodada> {
     let ultimoErro = 'nenhuma fonte respondeu';
 
     const rodar = async (f: FonteDaReceita) => {
+      const adaptador = adaptadorDe(f)!;
       try {
         const entrada = adaptador.entrada(f.ator!, conta, ctx);
         const r = await o.pool.coletar(f.ator!, entrada, { maxItens: f.max_itens ?? 25, tetoUsd: f.teto_usd ?? 0, build: f.build, memoriaMb: f.memoria_mb, esperaCustoMs: o.esperaCustoMs });

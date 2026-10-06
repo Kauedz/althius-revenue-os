@@ -197,3 +197,30 @@ describe('sinais de pessoas (ticket 02): contatos e retrato', () => {
     expect(rpc.some(x => x.nome === 'signal_collect_fail')).toBe(false);
   });
 });
+
+describe('receita montada pelo agente (ADR 0060)', () => {
+  it('fonte com mapeamento usa o adaptador genérico, mesmo para um sinal sem adaptador da equipe', async () => {
+    const fonteDoAgente = {
+      fonte: 'apify', ator: 'dono/noticias', teto_usd: 0.0289, max_itens: 10, descricao: 'Google News',
+      entrada: { q: '"{{empresa}}"' }, mapeamento: { texto: 'Notícia: {{title}}', chave: '{{url}}', vinculo: 'entrada' }
+    };
+    const { buscar, rpc } = bancoFalso([pedido(1, { signal_code: 'noticias_empresa', fontes: [fonteDoAgente] })]);
+    const chamadas: unknown[] = [];
+    const pool = { coletar: async (ator: string, entrada: unknown, op: unknown) => { chamadas.push([ator, entrada, op]); return { itens: [{ title: 'Empresa 1 lança produto', url: 'https://n.test/1' }], runId: 'r', conta: 'c', custoUsd: 0.001 }; } };
+    const r = await rodarSinais({ ...base, buscar, pool, agora: () => Date.parse('2026-10-06T00:00:00Z') });
+    expect(chamadas[0]).toEqual(['dono/noticias', { q: '"Empresa 1"' }, expect.objectContaining({ maxItens: 10, tetoUsd: 0.0289 })]);
+    const fim = rpc.find(x => x.nome === 'signal_collect_finish')!;
+    expect(fim.corpo.p_eventos).toEqual([expect.objectContaining({ texto: 'Notícia: Empresa 1 lança produto', fonte: 'Google News' })]);
+    expect(r).toMatchObject({ concluidos: 1, falhas: 0 });
+  });
+
+  it('a conta sem o dado que a receita pede: falha com motivo claro e o crédito volta (nunca chama o ator pela metade)', async () => {
+    const fonteDoAgente = { fonte: 'apify', ator: 'dono/li', teto_usd: 0.01, entrada: { url: '{{linkedin_url}}' }, mapeamento: { texto: '{{t}}', chave: '{{u}}', vinculo: 'entrada' } };
+    const { buscar, rpc } = bancoFalso([pedido(1, { signal_code: 'noticias_empresa', fontes: [fonteDoAgente] })]);
+    let chamou = false;
+    const pool = { coletar: async () => { chamou = true; return { itens: [], runId: null, conta: 'c', custoUsd: null }; } };
+    await rodarSinais({ ...base, buscar, pool });
+    expect(chamou).toBe(false);
+    expect(String(rpc.find(x => x.nome === 'signal_collect_fail')!.corpo.p_mensagem)).toMatch(/linkedin_url/);
+  });
+});

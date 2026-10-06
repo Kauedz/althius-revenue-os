@@ -102,7 +102,7 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
     expect(tools.map(t => t.name).sort()).toEqual([
       'buscar_contatos', 'integracao_ferramentas', 'integracao_ler', 'integracao_propor', 'listar_cadencias', 'listar_campanhas', 'listar_contas', 'listar_habilidades', 'listar_membros', 'listar_negocios', 'listar_quadros', 'listar_sinais', 'listar_tarefas',
       'propor_atualizacao', 'propor_campanha', 'propor_inscricao_cadencia', 'propor_mover_negocio', 'propor_negocio', 'propor_status_campanha', 'propor_tarefa',
-      'propor_verba_campanha'
+      'propor_verba_campanha', 'sinais_buscar_fontes', 'sinais_catalogo', 'sinais_detalhar_fonte', 'sinais_propor_receita', 'sinais_testar_fonte'
     ]);
     for (const t of tools) expect(JSON.stringify(t.inputSchema)).not.toMatch(/workspace/i);
   });

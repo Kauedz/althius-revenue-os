@@ -4,7 +4,7 @@
 
 **Blocked by:** None (cada sinal é uma fatia própria).
 
-**Status:** ready-for-agent
+**Status:** substituído em parte pela ADR 0060 (06/10/2026): o agente acha, testa e propõe as fontes dos sinais de empresa (`.scratch/sinais-pelo-agente`). Continua valendo para sinais de pessoas e para a aba Sinais de cada agente.
 
 ## Passos do Nan
 Responder às decisões do ticket 07 dos sinais (importação por NCM, feiras, Reclame Aqui, seguidores) e liberar um token Apify com saldo para a conferência real.

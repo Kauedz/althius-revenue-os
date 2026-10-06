@@ -13,6 +13,8 @@ import { desconectar, ferramentas, iniciarConexao, retirar, retornoDoConsentimen
 import { chamarDoAgente, ferramentasDoAgente, proporDoAgente } from '../integracoes/agente.ts';
 import { executarAcoesAprovadas } from '../integracoes/acoes.ts';
 import type { RotasIntegracoes } from './servidor.ts';
+import { criarPoolApify } from '../providers/apify-pool.ts';
+import { testarFonteDoAgente } from '../sinais/agente.ts';
 
 const base = process.env.BANCO_URL ?? '';
 const chave = process.env.SERVICE_ROLE_KEY ?? '';
@@ -80,7 +82,11 @@ if (depsIntegracoes) {
   ciclo.unref?.();
 }
 
-const { servidor } = criarServidor({ segredo, banco: bancoViaApi(base, chave), conexoes, cofre: rotasCofre, integracoes });
+// O agente testa fontes de sinal (ADR 0060) com as chaves da Apify do cofre (ou APIFY_TOKEN_* do .env), sempre com teto.
+const poolApify = criarPoolApify({ cofre });
+const sinaisDoAgente = { testar: (token: string, corpo: unknown) => testarFonteDoAgente({ base, chaveServico: chave, pool: poolApify }, token, corpo) };
+
+const { servidor } = criarServidor({ segredo, banco: bancoViaApi(base, chave), conexoes, cofre: rotasCofre, integracoes, sinaisDoAgente });
 const porta = Number(process.env.PORT ?? 3100);
 servidor.listen(porta, '0.0.0.0', () => console.log(JSON.stringify({ nivel: 'info', msg: 'webhooks no ar', porta })));
 for (const sinal of ['SIGTERM', 'SIGINT'] as const) process.on(sinal, () => servidor.close(() => process.exit(0)));

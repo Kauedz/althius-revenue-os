@@ -32,6 +32,8 @@ export interface OpcoesServidor {
   cofre?: DepsCofre;
   /** Liga as rotas das integrações (ADR 0056). Sem isto, /integracoes/* responde 503. */
   integracoes?: RotasIntegracoes;
+  /** O agente testa uma fonte de sinal (ADR 0060), com o token do agente. Sem isto, a rota responde 503. */
+  sinaisDoAgente?: { testar(tokenDoAgente: string, corpo: unknown): Promise<{ status: number; corpo: Record<string, unknown> }> };
 }
 
 export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: () => Promise<void> } {
@@ -79,13 +81,15 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
     const ehCofre = url === '/cofre/guardar' || url === '/cofre/testar';
     const ehIntegracao = ['/integracoes/iniciar', '/integracoes/ferramentas', '/integracoes/desconectar', '/integracoes/retirar'].includes(url);
     const ehAgente = url === '/integracoes/agente/ferramentas' || url === '/integracoes/agente/chamar' || url === '/integracoes/agente/propor';
-    if (!ehWebhook && !ehLink && !ehCofre && !ehIntegracao && !ehAgente) return responder(404, { erro: 'nao_encontrado' });
+    // Debaixo de /integracoes/agente/: o Caddy público responde 404 aqui, só a rede interna chega.
+    const ehSinalDoAgente = url === '/integracoes/agente/sinais/testar';
+    if (!ehWebhook && !ehLink && !ehCofre && !ehIntegracao && !ehAgente && !ehSinalDoAgente) return responder(404, { erro: 'nao_encontrado' });
     if (req.method !== 'POST') return responder(405, { erro: 'metodo_nao_permitido' });
 
     // A prova do link de conexão é o login da pessoa, conferido ANTES de ler o corpo. A do webhook é a assinatura do
     // corpo bruto: só dá para conferir depois de ler (o limite de tamanho protege a memória).
     let jwt = '';
-    if (ehLink || ehCofre || ehIntegracao || ehAgente) {
+    if (ehLink || ehCofre || ehIntegracao || ehAgente || ehSinalDoAgente) {
       const m = /^Bearer (.+)$/.exec(req.headers.authorization ?? '');
       jwt = m?.[1] ?? '';
       if (!jwt) { req.resume(); return responder(401, { erro: 'nao_autorizado' }); }
@@ -110,6 +114,11 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
           if (!o.cofre) return responder(503, { erro: 'cofre_indisponivel' });
           const rota = url === '/cofre/guardar' ? guardarSegredo : testarSegredo;
           rota(o.cofre, jwt, payload).then(r => responder(r.status, r.corpo), () => responder(502, { erro: 'falha_no_cofre' }));
+          return;
+        }
+        if (ehSinalDoAgente) {
+          if (!o.sinaisDoAgente) return responder(503, { erro: 'sinais_indisponiveis' });
+          o.sinaisDoAgente.testar(jwt, payload).then(r => responder(r.status, r.corpo), () => responder(502, { erro: 'falha_nos_sinais' }));
           return;
         }
         if (ehAgente) {

@@ -69,6 +69,15 @@ O serviço `sinais` (ADR 0055) roda a cada 30 minutos (`SINAIS_INTERVALO_MINUTOS
 - A conta grátis da Apify aceita 5 execuções ao mesmo tempo; `SINAIS_CONCORRENCIA` (padrão 3) respeita isso.
 - Sem cliente que aceitou, ou sem padrão forte o bastante, a rodada não faz nada: é o normal no começo.
 
+### Fontes de sinais pelo agente (ADR 0060)
+
+O agente acha a fonte de um sinal na loja da Apify, testa numa conta do cliente e propõe a receita; depois que uma pessoa aprova, o serviço `sinais` usa essa receita só naquele cliente.
+
+- O teste roda no serviço `webhooks` (rota interna `/integracoes/agente/sinais/testar`; o Caddy responde 404 nela) com as chaves da Apify do cofre (ou `APIFY_TOKEN_*` do `.env`). Sem chave, o teste falha com aviso claro e o crédito volta.
+- Cada teste custa os créditos de uma coleta do sinal. Só roda a pedido de uma pessoa, com limite de 30 por dia por cliente.
+- Teto de gasto: o que o cliente paga pela coleta. O custo real fica em `internal.signal_agent_tests` e `internal.signal_runs`.
+- Mudou o servidor MCP? Rode `npm run agentes:mcp` e reinicie os contêineres `hermes-*` para os agentes verem as ferramentas `sinais_*`.
+
 ## Motor de cadência
 O contêiner `cadencia` roda a cada 60 segundos (`CADENCIA_INTERVALO_SEGUNDOS`). Para cada inscrição ativa cujo passo venceu:
 - **Passo manual** (LinkedIn, Instagram, ligação), ou **automático com o envio automático desligado**: vira uma tarefa do responsável, no dia, com o texto/roteiro pronto.
