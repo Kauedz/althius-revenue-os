@@ -97,7 +97,24 @@ export interface PedidoMoverNegocio {
   motivo: string;
 }
 
+export interface CampanhaAgente {
+  id: string;
+  nome: string;
+  canal: string;
+  status: 'rascunho' | 'ativa' | 'pausada' | 'concluida';
+  verba_reais: number;
+  leads: number;
+}
+
+export interface PedidoCampanha { nome: string; canal: string; motivo: string }
+export interface PedidoVerba { campanha_id: string; verba_reais: number; motivo: string }
+export interface PedidoStatusCampanha { campanha_id: string; status: CampanhaAgente['status']; motivo: string }
+
 export interface FerramentasAgente {
+  listarCampanhas(): Promise<CampanhaAgente[]>;
+  proporCampanha(pedido: PedidoCampanha): Promise<ResultadoProposta>;
+  proporVerba(pedido: PedidoVerba): Promise<ResultadoProposta>;
+  proporStatusCampanha(pedido: PedidoStatusCampanha): Promise<ResultadoProposta>;
   listarContas(): Promise<ContaAgente[]>;
   listarQuadros(): Promise<QuadroAgente[]>;
   listarNegocios(status?: NegocioAgente['status']): Promise<NegocioAgente[]>;
@@ -251,6 +268,45 @@ export function ferramentasDoAgente(cliente: SupabaseClient, token: string): Fer
       if (error) {
         if (error.code === '22P02') return { ok: false, erro: 'Negócio não encontrado neste workspace.' };
         throw erroDoBanco(error, 'Não foi possível registrar a proposta de mudança de etapa.');
+      }
+      return data as ResultadoProposta;
+    },
+
+    async listarCampanhas() {
+      const { data, error } = await cliente.rpc('agent_list_campaigns', { p_token: token });
+      if (error) throw erroDoBanco(error, 'Não foi possível ler as campanhas do workspace.');
+      return (data || []) as CampanhaAgente[];
+    },
+
+    async proporCampanha(p) {
+      const { data, error } = await cliente.rpc('agent_propose_campaign', {
+        p_token: token, p_name: p.nome, p_channel: p.canal, p_reason: p.motivo,
+        p_idempotency_key: chaveDe('campanha', p.nome, p.canal)
+      });
+      if (error) throw erroDoBanco(error, 'Não foi possível registrar a proposta de campanha.');
+      return data as ResultadoProposta;
+    },
+
+    async proporVerba(p) {
+      const { data, error } = await cliente.rpc('agent_propose_campaign_budget', {
+        p_token: token, p_campaign_id: p.campanha_id, p_amount: p.verba_reais, p_reason: p.motivo,
+        p_idempotency_key: chaveDe('verba', p.campanha_id, p.verba_reais)
+      });
+      if (error) {
+        if (error.code === '22P02') return { ok: false, erro: 'Campanha não encontrada neste workspace.' };
+        throw erroDoBanco(error, 'Não foi possível registrar o pedido de verba.');
+      }
+      return data as ResultadoProposta;
+    },
+
+    async proporStatusCampanha(p) {
+      const { data, error } = await cliente.rpc('agent_propose_campaign_status', {
+        p_token: token, p_campaign_id: p.campanha_id, p_status: p.status, p_reason: p.motivo,
+        p_idempotency_key: chaveDe('status-campanha', p.campanha_id, p.status)
+      });
+      if (error) {
+        if (error.code === '22P02') return { ok: false, erro: 'Campanha não encontrada neste workspace.' };
+        throw erroDoBanco(error, 'Não foi possível registrar a proposta de status.');
       }
       return data as ResultadoProposta;
     }

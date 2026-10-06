@@ -22,6 +22,7 @@ const CAD_AUTO = 'f8000000-0000-0000-0000-0000000000d1';
 const TAREFA_CANARIO = 'f7000000-0000-0000-0000-0000000000d1';
 const NEGOCIO_CANARIO = 'f9000000-0000-0000-0000-0000000000d1';
 const CONTA_EVOLUT = 'c0000000-0000-0000-0000-000000000001';
+const CAMPANHA_CANARIO = 'fa000000-0000-0000-0000-0000000000d1';
 const TITULO_TAREFA = 'Ligar para Aline (teste MCP fatia A)';
 
 async function conectar(token: string) {
@@ -58,6 +59,7 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
     // Fixtures da fatia A: uma cadência com 1 passo automático e uma tarefa-canário na Evolut.
     await admin.from('cadences').upsert({ id: CAD_AUTO, workspace_id: EVOLUT, name: 'Cadência de teste MCP', status: 'ativa' });
     await admin.from('cadence_steps').upsert({ workspace_id: EVOLUT, cadence_id: CAD_AUTO, step_number: 1, channel: 'email', execution_mode: 'auto', subject: 'Oi', body: 'Olá', delay_days: 0 }, { onConflict: 'cadence_id,step_number' });
+    await admin.from('campaigns').upsert({ id: CAMPANHA_CANARIO, workspace_id: EVOLUT, name: 'CANÁRIO campanha MCP-3307', channel_type: 'linkedin_ads', status: 'rascunho', budget_brl: 1000, created_by: CAMILA_EVOLUT });
     const { data: quadro } = await admin.from('pipelines').select('id').eq('workspace_id', EVOLUT).eq('motion', 'slg').order('created_at').limit(1).single();
     quadroEvolut = quadro!.id;
     const { error: erroNegocio } = await admin.from('opportunities').upsert({
@@ -76,6 +78,7 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
       await admin.from('approvals').delete().in('id', aprovacoesCriadas);
     }
     await admin.from('tasks').delete().eq('workspace_id', EVOLUT).in('title', [TITULO_TAREFA, 'CANÁRIO tarefa MCP-5521']);
+    await admin.from('campaigns').delete().eq('workspace_id', EVOLUT).in('name', ['CANÁRIO campanha MCP-3307', 'Campanha de teste MCP']);
     await admin.from('opportunities').delete().eq('workspace_id', EVOLUT).or(`id.eq.${NEGOCIO_CANARIO},amount.eq.88888`);
     await admin.from('cadence_enrollments').delete().eq('cadence_id', CAD_AUTO);
     await admin.from('cadences').delete().eq('id', CAD_AUTO);
@@ -88,8 +91,9 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
     const cliente = await conectar(tokenGrao);
     const { tools } = await cliente.listTools();
     expect(tools.map(t => t.name).sort()).toEqual([
-      'buscar_contatos', 'listar_cadencias', 'listar_contas', 'listar_membros', 'listar_negocios', 'listar_quadros', 'listar_tarefas',
-      'propor_atualizacao', 'propor_inscricao_cadencia', 'propor_mover_negocio', 'propor_negocio', 'propor_tarefa'
+      'buscar_contatos', 'listar_cadencias', 'listar_campanhas', 'listar_contas', 'listar_membros', 'listar_negocios', 'listar_quadros', 'listar_tarefas',
+      'propor_atualizacao', 'propor_campanha', 'propor_inscricao_cadencia', 'propor_mover_negocio', 'propor_negocio', 'propor_status_campanha', 'propor_tarefa',
+      'propor_verba_campanha'
     ]);
     for (const t of tools) expect(JSON.stringify(t.inputSchema)).not.toMatch(/workspace/i);
   });
@@ -267,6 +271,56 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
     expect(await decidirAprovacao(aline, { aprovacao: item!, membroId: ALINE_MEMBRO, decisao: 'Aprovada' })).toEqual({ ok: true });
     const { data } = await admin.from('opportunities').select('stage_key, status, owner_member_id').eq('amount', 88888).eq('workspace_id', EVOLUT);
     expect(data).toEqual([{ stage_key: 'entrada', status: 'ativa', owner_member_id: LUCAS_MEMBRO }]);
+  });
+
+  it('CANÁRIO: campanhas também não vazam entre clientes, e a Grão Norte não mexe nas da Evolut', async () => {
+    const grao = await conectar(tokenGrao);
+    const evolut = await conectar(tokenEvolut);
+    expect(texto(await evolut.callTool({ name: 'listar_campanhas', arguments: {} }))).toContain('MCP-3307');
+    expect(texto(await grao.callTool({ name: 'listar_campanhas', arguments: {} }))).not.toContain('MCP-3307');
+    const v = await grao.callTool({ name: 'propor_verba_campanha', arguments: { campanha_id: CAMPANHA_CANARIO, verba_reais: 9999, motivo: 'tentativa de outro workspace' } });
+    expect(v.isError).toBe(true);
+    const s = await grao.callTool({ name: 'propor_status_campanha', arguments: { campanha_id: CAMPANHA_CANARIO, status: 'ativa', motivo: 'tentativa de outro workspace' } });
+    expect(s.isError).toBe(true);
+    const { count } = await admin.from('approvals').select('id', { count: 'exact', head: true }).eq('workspace_id', GRAO).in('payload_json->>acao', ['verba_campanha', 'status_campanha']);
+    expect(count).toBe(0);
+  });
+
+  it('verba é gasto: a estrategista não aprova, a C-level aprova e a verba entra; o pedido repetido não duplica', async () => {
+    const evolut = await conectar(tokenEvolut);
+    const pedido = { campanha_id: CAMPANHA_CANARIO, verba_reais: 6000, motivo: 'CPL abaixo da meta' };
+    const r1 = await evolut.callTool({ name: 'propor_verba_campanha', arguments: pedido });
+    const r2 = await evolut.callTool({ name: 'propor_verba_campanha', arguments: pedido });
+    expect(r1.isError).toBeFalsy();
+    const id = (r1.structuredContent as { approval_id: string }).approval_id;
+    aprovacoesCriadas.push(id);
+    expect((r2.structuredContent as { approval_id: string }).approval_id).toBe(id);
+    const { data: ap } = await admin.from('approvals').select('category, approval_type').eq('id', id).single();
+    expect(ap).toEqual({ category: 'gasto', approval_type: 'orcamento' });
+
+    const camila = await entrarComoLocal('camila@althius.com.br');
+    const itemCamila = (await listarAprovacoes(camila, EVOLUT)).find(a => a.id === id);
+    if (itemCamila) expect((await decidirAprovacao(camila, { aprovacao: itemCamila, membroId: CAMILA_EVOLUT, decisao: 'Aprovada' })).ok).toBe(false);
+    expect(Number((await admin.from('campaigns').select('budget_brl').eq('id', CAMPANHA_CANARIO).single()).data?.budget_brl)).toBe(1000);
+
+    const aline = await entrarComoLocal('aline@evolut.com.br');
+    const item = (await listarAprovacoes(aline, EVOLUT)).find(a => a.id === id);
+    expect(await decidirAprovacao(aline, { aprovacao: item!, membroId: ALINE_MEMBRO, decisao: 'Aprovada' })).toEqual({ ok: true });
+    expect(Number((await admin.from('campaigns').select('budget_brl').eq('id', CAMPANHA_CANARIO).single()).data?.budget_brl)).toBe(6000);
+  });
+
+  it('criar campanha: só existe depois da aprovação, em rascunho e sem verba', async () => {
+    const evolut = await conectar(tokenEvolut);
+    const r = await evolut.callTool({ name: 'propor_campanha', arguments: { nome: 'Campanha de teste MCP', canal: 'evento', motivo: 'Pipeline de eventos vazio' } });
+    expect(r.isError).toBeFalsy();
+    const id = (r.structuredContent as { approval_id: string }).approval_id;
+    aprovacoesCriadas.push(id);
+    expect((await admin.from('campaigns').select('id').eq('name', 'Campanha de teste MCP')).data).toEqual([]);
+    const aline = await entrarComoLocal('aline@evolut.com.br');
+    const item = (await listarAprovacoes(aline, EVOLUT)).find(a => a.id === id);
+    expect(await decidirAprovacao(aline, { aprovacao: item!, membroId: ALINE_MEMBRO, decisao: 'Aprovada' })).toEqual({ ok: true });
+    const { data } = await admin.from('campaigns').select('status, budget_brl, channel_type').eq('name', 'Campanha de teste MCP').single();
+    expect({ ...data, budget_brl: Number(data?.budget_brl) }).toEqual({ status: 'rascunho', budget_brl: 0, channel_type: 'evento' });
   });
 
   it('agente pausado pelo cliente recebe o aviso e nenhum dado', async () => {

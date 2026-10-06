@@ -1,7 +1,7 @@
 // Servidor MCP da Althius: o único caminho do Hermes Agent até os dados (ADR 0024).
 // Não recebe workspace em nenhuma ferramenta; o token do agente decide tudo no banco.
 import { McpServer, fromJsonSchema, type CallToolResult } from '@modelcontextprotocol/server';
-import type { FerramentasAgente, NegocioAgente, PedidoInscricao, PedidoMoverNegocio, PedidoNegocio, PedidoProposta, PedidoTarefa, TarefaAgente } from './ferramentas';
+import type { FerramentasAgente, PedidoCampanha, PedidoStatusCampanha, PedidoVerba, NegocioAgente, PedidoInscricao, PedidoMoverNegocio, PedidoNegocio, PedidoProposta, PedidoTarefa, TarefaAgente } from './ferramentas';
 
 const nada = fromJsonSchema<Record<string, never>>({ type: 'object', properties: {}, additionalProperties: false });
 
@@ -80,6 +80,39 @@ const pedidoMoverNegocio = fromJsonSchema<PedidoMoverNegocio>({
   additionalProperties: false
 });
 
+const pedidoCampanha = fromJsonSchema<PedidoCampanha>({
+  type: 'object',
+  properties: {
+    nome: { type: 'string', description: 'nome da campanha (até 120 caracteres)' },
+    canal: { type: 'string', enum: ['linkedin_ads', 'meta_ads', 'google_ads', 'organico', 'evento', 'seo_geo'], description: 'canal da campanha' },
+    motivo: { type: 'string', description: 'por que esta campanha faz sentido, em uma frase' }
+  },
+  required: ['nome', 'canal', 'motivo'],
+  additionalProperties: false
+});
+
+const pedidoVerba = fromJsonSchema<PedidoVerba>({
+  type: 'object',
+  properties: {
+    campanha_id: { type: 'string', description: 'id da campanha, como veio em listar_campanhas' },
+    verba_reais: { type: 'number', minimum: 0, description: 'nova verba de mídia total da campanha, em reais' },
+    motivo: { type: 'string', description: 'por que a verba deve mudar, em uma frase' }
+  },
+  required: ['campanha_id', 'verba_reais', 'motivo'],
+  additionalProperties: false
+});
+
+const pedidoStatusCampanha = fromJsonSchema<PedidoStatusCampanha>({
+  type: 'object',
+  properties: {
+    campanha_id: { type: 'string', description: 'id da campanha, como veio em listar_campanhas' },
+    status: { type: 'string', enum: ['rascunho', 'ativa', 'pausada', 'concluida'], description: 'novo status' },
+    motivo: { type: 'string', description: 'por que o status deve mudar, em uma frase' }
+  },
+  required: ['campanha_id', 'status', 'motivo'],
+  additionalProperties: false
+});
+
 const falha = (mensagem: string): CallToolResult => ({ content: [{ type: 'text', text: mensagem }], isError: true });
 const mensagemDe = (e: unknown) => (e instanceof Error ? e.message : 'Falha inesperada na Althius.');
 
@@ -134,6 +167,8 @@ export function criarServidorAlthius(ferramentas: FerramentasAgente): McpServer 
   leitura('listar_quadros', 'Lista os quadros do pipeline do cliente, com as etapas de cada um. Só leitura.', nada, () => ferramentas.listarQuadros());
   leitura('listar_negocios', 'Lista os negócios do pipeline (até 200, mais novos primeiro), com etapa, valor em reais e chance. Só leitura.', filtroNegocios, a => ferramentas.listarNegocios(a?.status));
 
+  leitura('listar_campanhas', 'Lista as campanhas do cliente, com canal, status e verba de mídia em reais. Só leitura.', nada, () => ferramentas.listarCampanhas());
+
   // Propostas: nunca alteram nada. Viram aprovação; gasto só o C-level aprova.
   const proposta = (nome: string, descricao: string, inputSchema: any, propor: (a: any) => Promise<import('./ferramentas').ResultadoProposta>, aviso: string) =>
     servidor.registerTool(nome, { description: descricao, inputSchema, annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true } }, async (a: any): Promise<CallToolResult> => {
@@ -154,6 +189,13 @@ export function criarServidorAlthius(ferramentas: FerramentasAgente): McpServer 
     a => ferramentas.proporNegocio(a), 'Proposta de negócio registrada e aguardando aprovação de uma pessoa. Nenhum negócio foi criado ainda.');
   proposta('propor_mover_negocio', 'Propõe mudar um negócio de etapa. NÃO move nada: vira uma aprovação para uma pessoa decidir.', pedidoMoverNegocio,
     a => ferramentas.proporMoverNegocio(a), 'Proposta de mudança de etapa registrada e aguardando aprovação de uma pessoa. O negócio não mudou ainda.');
+
+  proposta('propor_campanha', 'Propõe criar uma campanha em rascunho, sem verba. NÃO cria nada: vira uma aprovação. A verba se pede à parte, com propor_verba_campanha.', pedidoCampanha,
+    a => ferramentas.proporCampanha(a), 'Proposta de campanha registrada e aguardando aprovação de uma pessoa. Nenhuma campanha foi criada ainda.');
+  proposta('propor_verba_campanha', 'Propõe mudar a verba de mídia (em reais) de uma campanha. NÃO muda nada: vira uma aprovação. Aumentar a verba é gasto e só o C-level aprova.', pedidoVerba,
+    a => ferramentas.proporVerba(a), 'Pedido de verba registrado e aguardando aprovação de uma pessoa. A verba não mudou ainda.');
+  proposta('propor_status_campanha', 'Propõe mudar o status de uma campanha (rascunho, ativa, pausada, concluida). NÃO muda nada: vira uma aprovação.', pedidoStatusCampanha,
+    a => ferramentas.proporStatusCampanha(a), 'Proposta de status registrada e aguardando aprovação de uma pessoa. A campanha não mudou ainda.');
 
   return servidor;
 }
