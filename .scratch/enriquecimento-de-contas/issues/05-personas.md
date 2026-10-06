@@ -6,9 +6,9 @@
 - Deduplicar por LinkedIn e e-mail.
 - Na tela da conta, usar o LinkedIn salvo (hoje o link é uma busca pelo nome).
 
-**Blocked by:** 01 e as decisões 1 e 2.
+**Blocked by:** 01.
 
-**Status:** needs-info
+**Status:** ready-for-agent (até 5 por conta, 2 créditos por persona)
 
 ## Critérios
 - [ ] Só dado profissional público, com origem e data (LGPD).

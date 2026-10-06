@@ -1,6 +1,6 @@
 # Enriquecimento automático de contas e personas
 
-Status: needs-info (decisões do Nan no fim). Origem: pedido do Nan em 06/10/2026.
+Status: ready-for-agent (decisões do Nan tomadas em 06/10/2026, no fim). Origem: pedido do Nan em 06/10/2026.
 
 ## Problem Statement
 Hoje uma conta nasce só com nome, domínio, cidade e UF digitados (`create_account`, `import_accounts`) e **nada a completa depois**. Os campos `logo_url`, `lat` e `lng` existem no banco, mas ninguém os grava. O logo só aparece se alguém digitar o site no painel, e não fica salvo. O mapa do Início conta contas por UF, e conta sem UF vira só um número "sem localização". Não existe CNPJ, endereço nem telefone da empresa. Contatos (personas) só entram à mão ou por CSV. A fila `enrichment` (`src/server/queues/definitions.ts`) existe, mas não tem consumidor.
@@ -58,8 +58,12 @@ Fontes atrás de uma interface `FonteDeEnriquecimento`, para trocar ou somar Apo
 - Telefone pessoal de pessoas, até a decisão de LGPD.
 - Reenriquecer periodicamente (a coleta de sinais `receita_federal` e `nova_filial` cuida da mudança no tempo).
 
-## Decisões do Nan
-1. Quantos créditos por conta enriquecida e por persona encontrada?
-2. Quantas personas por conta, no máximo?
-3. Telefone de pessoas: buscar ou não? É dado pessoal (LGPD). Recomendação: só telefone da empresa e o que a pessoa publicou como profissional, com origem registrada.
-4. Enriquecer sempre automático ao criar, ou com um botão "Enriquecer" (e automático só na importação)?
+## Decisões do Nan (06/10/2026)
+1. **Créditos:** medir antes e cobrar depois. Começa com **5 créditos por conta enriquecida + 2 por persona encontrada**, com o teto em dólar da ADR 0060 (nunca custa mais do que cobra). Ajustar com o custo real do beta.
+2. **Personas:** até **5 por conta**.
+3. **Telefone das pessoas:** **buscar também**. Proteções obrigatórias (LGPD, base de legítimo interesse em prospecção B2B; a Althius não é escritório de advocacia, então confirmar com um advogado antes de vender):
+   - guardar a origem e a data de cada número;
+   - só usar em canais profissionais;
+   - lista de supressão: pessoa que pedir para sair é apagada e nunca volta;
+   - nunca mostrar o número fora do workspace do cliente.
+4. **Gatilho:** **sempre automático** ao criar ou importar conta.
