@@ -109,6 +109,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarCampanhas(null);
     this.publicarCadencias(null);
     this.registrarTelasAdmin();
+    this.limparIntegracoesDeExemplo();
   }
 
   private cargaWorkspace = 0;
@@ -700,6 +701,8 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     mod.signals.kpis = sinais.kpis.map(k => [k.label, k.valor, k.delta]);
     mod.signals.linhas = sinais.eventos;
     mod.signals.acoesLinha = [];
+    // A coleta (Apify) ainda não está ligada: nada busca sinais sozinho. A tela diz isso em vez de parecer que coleta.
+    mod.signals.sub = 'Coleta automática em breve. Aqui aparecem só os sinais já registrados no sistema.';
   }
 
   /** Troca o catálogo do protótipo pelo do banco, só na página de Sinais. */
@@ -707,7 +710,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const sinais: SinaisTela = this.state.sinaisReais || sinaisSemDados();
     if (!v.sigCat) return;
     const anteriores = Array.isArray(v.sigCat.grupos) ? v.sigCat.grupos : [];
-    v.sigCat.resumo = sinais.resumo;
+    v.sigCat.resumo = 'Coleta automática em breve. ' + sinais.resumo;
     v.sigCat.grupos = sinais.grupos.map((g, i) => {
       const antigo = g.codigo
         ? anteriores.find((a: { nome?: string; sigla?: string; href?: string }) => typeof a?.nome === 'string' && a.nome.toLowerCase().includes(g.codigo))
@@ -946,6 +949,18 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (String(rota.page || '').startsWith('admin/')) void this.carregarAdmin(rota.page);
     if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) { void this.carregarConexoes(); void this.carregarCanais(); void this.carregarAprendizado(); }
     if (rota.page === 'channels' && (rota.id !== antes.id || rota.page !== antes.page || rota.ws !== antes.ws || (this.state.pronto && !prev.pronto))) void this.carregarMensagens();
+  }
+
+  /** O protótipo trazia linhas de exemplo (HubSpot, Gmail... "Conectada") e o botão "Conectar ferramenta". No modo real nada disso existe. */
+  private limparIntegracoesDeExemplo() {
+    if (typeof window === 'undefined' || this.modoDemo !== false) return;
+    const mod = (window as any).ALTHIUS_MOD;
+    if (mod?.integrations) Object.assign(mod.integrations, { linhas: [], kpis: [], acao: undefined, acoesLinha: [] });
+  }
+
+  /** No modo real nenhum conector do catálogo está conectado (o protótipo trazia HubSpot, Gmail etc. de exemplo). */
+  conexoes() {
+    return this.modoDemo === false ? {} : (AlthiusLogic.prototype as any).conexoes.call(this);
   }
 
   /** No modo real, as conexões pessoais são as da pessoa no banco (o protótipo trazia as da Camila). */
