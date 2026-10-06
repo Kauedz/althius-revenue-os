@@ -115,6 +115,31 @@ describe('modelo', () => {
   });
 });
 
+describe('modo assinatura (teste sem custo)', () => {
+  it('--modelo-oauth: perfil usa o login do Codex, sem gateway e sem chave no .env', async () => {
+    const { opcoes, io } = ambiente();
+    await provisionar({ ...opcoes, 'modelo-oauth': 'gpt-6-luna' }, io);
+    for (const a of ['comercial', 'marketing', 'copy', 'revops']) {
+      const cfg = ler('docker', 'hermes', 'evolut', 'data', 'profiles', a, 'config.yaml');
+      expect(cfg).toContain('provider: openai-codex');
+      expect(cfg).toContain('default: "gpt-6-luna"');
+      expect(cfg).not.toContain('gateway:3300');
+      expect(ler('docker', 'hermes', 'evolut', 'data', 'profiles', a, '.env')).toContain('MODELO_CHAVE=\n');
+    }
+  });
+  it('--modelo-oauth junto de --modelo-url é pedido contraditório: erro claro, sem tocar no banco', async () => {
+    const { chamadas, opcoes, io } = ambiente();
+    await expect(provisionar({ ...opcoes, 'modelo-oauth': 'gpt-6-luna', 'modelo-url': 'http://x/v1' }, io)).rejects.toThrow('--modelo-oauth');
+    expect(chamadas).toHaveLength(0);
+  });
+  it('rodar de novo SEM a opção volta para o gateway (o modo não fica preso)', async () => {
+    const { opcoes, io } = ambiente();
+    await provisionar({ ...opcoes, 'modelo-oauth': 'gpt-6-luna' }, io);
+    await provisionar(opcoes, io);
+    expect(ler('docker', 'hermes', 'evolut', 'data', 'profiles', 'comercial', 'config.yaml')).toContain('base_url: "http://gateway:3300/v1"');
+  });
+});
+
 describe('argumentos e subida', () => {
   it('lerArgumentos lê pares --nome valor e recusa o resto', () => {
     expect(lerArgumentos(['--slug', 'evolut', '--workspace', WS])).toEqual({ slug: 'evolut', workspace: WS });

@@ -1,5 +1,6 @@
 // `npm run agentes:provisionar -- --workspace <uuid> --responsavel <membro-uuid> --slug <nome-curto>`
-// (opcional: --modelo-url <url> --modelo-nome <nome> para apontar para outro modelo; o padrão é o gateway da Althius)
+// (opcional: --modelo-url <url> --modelo-nome <nome> para apontar para outro modelo; o padrão é o gateway da Althius;
+//  ou --modelo-oauth <nome> para TESTAR sem custo pelo login do Codex/ChatGPT, sem gateway e sem chave: ADR 0051)
 // Prepara o Hermes Agent de UM cliente (ADR 0048): cria os 4 tokens dos agentes (uma vez só), os 4 perfis (só o MCP da
 // Althius, nenhuma ferramenta embutida), o perfil padrão fechado, o compose do cliente e a linha de cada agente no
 // registro de executores. Rodar de novo não troca tokens nem chaves: só completa o que falta.
@@ -45,9 +46,12 @@ export async function provisionar(o, io = {}) {
   if (!uuidValido(o.responsavel ?? '')) throw new Error('--responsavel precisa ser o id (uuid) do membro que responde pelos agentes (estrategista, C-level ou superadmin).');
   if (!slugValido(o.slug ?? '')) throw new Error('--slug precisa ser um nome curto: letras minúsculas, números e hífen (ex.: evolut).');
   // Por padrão o modelo é o gateway da Althius (ADR 0050): a chave do provedor fica no cofre, nunca no Hermes.
+  // Modo assinatura (--modelo-oauth <nome>): teste sem custo pelo login do Codex (ChatGPT), sem gateway e sem chave.
+  const oauth = o['modelo-oauth'];
+  if (oauth !== undefined && (!oauth || o['modelo-url'] !== undefined || o['modelo-nome'] !== undefined)) throw new Error('--modelo-oauth precisa do nome do modelo e não se mistura com --modelo-url nem --modelo-nome.');
   const modeloUrl = o['modelo-url'] ?? URL_GATEWAY;
-  const modeloNome = o['modelo-nome'] ?? NOME_GATEWAY;
-  if (!/^https?:\/\//.test(modeloUrl)) throw new Error('--modelo-url precisa ser um endereço http(s) (com /v1) compatível com OpenAI.');
+  const modeloNome = oauth ?? o['modelo-nome'] ?? NOME_GATEWAY;
+  if (oauth === undefined && !/^https?:\/\//.test(modeloUrl)) throw new Error('--modelo-url precisa ser um endereço http(s) (com /v1) compatível com OpenAI.');
   if (!modeloNome) throw new Error('--modelo-nome precisa ser o nome do modelo.');
   for (const v of ['urlBanco', 'chavePublica', 'chaveServico']) if (!o[v]) throw new Error(`Falta ${v} (veja o cabeçalho do script).`);
 
@@ -72,8 +76,8 @@ export async function provisionar(o, io = {}) {
       criados.push(agente);
     }
     chaveApi = chaveApi ?? aleatoria('alt_hermes_');
-    escrever(path.join(dir, 'config.yaml'), perfilDoAgente({ urlBanco: URL_BANCO_INTERNA, chavePublica: o.chavePublica, token, modelo: { url: modeloUrl, nome: modeloNome } }));
-    escrever(path.join(dir, '.env'), envDoPerfil({ chaveApi, chaveModelo: token }));
+    escrever(path.join(dir, 'config.yaml'), perfilDoAgente({ urlBanco: URL_BANCO_INTERNA, chavePublica: o.chavePublica, token, modelo: oauth ? { nome: oauth, oauth: true } : { url: modeloUrl, nome: modeloNome } }));
+    escrever(path.join(dir, '.env'), envDoPerfil({ chaveApi, chaveModelo: oauth ? '' : token }));
     chaves[agente] = chaveApi;
   }
   // Perfil padrão: fechado e com chave aleatória que ninguém recebe (só ele abre o ouvinte HTTP).
