@@ -305,12 +305,16 @@ Custos que o front mostra hoje:
 | Mensagem no chat ou no copiloto | 2 |
 | Rascunho de mensagem ou tarefa | 2 |
 | E-mail ou WhatsApp automático | 4 por envio |
-| Enriquecer um contato (e-mail e telefone) | 10 |
+| Enriquecer um contato (e-mail e telefone), pedido à mão ou por agente | 10 |
+| Enriquecimento automático de uma conta nova (site, logo, CNPJ, endereço e ponto no mapa) | 5 por conta, devolvido se não achar nada |
+| Enriquecimento automático das pessoas de uma conta (até 5, com foto e LinkedIn) | 2 por pessoa criada |
 | Pesquisa de conta (dossiê) | 15 |
 | Mapear o comitê de uma conta | 25 |
 | Sinal monitorado | 0 a 20 por conta, a cada leitura |
 | Leitura de mídia | 30 por semana |
 | Relatório automático | 20 por envio |
+
+O enriquecimento automático (toda conta nova entra sozinha na fila, ADR 0062) tem preço próprio e mais baixo, porque usa fontes públicas e uma busca barata. "Enriquecer um contato" (10) e "Mapear o comitê" (25) continuam valendo para o que alguém ou um agente pede à mão. Os valores do automático são provisórios: o custo real de cada trabalho é medido na fila (`custo_usd`, só o superadmin vê) e o preço é revisto com esses números.
 
 O extrato do front só mostra entradas e saídas. No banco, cada ação passa por reserva, consumo e liberação (`reserve`, `consume`, `release`), e o extrato junta as três numa linha só. Comprar ou pedir créditos segue a matriz: C-level e superadmin compram; o estrategista pede, e o pedido aparece em Aprovações.
 

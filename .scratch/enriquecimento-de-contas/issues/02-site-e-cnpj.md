@@ -4,9 +4,9 @@
 
 **Blocked by:** 01.
 
-**Status:** ready-for-agent (depois da 01)
+**Status:** feito em 06/10/2026. A metade "achar o site" caiu: `accounts.domain` é obrigatório, toda conta já tem site. O CNPJ por busca (Google, conferido na Receita) está em `src/server/enriquecimento/` (ADR 0062).
 
 ## Critérios
-- [ ] CNPJ validado pelo dígito verificador; dúvida = não preenche.
-- [ ] Site achado por busca não pode ser rede social, diretório nem marketplace.
-- [ ] Testes com HTML e busca falsos.
+- [x] CNPJ validado pelo dígito verificador; dúvida = não preenche.
+- [x] (não se aplica: o site é o domínio da conta)
+- [x] Testes com HTML e busca falsos.

@@ -5,11 +5,13 @@
 //   4. logo: o ícone do próprio site (ou o ícone que o Google guarda do site).
 // Nada é inventado: o que não se achou fica vazio. Cada campo diz de onde veio. O banco aplica (manual vence).
 import { acharCnpjs, acharLinkedinDaEmpresa, cnpjValido, soDigitos } from './cnpj.ts';
+import { mesmaEmpresa } from '../sinais/adaptadores/comum.ts';
 
 export type Campos = Partial<Record<
   'cnpj' | 'razao_social' | 'nome_fantasia' | 'endereco' | 'cep' | 'city' | 'state_uf' | 'telefone' | 'email_empresa' | 'cnae' | 'porte'
   | 'situacao_cadastral' | 'lat' | 'lng' | 'localizacao_precisao' | 'logo_url' | 'linkedin_company_url', string | number>>;
-export interface ResultadoEmpresa { campos: Campos; fontes: Record<string, string> }
+/** `custoUsd`: o que a busca do CNPJ gastou (zero se não buscou; nulo se o custo real não veio). */
+export interface ResultadoEmpresa { campos: Campos; fontes: Record<string, string>; custoUsd: number | null }
 export interface ContaParaEnriquecer {
   id: string; nome: string; dominio: string | null; cnpj?: string | null; cidade?: string | null; uf?: string | null; cep?: string | null;
   endereco?: string | null; lat?: number | null; lng?: number | null; linkedin_url?: string | null;
@@ -20,6 +22,11 @@ export class FonteIndisponivel extends Error {}
 
 export interface OpcoesEmpresa {
   buscar?: typeof fetch;
+  /**
+   * Só usada quando nem a conta nem o site têm CNPJ: candidatos achados numa busca (Google pela Apify). A Receita confere
+   * cada um, e só vale o que tem o nome da conta. Sem esta opção (ou se ela falhar), o CNPJ fica vazio.
+   */
+  buscarCnpj?: (conta: ContaParaEnriquecer) => Promise<{ candidatos: string[]; custoUsd: number | null }>;
   /** espera entre pedidos ao mesmo serviço (uso justo das APIs públicas; o OpenStreetMap pede 1 por segundo) */
   esperar?: (ms: number) => Promise<void>;
   /** identificação exigida pelo OpenStreetMap */
@@ -147,11 +154,31 @@ export async function enriquecerEmpresa(conta: ContaParaEnriquecer, o: OpcoesEmp
     }
   }
 
+  // 1b. Sem CNPJ no site: busca ("CNPJ + nome"). Só vale se a Receita disser que o nome é o da conta (dúvida = não preenche).
+  let custoUsd: number | null = 0;
+  let rf: Awaited<ReturnType<typeof receita>> = null;
+  if (!cnpj && o.buscarCnpj) {
+    try {
+      const achados = await o.buscarCnpj(conta);
+      custoUsd = achados.custoUsd;
+      for (const candidato of achados.candidatos.filter(cnpjValido).slice(0, 3)) {
+        const consulta = await receita(cliente, soDigitos(candidato));
+        if (consulta && (mesmaEmpresa(conta.nome, consulta.dados.nome_fantasia) || mesmaEmpresa(conta.nome, consulta.dados.razao_social))) {
+          cnpj = soDigitos(candidato); rf = consulta;
+          por('cnpj', cnpj, 'Busca no Google, conferida na Receita Federal');
+          break;
+        }
+      }
+    } catch (e) {
+      if (e instanceof FonteIndisponivel) throw e; // a Receita fora do ar não é "não achei": tenta de novo depois
+    }
+  }
+
   // 2. Receita Federal.
   let cep = conta.cep ? soDigitos(conta.cep) : null;
   let cidade = conta.cidade ?? null, uf = conta.uf ?? null, endereco = conta.endereco ?? null;
   if (cnpj) {
-    const rf = await receita(cliente, cnpj);
+    rf ??= await receita(cliente, cnpj);
     if (rf) {
       const d = rf.dados;
       por('razao_social', limpo(d.razao_social), rf.fonte);
@@ -190,5 +217,5 @@ export async function enriquecerEmpresa(conta: ContaParaEnriquecer, o: OpcoesEmp
       if (g) { por('lat', g.lat, 'OpenStreetMap'); por('lng', g.lng, 'OpenStreetMap'); por('localizacao_precisao', 'cidade', 'OpenStreetMap'); }
     }
   }
-  return { campos, fontes };
+  return { campos, fontes, custoUsd };
 }

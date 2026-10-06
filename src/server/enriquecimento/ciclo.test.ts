@@ -46,6 +46,39 @@ describe('uma rodada do enriquecimento', () => {
     expect(fim.corpo.p_resultado.fontes.cnpj).toBe('Site da empresa');
   });
 
+  it('empresa sem CNPJ no site: busca no Google, confere na Receita e entrega com o custo real da busca', async () => {
+    const { buscar, rpc } = mundoFalso([empresa(1)], {
+      'https://canario1.test/apple-touch-icon.png': new Response('x', { status: 404 }),
+      'https://canario1.test': new Response('Fale conosco', { headers: { 'content-type': 'text/html' } }),
+      'https://brasilapi.com.br/api/cnpj/v1/12345678000195': Response.json({ razao_social: 'CANARIO 1 LTDA', nome_fantasia: 'CANARIO 1', uf: 'SP', municipio: 'CAMPINAS' })
+    });
+    const chamadas: Array<{ ator: string; entrada: any; op: any }> = [];
+    const pool = {
+      coletar: async (ator: string, entrada: Record<string, unknown>, op: unknown) => {
+        chamadas.push({ ator, entrada, op });
+        return { itens: [{ organicResults: [{ title: 'Canário 1 - CNPJ 12.345.678/0001-95', description: '' }] }], runId: 'r', conta: 'c', custoUsd: 0.003 };
+      }
+    };
+    await rodarEnriquecimento({ ...base, buscar, pool });
+    expect(chamadas).toHaveLength(1);
+    expect(chamadas[0].ator).toBe('apify/google-search-scraper');
+    expect(chamadas[0].entrada.queries).toBe('CNPJ "Canário 1"');
+    expect(chamadas[0].op.tetoUsd).toBeLessThanOrEqual(0.0481 / 2);
+    const fim = rpc.find(x => x.nome === 'enrichment_finish')!;
+    expect(fim.corpo.p_custo_usd).toBe(0.003);
+    expect(fim.corpo.p_resultado.campos).toMatchObject({ cnpj: '12345678000195', razao_social: 'CANARIO 1 LTDA' });
+  });
+
+  it('empresa sem CNPJ e sem chave da Apify: segue com as fontes grátis e custo zero', async () => {
+    const { buscar, rpc } = mundoFalso([empresa(1)], {
+      'https://canario1.test/apple-touch-icon.png': new Response('x', { status: 404 }),
+      'https://canario1.test': new Response('Fale conosco', { headers: { 'content-type': 'text/html' } })
+    });
+    const r = await rodarEnriquecimento({ ...base, buscar, pool: semApify });
+    expect(r).toMatchObject({ concluidos: 1, falhas: 0 });
+    expect(rpc.find(x => x.nome === 'enrichment_finish')!.corpo.p_custo_usd).toBe(0);
+  });
+
   it('Receita fora do ar: avisa a falha (o banco devolve o crédito e tenta depois)', async () => {
     const { buscar, rpc } = mundoFalso([empresa(1)], {
       'https://canario1.test/apple-touch-icon.png': new Response('x', { status: 404 }),

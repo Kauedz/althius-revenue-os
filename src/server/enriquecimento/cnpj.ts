@@ -33,6 +33,29 @@ export function acharCnpjs(html: string): string[] {
   return [...contagem.entries()].sort((a, b) => b[1] - a[1]).map(([c]) => c);
 }
 
+/** O que se pergunta ao Google para achar o CNPJ de uma conta que o site não mostra: nome, cidade e estado. */
+export function consultaDoCnpj(c: { nome: string; cidade?: string | null; uf?: string | null }): string {
+  return ['CNPJ', `"${c.nome.replace(/"/g, '')}"`, c.cidade, c.uf].filter(Boolean).join(' ');
+}
+
+/**
+ * CNPJs válidos citados nos títulos e nas descrições dos resultados do Google, do mais citado para o menos citado.
+ * Só serve de candidato: quem decide é a Receita (o nome tem que bater com o da conta).
+ */
+export function cnpjsDosResultados(itens: unknown[]): string[] {
+  const textos: string[] = [];
+  for (const it of itens) {
+    const organicos = it && typeof it === 'object' ? (it as { organicResults?: unknown }).organicResults : null;
+    if (!Array.isArray(organicos)) continue;
+    for (const o of organicos) {
+      if (!o || typeof o !== 'object') continue;
+      const { title, description } = o as { title?: unknown; description?: unknown };
+      textos.push(`${typeof title === 'string' ? title : ''} ${typeof description === 'string' ? description : ''}`);
+    }
+  }
+  return acharCnpjs(textos.join(' | '));
+}
+
 /** A página da empresa no LinkedIn citada no site (ajuda a achar as pessoas certas). */
 export function acharLinkedinDaEmpresa(html: string): string | null {
   const m = html.match(/https?:\/\/(?:[a-z]{2,3}\.)?(?:www\.)?linkedin\.com\/company\/([A-Za-z0-9_%.-]+)/i);

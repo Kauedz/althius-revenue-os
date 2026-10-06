@@ -284,6 +284,7 @@ services:
       ENRIQ_CONCORRENCIA: ${ENRIQ_CONCORRENCIA:-2}
       ENRIQ_TELEFONE_ATOR: ${ENRIQ_TELEFONE_ATOR:-}
       ENRIQ_TELEFONE_ENTRADA: ${ENRIQ_TELEFONE_ENTRADA:-}
+      ENRIQ_TELEFONE_MAX_USD_POR_PESSOA: ${ENRIQ_TELEFONE_MAX_USD_POR_PESSOA:-0.01}
     networks: [interna]
 
   # Backup agendado do banco e dos arquivos, em ./backups (copie para fora do servidor).

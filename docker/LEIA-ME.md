@@ -124,13 +124,21 @@ O contêiner `agentes` (ADR 0047) pega os pedidos dos canais e os entrega ao Her
 
 ## Enriquecimento de contas (ADR 0062)
 O contêiner `enriquecimento` completa sozinho cada conta nova: site, logo, CNPJ, Receita Federal, localização no mapa e até 5 pessoas com foto e LinkedIn. A cada rodada o banco diz quais contas enriquecer e reserva os créditos (5 por conta, 2 por pessoa achada); o contêiner só busca fora. Falha devolve o crédito.
-- **Chaves:** a etapa da empresa usa só fontes públicas, sem chave, e parte do site que a conta já tem. A etapa das pessoas usa a Apify, com as chaves do cofre (a mesma tela de Fornecedores da coleta de sinais). Sem chave da Apify, as pessoas esperam e o log avisa; nada é inventado.
+- **Chaves:** a etapa da empresa usa fontes públicas, sem chave, e parte do site que a conta já tem. Só quando o site não mostra o CNPJ ela faz uma busca no Google pela Apify (centavos); sem chave da Apify, essa busca é pulada. A etapa das pessoas usa a Apify, com as chaves do cofre (a mesma tela de Fornecedores da coleta de sinais). Sem chave da Apify, as pessoas esperam e o log avisa; nada é inventado.
 - **Ver o que está acontecendo:** `docker compose logs -f enriquecimento` (só números, nunca nome, CNPJ, telefone nem chave).
 - **Variáveis (todas opcionais, no `.env`):**
   - `ENRIQ_INTERVALO_MINUTOS` (padrão 5): de quanto em quanto tempo olha a fila.
   - `ENRIQ_PEDIDOS_POR_RODADA` (padrão 10): quantos trabalhos pega por vez.
   - `ENRIQ_CONCORRENCIA` (padrão 2): quantos roda ao mesmo tempo.
   - `ENRIQ_TELEFONE_ATOR` e `ENRIQ_TELEFONE_ENTRADA`: fonte do telefone pessoal na Apify (nome do ator e a entrada em JSON, com `{{linkedin_url}}` ou `{{linkedin_urls}}`). **Sem as duas, as pessoas entram sem telefone.** Antes de ligar, confirme a base legal da LGPD com um advogado.
-- **Custo:** o preço atual (5 + 2 por pessoa) é provisório. O custo real de cada trabalho fica em `internal.account_enrichments.custo_usd` (só o superadmin vê). Meça com algumas contas reais antes de fixar o preço.
+  - `ENRIQ_TELEFONE_MAX_USD_POR_PESSOA` (padrão 0,01): teto de gasto por pessoa na busca de telefone.
+- **Custo:** o preço atual (5 + 2 por pessoa) é provisório. O custo real de cada trabalho fica em `internal.account_enrichments.custo_usd` (só o superadmin vê). **Para medir**, com 10 a 20 contas reais já enriquecidas, rode no banco:
+  ```sql
+  select etapa, count(*) as trabalhos, round(avg(custo_usd), 4) as custo_medio_usd,
+         round(avg(internal.signal_teto_usd(creditos)), 4) as cobrado_medio_usd,
+         round(sum(custo_usd) / nullif(sum(internal.signal_teto_usd(creditos)), 0), 2) as custo_sobre_cobrado
+    from internal.account_enrichments where estado = 'ok' and creditos > 0 group by etapa;
+  ```
+  Regra (ADR 0062): se `custo_sobre_cobrado` passar de 0,5, subir o preço ou tirar a leitura de perfis; se ficar abaixo de 0,2, dá para baixar o preço.
 - **Contas que já existiam** não entram sozinhas na fila; um gestor pede o enriquecimento pela função `account_enrichment_request`.
 - **Pessoa pediu para sair (LGPD):** `contact_suppress` apaga o contato e guarda os dados dele numa lista de supressão, para o enriquecimento nunca recriá-lo.

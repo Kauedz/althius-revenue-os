@@ -3,8 +3,9 @@
 // que devolve o crédito e tenta de novo mais tarde). Não achar nada não é falha: o banco devolve a reserva sem cobrar.
 // O log só tem números.
 import type { Coletor } from '../sinais/ciclo.ts';
+import { cnpjsDosResultados, consultaDoCnpj } from './cnpj.ts';
 import { enriquecerEmpresa, type ContaParaEnriquecer, type OpcoesEmpresa } from './empresa.ts';
-import { acharPessoas, type FonteDeTelefone, type Persona } from './pessoas.ts';
+import { acharPessoas, ATOR_BUSCA, type FonteDeTelefone, type Persona } from './pessoas.ts';
 
 interface Trabalho {
   job_id: string;
@@ -74,8 +75,16 @@ export async function rodarEnriquecimento(o: OpcoesEnriquecimento): Promise<Resu
     try {
       if (t.etapa === 'empresa') {
         const conta: ContaParaEnriquecer = { id: c.id, nome: c.nome, dominio: c.dominio, cnpj: c.cnpj, cidade: c.cidade, uf: c.uf, cep: c.cep, endereco: c.endereco, lat: c.lat, lng: c.lng, linkedin_url: c.linkedin_url };
-        const r = await enriquecerEmpresa(conta, { buscar, ...o.empresa });
-        return entregar(t, { campos: r.campos, fontes: r.fontes }, 0);
+        // Uma busca no Google por centavos, só se o site não mostrar o CNPJ. Teto: metade do que o cliente paga (e no máximo 2 centavos).
+        const buscarCnpj: OpcoesEmpresa['buscarCnpj'] = async c => {
+          const r = await o.pool.coletar(ATOR_BUSCA, {
+            queries: consultaDoCnpj(c), maxPagesPerQuery: 1, countryCode: 'br', mobileResults: false,
+            maximumLeadsEnrichmentRecords: 0, aiModeSearch: { enableAiMode: false }
+          }, { maxItens: 1, tetoUsd: Math.min(0.02, (Number(t.teto_usd) || 0) / 2), esperaCustoMs: o.esperaCustoMs });
+          return { candidatos: cnpjsDosResultados(r.itens), custoUsd: r.custoUsd };
+        };
+        const r = await enriquecerEmpresa(conta, { buscar, buscarCnpj, ...o.empresa });
+        return entregar(t, { campos: r.campos, fontes: r.fontes }, r.custoUsd);
       }
       const r = await acharPessoas({
         conta: { nome: c.nome, dominio: c.dominio, razao_social: c.razao_social, linkedin_url: c.linkedin_url },
