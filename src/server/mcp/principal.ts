@@ -8,6 +8,7 @@ import { createClient } from '@supabase/supabase-js';
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { criarServidorAlthius } from './althius.ts';
 import { ferramentasDoAgente } from './ferramentas.ts';
+import { registrarNoStderr } from './execucao.ts';
 
 export interface ConfiguracaoMcp {
   url: string;
@@ -54,7 +55,8 @@ if (executadoDiretamente(import.meta.url, process.argv[1])) {
     const config = lerConfiguracao(process.env);
     const cliente = createClient(config.url, config.chavePublica, { auth: { persistSession: false, autoRefreshToken: false } });
     const ferramentas = ferramentasDoAgente(cliente, config.token, { url: (process.env.ALTHIUS_INTEGRACOES_URL ?? '').trim() || undefined });
-    serveStdio(() => criarServidorAlthius(ferramentas));
+    // Um evento por chamada de ferramenta no stderr (só nomes e números; o Hermes guarda no log do perfil). ADR 0061.
+    serveStdio(() => criarServidorAlthius(ferramentas, { registrar: registrarNoStderr }));
   } catch (e) {
     // stdout é do protocolo MCP: avisos vão para stderr.
     console.error(e instanceof Error ? e.message : e);

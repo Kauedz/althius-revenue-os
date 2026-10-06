@@ -96,8 +96,11 @@ const ATOR = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,79}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$
 
 async function lerJson(buscar: typeof fetch, url: string): Promise<Record<string, unknown> | null> {
   let r: Response;
-  try { r = await buscar(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(20_000) }); } catch { throw new Error('A loja da Apify não respondeu agora. Tente de novo em instantes.'); }
+  // Falha passageira (rede, 429, 5xx) vai marcada: a camada de execução do agente pode tentar de novo (ADR 0061).
+  const passageiro = (m: string) => Object.assign(new Error(m), { transitorio: true });
+  try { r = await buscar(url, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(20_000) }); } catch { throw passageiro('A loja da Apify não respondeu agora. Tente de novo em instantes.'); }
   if (r.status === 404) return null;
+  if (r.status === 429 || r.status >= 500) throw passageiro(`A loja da Apify está ocupada agora (HTTP ${r.status}).`);
   if (!r.ok) throw new Error(`A loja da Apify recusou a consulta (HTTP ${r.status}).`);
   const j = (await r.json().catch(() => null)) as { data?: unknown } | null;
   return j?.data && typeof j.data === 'object' && !Array.isArray(j.data) ? (j.data as Record<string, unknown>) : null;

@@ -3,6 +3,7 @@
 import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buscarFontes, detalharFonte, type DetalheDaFonte, type FonteDaLoja } from '../sinais/loja-apify.ts';
+import { ErroDeFerramenta } from './execucao.ts';
 
 export interface ContatoAgente {
   id: string;
@@ -176,10 +177,12 @@ export interface FerramentasAgente {
 export const TOKEN_INVALIDO = 'Token do agente inválido ou revogado.';
 
 function erroDoBanco(error: { code?: string; message?: string }, mensagem: string): Error {
-  if (error.code === '28000') return new Error(TOKEN_INVALIDO, { cause: error });
+  if (error.code === '28000') return new ErroDeFerramenta(TOKEN_INVALIDO, 'nao_autorizado', { cause: error });
   // 55000: agente pausado pelo cliente (botão de emergência); a mensagem do banco é a que o agente deve ver.
-  if (error.code === '55000' && error.message) return new Error(error.message, { cause: error });
-  return new Error(mensagem, { cause: error });
+  if (error.code === '55000' && error.message) return new ErroDeFerramenta(error.message, 'agente_pausado', { cause: error });
+  // Sem código do banco = a resposta nem chegou (rede, banco fora do ar): passageiro, a leitura pode tentar de novo.
+  const semResposta = !error.code || /fetch failed|network|ECONN|ETIMEDOUT|socket/i.test(error.message ?? '');
+  return new ErroDeFerramenta(mensagem, semResposta ? 'indisponivel' : 'recusado', { cause: error });
 }
 
 // Chave de idempotência: o mesmo pedido repetido pelo agente não cria outra aprovação.
@@ -196,13 +199,13 @@ const estavel = (v: unknown): string => {
 export function ferramentasDoAgente(cliente: SupabaseClient, token: string, ponte: OpcoesPonte = {}): FerramentasAgente {
   // O serviço de integrações recebe SÓ o token do agente. O erro devolvido nunca leva endereço interno nem token.
   const chamarPonte = async (caminho: string, corpo: Record<string, unknown>): Promise<RespostaPonte> => {
-    if (!ponte.url) throw new Error('As integrações com apps ainda não estão ligadas neste ambiente.');
+    if (!ponte.url) throw new ErroDeFerramenta('As integrações com apps ainda não estão ligadas neste ambiente.', 'nao_configurado');
     let r: Response;
     try {
       r = await (ponte.buscar ?? fetch)(`${ponte.url.replace(/[/]+$/, '')}/integracoes/agente/${caminho}`, {
         method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(corpo), signal: AbortSignal.timeout(60_000)
       });
-    } catch { throw new Error('Não foi possível falar com o serviço de integrações agora.'); }
+    } catch { throw new ErroDeFerramenta('Não foi possível falar com o serviço de integrações agora.', 'indisponivel'); }
     const j = await r.json().catch(() => null);
     return { status: r.status, corpo: j && typeof j === 'object' && !Array.isArray(j) ? (j as Record<string, unknown>) : {} };
   };
@@ -367,7 +370,7 @@ export function ferramentasDoAgente(cliente: SupabaseClient, token: string, pont
     async listarSinais(filtro) {
       const { data, error } = await cliente.rpc('agent_list_signals', { p_token: token, p_account_id: filtro?.conta_id ?? null, p_limit: filtro?.limite ?? 20 });
       if (error) {
-        if (error.code === '22P02') throw new Error('Conta não encontrada neste workspace.');
+        if (error.code === '22P02') throw new ErroDeFerramenta('Conta não encontrada neste workspace.', 'entrada_invalida');
         throw erroDoBanco(error, 'Não foi possível ler os sinais.');
       }
       return (data || []) as SinalAgente[];
