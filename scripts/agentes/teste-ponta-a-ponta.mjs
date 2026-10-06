@@ -27,16 +27,21 @@ if (c.error || !c.data?.ok) { console.error('Canal não criado:', c.error?.messa
 try {
   const s = await pessoa.rpc('chat_send', { p_workspace_id: WS, p_member_id: MEMBRO, p_slug: slug, p_texto: `@${nomeDoAgente(AGENTE)}, quantos contatos temos?`, p_resposta: null, p_agente: AGENTE });
   console.log('Pedido:', JSON.stringify(s.data));
-  const r = await rodarCicloHarness({
-    banco: bancoHarnessViaApi(URL + '/rest/v1', SERVICO),
-    pegar: { silencioS: 0, esperaMaximaS: 0 },
-    executoresRegistrados: () => [`${WS}/${AGENTE}`],
-    executor: executorHermes({ resolver: () => ({ url: HERMES.replace(/\/+$/, '').replace(/\/v1$/, ''), chave: CHAVE, modelo: MODELO }) }),
-    log: l => console.log('log:', JSON.stringify(l))
-  });
-  console.log('Ciclo:', JSON.stringify(r));
   const { data: canal } = await admin.from('chat_channels').select('id').eq('workspace_id', WS).eq('slug', slug).single();
-  const { data: msgs } = await admin.from('chat_messages').select('sender_type, sender_agent_id, content').eq('channel_id', canal.id).order('created_at');
+  const buscarMensagens = async () => (await admin.from('chat_messages').select('sender_type, sender_agent_id, content').eq('channel_id', canal.id).order('created_at')).data;
+  // Pode haver pedidos de OUTROS canais esperando na frente (o harness atende um lote por agente por vez): roda ciclos
+  // até a resposta do nosso canal aparecer (no máximo 10).
+  const banco = bancoHarnessViaApi(URL + '/rest/v1', SERVICO);
+  const executor = executorHermes({ resolver: () => ({ url: HERMES.replace(/\/+$/, '').replace(/\/v1$/, ''), chave: CHAVE, modelo: MODELO }) });
+  let msgs = await buscarMensagens();
+  for (let i = 1; i <= 10 && !msgs.some(m => m.sender_type === 'agent'); i++) {
+    const r = await rodarCicloHarness({
+      banco, executor, pegar: { silencioS: 0, esperaMaximaS: 0 }, executoresRegistrados: () => [`${WS}/${AGENTE}`],
+      log: l => console.log('log:', JSON.stringify(l))
+    });
+    console.log(`Ciclo ${i}:`, JSON.stringify(r));
+    msgs = await buscarMensagens();
+  }
   for (const m of msgs) console.log(`  [${m.sender_type}${m.sender_agent_id ? ':' + m.sender_agent_id : ''}] ${m.content}`);
   const resposta = msgs.find(m => m.sender_type === 'agent');
   console.log(resposta ? '\nOK: o agente respondeu no canal.' : '\nFALHOU: o agente não respondeu. Veja os logs do Hermes e do harness.');

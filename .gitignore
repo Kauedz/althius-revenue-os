@@ -9,3 +9,5 @@ supabase/.branches
 .scratch/desenvolvimento/
 backups
 docker/agentes-executores.json
+docker/hermes/
+docker/agentes-hermes.compose.yml

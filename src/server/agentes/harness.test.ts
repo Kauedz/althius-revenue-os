@@ -14,7 +14,7 @@ function bancoFalso(lotes: LoteHarness[], extra: Partial<BancoHarness> = {}) {
     recolher: async s => { chamadas.push({ fn: 'recolher', args: [s] }); return 0; },
     pegar: async () => { chamadas.push({ fn: 'pegar', args: [] }); return lotes; },
     batida: async id => { chamadas.push({ fn: 'batida', args: [id] }); return true; },
-    terminar: async (id, r) => { chamadas.push({ fn: 'terminar', args: [id, r] }); },
+    terminar: async (id, r) => { chamadas.push({ fn: 'terminar', args: [id, r] }); return r.ok ? 'answered' : 'failed'; },
     ...extra
   };
   return { banco, chamadas };
@@ -32,6 +32,15 @@ describe('rodarCicloHarness (banco e executor falsos)', () => {
     expect(chamadas.map(c => c.fn)).toEqual(['recolher', 'pegar', 'terminar']);
     expect(chamadas[0].args).toEqual([45]);
     expect(chamadas[2].args).toEqual(['r1', { ok: true, resposta: 'Resposta do agente' }]);
+  });
+
+  it('o banco não aceitou a resposta (lote recolhido ou recusada): não conta como respondido e avisa', async () => {
+    const { banco } = bancoFalso([lote()], { terminar: async () => 'unchanged' });
+    const logs: Array<Record<string, unknown>> = [];
+    const r = await rodarCicloHarness({ banco, executor: { responder: async () => 'resposta' }, log: l => logs.push(l) });
+    expect(r).toMatchObject({ respondidos: 0, falhas: 1 });
+    expect(logs.some(l => l.msg === 'harness_resposta_nao_gravada' && l.resultado === 'unchanged')).toBe(true);
+    expect(JSON.stringify(logs)).not.toContain('resposta"');
   });
 
   it('executor que falha: o lote é devolvido com erro curto, sem o texto das mensagens', async () => {
@@ -101,13 +110,13 @@ describe('bancoHarnessViaApi (fetch falso)', () => {
     const chamadas: Array<{ url: string; h: Record<string, string>; corpo: any }> = [];
     const f = (async (url: string, init: RequestInit) => {
       chamadas.push({ url, h: init.headers as Record<string, string>, corpo: JSON.parse(init.body as string) });
-      return { ok: true, status: 200, json: async () => (url.endsWith('heartbeat') ? true : url.endsWith('reap') ? 2 : []) };
+      return { ok: true, status: 200, json: async () => (url.endsWith('heartbeat') ? true : url.endsWith('reap') ? 2 : url.endsWith('finish') ? { action: 'unchanged' } : []) };
     }) as unknown as typeof fetch;
     const b = bancoHarnessViaApi('http://rest:3000/', 'chave-servico', f);
     expect(await b.recolher(90)).toBe(2);
     await b.pegar({ silencioS: 1, limite: 2 });
     expect(await b.batida('r1')).toBe(true);
-    await b.terminar('r1', { ok: false, erro: 'x' });
+    expect(await b.terminar('r1', { ok: false, erro: 'x' })).toBe('unchanged');
     expect(chamadas.map(c => c.url)).toEqual([
       'http://rest:3000/rpc/agent_harness_reap', 'http://rest:3000/rpc/agent_harness_claim',
       'http://rest:3000/rpc/agent_harness_heartbeat', 'http://rest:3000/rpc/agent_harness_finish'
