@@ -34,7 +34,7 @@ O HubSpot não aceita registro automático: você cria um "app de autorização 
 
 Limite: enquanto o app não estiver no marketplace do HubSpot, ele aceita até **25 instalações**. Dá para a fase de testes e os primeiros clientes. Se o HubSpot pedir permissões (escopos), marque só as de **leitura de CRM** (contatos, empresas, negócios); a escrita entra quando o "Enviar ao CRM" estiver pronto. *(Não confirmei os nomes exatos dos escopos na tela.)*
 
-**Depois:** me avise. Eu libero o ticket 04 (HubSpot) e você cola o Client ID e o Secret na tela Fornecedores.
+**Depois (já está liberado no código):** abra **Fornecedores > Nova chave**, escolha **App de integração**, no nome da chave escreva `hubspot`, cole o **ID do cliente** no campo próprio e o **Segredo do cliente** no campo da chave (ele nunca aparece de novo). Depois conecte a sua própria conta pelo cartão do HubSpot. O ID do app (56000583) e o ID do cliente não são segredos; o Segredo é, e só vai nesse campo.
 
 ## 2. Google: pela Unipile, sem registrar app
 

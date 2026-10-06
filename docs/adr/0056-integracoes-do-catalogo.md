@@ -23,7 +23,7 @@ Os 37 conectores do catálogo apareciam "Em breve" (ADR 0054) porque nenhum exis
 11. **A tela de Integrações** (ticket 02) mostra o estado real de cada cartão: os apps com servidor oficial e os cinco canais de mensagem têm botão **Conectar**; o resto fica "Em breve" **com o motivo escrito no cartão**. Conectado mostra "Conta: ..."; token recusado mostra "Precisa reconectar" e o botão Reconectar. Gerenciar oferece **Desconectar** (só o acesso da própria pessoa). Quando o app devolve a pessoa, a tela diz o resultado (`/?conexao=ok|erro&integracao=...`) e limpa o endereço; o resultado vem **antes do `#`** porque o roteador da tela lê o `#`.
 
 ## O que NÃO faz (próximos tickets)
-- HubSpot (ticket 04): precisa que o dono crie o MCP Auth App e guarde Client ID e Secret no cofre. Guia passo a passo em `docs/integracoes/guia-do-dono.md`.
+- HubSpot (ticket 04): construído. O app (ID do cliente + Segredo) mora no cofre como tipo `integracao_app` (nome = código da integração), a conta é identificada e o portal fixado; sem identificar o portal a conexão é recusada. Falta o Segredo no cofre e o teste real do dono. A identificação do portal e o parâmetro `resource` não foram confirmados contra o HubSpot real.
 - Sincronização, Enviar ao CRM e os demais apps (tickets 05 a 09).
 - Agenda (Google Calendar e Outlook) pela Unipile: a documentação da Unipile confirma Gmail e Agenda do Google com credenciais dela (sem o dono registrar app no Google); falta construir e testar antes de ligar o cartão. Drive e Contatos do Google **não** estão confirmados na documentação oficial.
 - Salesforce, Dynamics e Teams ficam "Em breve" por decisão do dono; RD Station e Zoho em avaliação (ver o guia).

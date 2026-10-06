@@ -1,6 +1,7 @@
 // Rotas do cofre (ADR 0049), chamadas pela tela do superadmin com o login dele. Quem confere "é superadmin" é o banco
 // (cofre_conferir_superadmin com o JWT da pessoa); só depois o servidor cifra e guarda com a chave de serviço.
 import { cifrar, mascara } from './cifra.ts';
+import { PERFIS } from '../integracoes/perfis.ts';
 import type { Cofre, Provedor } from './cofre.ts';
 
 export interface DepsCofre {
@@ -15,7 +16,7 @@ type Resp = { status: number; corpo: Record<string, unknown> };
 const resposta = (status: number, corpo: Record<string, unknown>): Resp => ({ status, corpo });
 
 const ALIAS: Record<string, Provedor> = { mensagens: 'unipile', mensagens_webhook: 'unipile_webhook' };
-const PROVEDORES: Provedor[] = ['apify', 'unipile', 'unipile_webhook', 'modelo_ia'];
+const PROVEDORES: Provedor[] = ['apify', 'unipile', 'unipile_webhook', 'modelo_ia', 'integracao_app'];
 const urlSegura = (v: unknown): string | null => {
   if (typeof v !== 'string') return null;
   try {
@@ -53,6 +54,12 @@ function limparConfig(provedor: Provedor, config: unknown): Record<string, strin
     if (pe !== undefined && ps !== undefined && (!Number.isFinite(pe) || !Number.isFinite(ps) || pe < 0 || ps < 0)) return null;
     return { api, ...(url ? { base_url: url } : {}), modelo, prioridade, ...(pe !== undefined && ps !== undefined ? { preco_entrada: pe, preco_saida: ps } : {}) };
   }
+  if (provedor === 'integracao_app') {
+    // O ID do cliente não é segredo (aparece na tela de consentimento do fornecedor); o segredo vai só cifrado.
+    const clientId = typeof c.client_id === 'string' ? c.client_id.trim() : '';
+    if (!clientId || clientId.length > 200 || /[\s\u0000-\u001f]/.test(clientId)) return null;
+    return { client_id: clientId };
+  }
   return {};
 }
 
@@ -83,6 +90,8 @@ export async function guardarSegredo(d: DepsCofre, jwt: string, corpo: unknown):
   if (!quem.ok) return quem.r;
   if (!PROVEDORES.includes(provedor) || !rotulo || rotulo.length > 80) return resposta(400, { erro: 'pedido_invalido' });
   if (segredo.length < 8 || segredo.length > 2000 || /[\s\u0000-\u001f]/.test(segredo)) return resposta(400, { erro: 'segredo_invalido' });
+  // O nome de um app de integração é o código da integração, e só vale para as que a Althius registra à mão.
+  if (provedor === 'integracao_app' && PERFIS[rotulo]?.mcp?.registro !== 'app_registrado') return resposta(400, { erro: 'pedido_invalido' });
   const config = limparConfig(provedor, c.config);
   if (!config) return resposta(400, { erro: 'config_invalida' });
 
@@ -126,7 +135,7 @@ export async function testarSegredo(d: DepsCofre, jwt: string, corpo: unknown): 
   if (!quem.ok) return quem.r;
   if (typeof c.id !== 'string' || !c.id) return resposta(400, { erro: 'pedido_invalido' });
   d.cofre.invalidar();
-  for (const p of ['apify', 'modelo_ia', 'unipile', 'unipile_webhook'] as Provedor[]) {
+  for (const p of ['apify', 'modelo_ia', 'unipile', 'unipile_webhook', 'integracao_app'] as Provedor[]) {
     let itens;
     try { itens = await d.cofre.ler(p); } catch { return resposta(502, { erro: 'falha_no_banco' }); }
     const item = itens.find(i => i.id === c.id);

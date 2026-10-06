@@ -84,7 +84,7 @@ describe('o aviso do retorno do consentimento', () => {
   });
   const MOTIVOS: Array<[string, RegExp]> = [
     ['recusada', /não autorizou/i], ['expirada', /venceu/i], ['usada', /já foi usado/i], ['invalida', /inválido/i],
-    ['portal_diferente', /outro portal/i], ['indisponivel', /não respondeu/i], ['participacao_inativa', /não participa/i], ['qualquer-outro', /Não foi possível concluir/i]
+    ['portal_diferente', /outro portal/i], ['portal_nao_identificado', /não conseguimos identificar o portal/i], ['indisponivel', /não respondeu/i], ['participacao_inativa', /não participa/i], ['qualquer-outro', /Não foi possível concluir/i]
   ];
   for (const [motivo, esperado] of MOTIVOS) {
     it(`erro "${motivo}" explica o que houve`, () => {

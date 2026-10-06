@@ -51,13 +51,11 @@ describe.skipIf(!bancoLocalNoAr)('Integrações (modo real, banco local)', () =>
   it('o que existe de verdade pode conectar; o resto fica "Em breve", desabilitado e com o motivo', async () => {
     cleanup();
     await entrar();
-    // Disponíveis: o app com servidor oficial e os cinco canais de mensagem.
-    for (const nome of ['Notion', 'Gmail', 'Outlook', 'WhatsApp Business', 'Instagram', 'LinkedIn Sales Navigator']) {
+    // Disponíveis: os apps com servidor oficial (Notion, HubSpot) e os cinco canais de mensagem.
+    for (const nome of ['Notion', 'HubSpot', 'Gmail', 'Outlook', 'WhatsApp Business', 'Instagram', 'LinkedIn Sales Navigator']) {
       expect(within(cartao(nome)).getByRole('button', { name: `Conectar ${nome}` }), nome).toBeEnabled();
     }
     // Em breve, com o motivo visível.
-    expect(screen.getByRole('button', { name: 'HubSpot (em breve)' })).toBeDisabled();
-    expect(within(cartao('HubSpot')).getByText(/app do HubSpot/)).toBeInTheDocument();
     expect(within(cartao('Slack')).getByText(/Marketplace/)).toBeInTheDocument();
     expect(within(cartao('Salesforce')).getByText(/cada cliente/i)).toBeInTheDocument();
     expect(within(cartao('Zoho CRM')).getByText(/API do Zoho/)).toBeInTheDocument();

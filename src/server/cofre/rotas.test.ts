@@ -98,6 +98,30 @@ describe('guardar segredo', () => {
     expect((await guardarSegredo(m.deps, 'jwt', { provedor: 'mensagens_webhook', rotulo: 'w', segredo: 'segredo-abcdefgh' })).status).toBe(200);
     expect(m.gravado.map(g => g.p_provedor)).toEqual(['unipile', 'unipile_webhook']);
   });
+  it('app de integração (HubSpot): guarda o ID do cliente na configuração e o segredo só cifrado', async () => {
+    const m = montar();
+    const r = await guardarSegredo(m.deps, 'jwt', { provedor: 'integracao_app', rotulo: 'hubspot', segredo: 'segredo-do-app-123456', config: { client_id: ' 1b69203f-e24e-4bce-990e-c9471504ed73 ', outra: 'x' } });
+    expect(r.status).toBe(200);
+    expect(m.gravado[0].p_provedor).toBe('integracao_app');
+    expect(m.gravado[0].p_config).toEqual({ client_id: '1b69203f-e24e-4bce-990e-c9471504ed73' });
+    expect(decifrar(m.gravado[0].p_cifrado, K)).toBe('segredo-do-app-123456');
+    expect(JSON.stringify(m.gravado[0])).not.toContain('segredo-do-app-123456');
+  });
+  it('app de integração: sem ID do cliente, ou para uma integração que não usa app registrado, é recusado', async () => {
+    const m = montar();
+    const ruim = [
+      { rotulo: 'hubspot', config: {} },
+      { rotulo: 'hubspot', config: { client_id: '   ' } },
+      { rotulo: 'hubspot', config: { client_id: 'a b' } },
+      { rotulo: 'notion', config: { client_id: 'abc12345' } },
+      { rotulo: 'inventada', config: { client_id: 'abc12345' } }
+    ];
+    for (const e of ruim) {
+      const r = await guardarSegredo(m.deps, 'jwt', { provedor: 'integracao_app', segredo: 'segredo-do-app-123456', ...e });
+      expect(r.status, JSON.stringify(e)).toBe(400);
+    }
+    expect(m.gravado).toHaveLength(0);
+  });
   it('config desconhecida é descartada (só entra o que o fornecedor usa)', async () => {
     const m = montar();
     await guardarSegredo(m.deps, 'jwt', { provedor: 'apify', rotulo: 'x', segredo: 'abcdefgh1234', config: { qualquer: 'coisa' } });
@@ -143,6 +167,12 @@ describe('testar segredo', () => {
   it('Unipile: sem teste automático (não inventamos endereço de teste)', async () => {
     const m = montar({ lidos });
     const r = await testarSegredo(m.deps, 'jwt', { id: 'u1' });
+    expect(r.corpo).toMatchObject({ ok: false, sem_teste: true });
+    expect(m.sondas).toHaveLength(0);
+  });
+  it('app de integração: sem teste automático (só o primeiro login de verdade confirma)', async () => {
+    const m = montar({ lidos: { integracao_app: [{ id: 'i1', rotulo: 'hubspot', segredo: 'segredo-do-app-123456', config: { client_id: 'abc12345' } }] } });
+    const r = await testarSegredo(m.deps, 'jwt', { id: 'i1' });
     expect(r.corpo).toMatchObject({ ok: false, sem_teste: true });
     expect(m.sondas).toHaveLength(0);
   });

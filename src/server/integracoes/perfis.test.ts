@@ -30,10 +30,9 @@ describe('perfis do catálogo de conectores', () => {
     for (const p of Object.values(PERFIS)) expect(`${p.nome} ${p.motivo ?? ''}`, p.id).not.toMatch(/US\$|d[óo]lar|unipile/i);
   });
 
-  it('os apps que o fornecedor só deixa a Althius cadastrar, ou que são por cliente, dizem isso (Slack, Zoom, HubSpot, RD Station, Zoho)', () => {
+  it('os apps que o fornecedor só deixa a Althius cadastrar, ou que são por cliente, dizem isso (Slack, Zoom, RD Station, Zoho)', () => {
     expect(PERFIS.slack.motivo).toMatch(/Marketplace|publicad/i);
     expect(PERFIS.zoom.motivo).toMatch(/app/i);
-    expect(PERFIS.hubspot.motivo).toMatch(/app/i);
     expect(PERFIS.rdstation.motivo).toMatch(/URL|token/i);
     expect(PERFIS.zoho.motivo).toMatch(/login|API/i);
     expect(PERFIS.gcal.motivo).toMatch(/Google/i);

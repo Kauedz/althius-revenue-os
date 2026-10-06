@@ -2,7 +2,7 @@
 // confere o superadmin, cifra e guarda. A tela nunca recebe a chave de volta: só os 4 últimos caracteres na lista.
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export type ProvedorCofre = 'apify' | 'mensagens' | 'mensagens_webhook' | 'modelo_ia';
+export type ProvedorCofre = 'apify' | 'mensagens' | 'mensagens_webhook' | 'modelo_ia' | 'integracao_app';
 export type ResultadoCofre = { ok: true; mensagem?: string } | { ok: false; mensagem: string };
 export interface NovaChave { provedor: ProvedorCofre; rotulo: string; segredo: string; config?: Record<string, string> }
 
@@ -10,7 +10,8 @@ export const ROTULO_PROVEDOR: Record<ProvedorCofre, string> = {
   apify: 'Apify (coleta de dados)',
   modelo_ia: 'Modelo de IA dos agentes',
   mensagens: 'Canal de mensagens (chave da API)',
-  mensagens_webhook: 'Canal de mensagens (segredo do webhook)'
+  mensagens_webhook: 'Canal de mensagens (segredo do webhook)',
+  integracao_app: 'App de integração (HubSpot…)'
 };
 
 const FALHA = 'Não foi possível falar com o servidor agora. Tente de novo.';
@@ -30,7 +31,7 @@ function erroDoStatus(status: number): string {
   if (status === 401) return 'Sua sessão expirou. Entre de novo.';
   if (status === 403) return 'Só o superadmin da Althius cadastra chaves.';
   if (status === 503) return 'O cofre de chaves ainda não está ligado neste ambiente (falta a chave mestra no servidor).';
-  if (status === 400) return 'Confira os campos: nome, chave e, para o modelo de IA, endereço https e nome do modelo.';
+  if (status === 400) return 'Confira os campos: nome, chave e, para o modelo de IA, endereço https e nome do modelo; para o app de integração, o nome da integração (ex.: hubspot) e o ID do cliente.';
   return FALHA;
 }
 

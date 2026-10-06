@@ -3,10 +3,12 @@
 // Token e segredo só existem aqui, cifrados com a chave mestra do cofre; nunca saem em resposta, endereço ou log.
 import { randomBytes } from 'node:crypto';
 import { cifrar, decifrar } from '../cofre/cifra.ts';
+import type { Cofre } from '../cofre/cofre.ts';
 import type { BancoIntegracoes } from './banco.ts';
 import { desafioPkce, descobrirServidorDeAutorizacao, ErroDeOAuth, registrarClienteDinamico, renovarToken, trocarCodigo, urlDeConsentimento, autenticacaoDoCliente, type ClienteOAuth, type DescobertaDoServidor } from './oauth.ts';
 import { listarFerramentasMcp } from './mcp-cliente.ts';
-import { PERFIS, primeiroValor, type PerfilDeIntegracao } from './perfis.ts';
+import { identificarConta } from './identificacao.ts';
+import { PERFIS, type PerfilDeIntegracao } from './perfis.ts';
 import { ErroDeProvedor } from './tipos.ts';
 
 export interface DepsIntegracoes {
@@ -17,6 +19,10 @@ export interface DepsIntegracoes {
   siteUrl: string;
   buscar?: typeof fetch;
   agora?: () => number;
+  /** O cofre de chaves: onde mora o app que a Althius registra nos fornecedores sem registro automático (ex.: HubSpot). */
+  cofre?: Cofre;
+  /** Linha de log (JSON). Só nomes e números: nunca token, segredo nem valor de campo. */
+  log?: (linha: Record<string, unknown>) => void;
   /** A conexão de contas de mensagem da Unipile (`webhooks/conexoes.ts`): é ela que atende os cartões `via: 'mensagens'`. */
   canais?: (jwt: string, corpo: Record<string, unknown>) => Promise<Resp>;
   /** texto aleatório seguro para URL, com o tamanho pedido (padrão: do sistema) */
@@ -49,14 +55,31 @@ async function descobrir(d: DepsIntegracoes, perfil: PerfilDeIntegracao): Promis
 
 type ClienteResolvido = { ok: true; cliente: ClienteOAuth } | { ok: false; motivo: 'nao_configurada' | 'indisponivel' | 'recusado' };
 
-/** O cliente OAuth do conector: o já guardado ou, no registro automático, um novo registrado agora (guardado cifrado). */
+/** O app que a Althius registrou no fornecedor (ID do cliente na configuração, segredo cifrado), lido do cofre. */
+async function appDoCofre(d: DepsIntegracoes, integracao: string): Promise<ClienteOAuth | null> {
+  if (!d.cofre) return null;
+  try {
+    const app = (await d.cofre.ler('integracao_app')).find(s => s.rotulo === integracao);
+    const clientId = typeof app?.config?.client_id === 'string' ? app.config.client_id.trim() : '';
+    if (!app || !clientId || !app.segredo) return null;
+    return { clientId, clientSecret: app.segredo, autenticacao: autenticacaoDoCliente(app.segredo) };
+  } catch { return null; }
+}
+
+/** O cliente OAuth que vale para este conector: o app do cofre (registro à mão) ou o registrado automaticamente e guardado. */
+async function clienteDoPerfil(d: DepsIntegracoes, perfil: PerfilDeIntegracao, issuer: string, urlDeRetorno: string): Promise<ClienteOAuth | null> {
+  if (perfil.mcp?.registro === 'app_registrado') return appDoCofre(d, perfil.id);
+  const guardado = await d.banco.clienteLer(perfil.id, issuer, urlDeRetorno);
+  if (!guardado) return null;
+  const segredo = guardado.segredoCifrado ? decifrar(guardado.segredoCifrado, d.chave) : null;
+  return { clientId: guardado.clientId, clientSecret: segredo, autenticacao: autenticacaoDoCliente(segredo) };
+}
+
+/** O cliente para uma conexão nova: o do cofre, o já guardado ou, no registro automático, um novo registrado agora (guardado cifrado). */
 async function resolverCliente(d: DepsIntegracoes, perfil: PerfilDeIntegracao, descoberta: DescobertaDoServidor, urlDeRetorno: string): Promise<ClienteResolvido> {
   const m = perfil.mcp!;
-  const guardado = await d.banco.clienteLer(perfil.id, descoberta.issuer, urlDeRetorno);
-  if (guardado) {
-    const segredo = guardado.segredoCifrado ? decifrar(guardado.segredoCifrado, d.chave) : null;
-    return { ok: true, cliente: { clientId: guardado.clientId, clientSecret: segredo, autenticacao: autenticacaoDoCliente(segredo) } };
-  }
+  const existente = await clienteDoPerfil(d, perfil, descoberta.issuer, urlDeRetorno);
+  if (existente) return { ok: true, cliente: existente };
   if (m.registro !== 'automatico' || !descoberta.registration_endpoint) return { ok: false, motivo: 'nao_configurada' };
   try {
     const novo = await registrarClienteDinamico({
@@ -100,6 +123,10 @@ export async function iniciarConexao(d: DepsIntegracoes, jwt: string, corpo: unk
   const conf = await d.banco.conferir(jwt, workspaceId);
   if (!conf.ok) return resposta(conf.status, { erro: conf.status === 401 ? 'nao_autorizado' : conf.status === 403 ? 'sem_permissao' : 'falha_no_banco' });
   const urlDeRetorno = retornoUrl(d);
+  // App registrado à mão: sem ele no cofre não há o que pedir ao fornecedor (e nenhuma chamada de rede é feita).
+  if (perfil.mcp!.registro === 'app_registrado' && !(await appDoCofre(d, perfil.id))) {
+    return resposta(503, { erro: 'nao_configurada', mensagem: 'Esta integração ainda precisa ser configurada pela Althius.' });
+  }
   try {
     const descoberta = await descobrir(d, perfil);
     const c = await resolverCliente(d, perfil, descoberta, urlDeRetorno);
@@ -137,20 +164,29 @@ export async function retornoDoConsentimento(d: DepsIntegracoes, query: { code?:
   if (!perfil || perfil.situacao !== 'disponivel' || !perfil.mcp) return erro('invalida', t.integracao);
   try {
     const descoberta = await descobrir(d, perfil);
-    const guardado = await d.banco.clienteLer(perfil.id, t.issuer, t.redirectUri);
-    if (!guardado || guardado.clientId !== t.clientId) return erro('erro', t.integracao);
-    const segredo = guardado.segredoCifrado ? decifrar(guardado.segredoCifrado, d.chave) : null;
+    // O cliente precisa ser o MESMO que abriu a tentativa (se o app do cofre foi trocado no meio, a autorização não vale).
+    const cliente = await clienteDoPerfil(d, perfil, t.issuer, t.redirectUri);
+    if (!cliente || cliente.clientId !== t.clientId) return erro('erro', t.integracao);
     const tokens = await trocarCodigo({
-      tokenEndpoint: descoberta.token_endpoint, cliente: { clientId: guardado.clientId, clientSecret: segredo, autenticacao: autenticacaoDoCliente(segredo) },
+      tokenEndpoint: descoberta.token_endpoint, cliente,
       codigo: code, urlDeRetorno: t.redirectUri, verificador: decifrar(t.verifierCifrado, d.chave), recurso: perfil.mcp.enviarRecurso ? descoberta.resource : undefined, fetch: d.buscar
     });
     const agora = (d.agora ?? Date.now)();
+    const quem = await identificarConta(perfil.identificacao, tokens.accessToken, {
+      fetch: d.buscar, respostaDoToken: tokens.bruto,
+      mcp: { url: perfil.mcp.url, cabecalhos: { Authorization: `Bearer ${tokens.accessToken}` }, fetch: d.buscar }
+    });
+    const portal = quem.ok ? quem.portal : null;
+    // O portal é regra de negócio (dois CRMs nunca se misturam): sem saber o portal, esta integração NÃO conecta.
+    if (perfil.portalFixo && portal === null) {
+      d.log?.({ nivel: 'aviso', msg: 'integracao_portal_nao_identificado', integracao: t.integracao, campos_do_token: Object.keys(tokens.bruto).sort() });
+      return erro('portal_nao_identificado', t.integracao);
+    }
     const r = await d.banco.acessoSalvar({
       workspaceId: t.workspaceId, membroId: t.membroId, integracao: t.integracao,
-      conta: primeiroValor(tokens.bruto, perfil.identificacao?.conta) ?? 'Conta conectada',
-      portal: primeiroValor(tokens.bruto, perfil.identificacao?.portal),
+      conta: (quem.ok ? quem.conta : null) ?? 'Conta conectada', portal,
       accessCifrado: cifrar(tokens.accessToken, d.chave), refreshCifrado: tokens.refreshToken ? cifrar(tokens.refreshToken, d.chave) : null,
-      expiraEm: tokens.expiraEm ? new Date(agora + tokens.expiraEm * 1000).toISOString() : null, clientId: guardado.clientId, issuer: t.issuer, escopo: tokens.escopo
+      expiraEm: tokens.expiraEm ? new Date(agora + tokens.expiraEm * 1000).toISOString() : null, clientId: cliente.clientId, issuer: t.issuer, escopo: tokens.escopo
     });
     if (!r.ok) return erro(r.motivo, t.integracao);
     return { status: 302, destino: volta(d, { conexao: 'ok', integracao: t.integracao }) };
@@ -177,14 +213,13 @@ async function tokenDaPessoa(d: DepsIntegracoes, perfil: PerfilDeIntegracao, wor
     }
     try {
       const descoberta = await descobrir(d, perfil);
-      const guardado = await d.banco.clienteLer(perfil.id, a.issuer, retornoUrl(d));
-      if (!guardado || guardado.clientId !== a.clientId) {
+      const cliente = await clienteDoPerfil(d, perfil, a.issuer, retornoUrl(d));
+      if (!cliente || cliente.clientId !== a.clientId) {
         await d.banco.acessoMarcar(workspaceId, membroId, perfil.id, 'precisa_reconectar');
         return precisaReconectar('revogado');
       }
-      const segredo = guardado.segredoCifrado ? decifrar(guardado.segredoCifrado, d.chave) : null;
       const novo = await renovarToken({
-        tokenEndpoint: descoberta.token_endpoint, cliente: { clientId: guardado.clientId, clientSecret: segredo, autenticacao: autenticacaoDoCliente(segredo) },
+        tokenEndpoint: descoberta.token_endpoint, cliente,
         refreshToken: decifrar(a.refreshCifrado, d.chave), recurso: perfil.mcp!.enviarRecurso ? descoberta.resource : undefined, fetch: d.buscar
       });
       await d.banco.acessoRenovar({

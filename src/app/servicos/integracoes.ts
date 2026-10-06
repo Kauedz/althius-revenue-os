@@ -72,6 +72,7 @@ const MOTIVOS: Record<string, string> = {
   usada: 'Este retorno já foi usado. Tente conectar de novo.',
   invalida: 'O retorno da conexão é inválido. Tente de novo.',
   portal_diferente: 'Esta conta é de outro portal: o workspace já está ligado a um. Use a conta do mesmo portal.',
+  portal_nao_identificado: 'Não conseguimos identificar o portal desta conta, então a conexão não foi feita (para não misturar dois portais). Avise o suporte da Althius.',
   indisponivel: 'O app não respondeu. Tente de novo em instantes.',
   participacao_inativa: 'Você não participa mais deste workspace.'
 };

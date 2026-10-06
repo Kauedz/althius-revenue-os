@@ -1618,7 +1618,8 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
         { k: 'modelo', label: 'Nome do modelo (só modelo de IA)', valor: '', placeholder: 'Copie o nome exato do painel do fornecedor' },
         { k: 'prioridade', label: 'Prioridade (1 = principal; números maiores = reserva)', valor: '', placeholder: 'Ex.: 1' },
         { k: 'preco_entrada', label: 'Preço por 1 milhão de tokens de entrada, em US$ (opcional, só superadmin)', valor: '', placeholder: 'Para calcular o custo real' },
-        { k: 'preco_saida', label: 'Preço por 1 milhão de tokens de saída, em US$ (opcional, só superadmin)', valor: '', placeholder: 'Preencha os dois ou nenhum' }
+        { k: 'preco_saida', label: 'Preço por 1 milhão de tokens de saída, em US$ (opcional, só superadmin)', valor: '', placeholder: 'Preencha os dois ou nenhum' },
+        { k: 'client_id', label: 'ID do cliente (só app de integração; o nome da chave é o da integração, ex.: hubspot)', valor: '', placeholder: 'O ID do cliente do app no fornecedor' }
       ] });
       return true;
     }
@@ -1673,6 +1674,10 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       if (val('preco_saida')) config.preco_saida = val('preco_saida');
     }
     else if (provedor === 'mensagens' && val('endereco')) config.url = val('endereco');
+    else if (provedor === 'integracao_app') {
+      if (!val('client_id')) return falhou('Cole o ID do cliente do app.');
+      config.client_id = val('client_id');
+    }
     const r = await guardarChave(this.props.supabase, { provedor, rotulo: val('rotulo'), segredo: val('segredo'), config });
     if (!this.vivo) return;
     if (!r.ok) return falhou(r.mensagem);

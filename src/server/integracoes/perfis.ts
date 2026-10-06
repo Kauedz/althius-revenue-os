@@ -18,6 +18,26 @@ export interface PerfilMcp {
 
 export type CanalUnipile = 'whatsapp' | 'google' | 'microsoft' | 'instagram' | 'linkedin';
 
+/** Uma chamada HTTP que descobre a conta e o portal com o token recém-obtido. `{credencial}` vira o token (codificado no endereço). */
+export interface RequisicaoDeIdentificacao {
+  metodo: 'GET' | 'POST';
+  url: string;
+  cabecalhos?: Record<string, string>;
+  /** Caminhos alternativos no JSON da resposta; vale o primeiro que existir. */
+  portal?: string[];
+  conta?: string[];
+}
+
+/** Como descobrir a conta do app (o cartão mostra "Conta: ...") e o portal (o primeiro acesso o fixa no workspace). */
+export interface Identificacao {
+  /** Campos da própria resposta do endpoint de token. */
+  daRespostaDoToken?: { portal?: string[]; conta?: string[] };
+  /** Chamadas à API do app, tentadas em ordem; a primeira que responde 2xx com o dado vale. */
+  requisicoes?: RequisicaoDeIdentificacao[];
+  /** Por último, uma ferramenta do servidor MCP (o resultado é lido como JSON). */
+  porFerramentaMcp?: { ferramenta: string; argumentos?: Record<string, unknown>; portal?: string[]; conta?: string[] };
+}
+
 export interface PerfilDeIntegracao {
   id: string;
   nome: string;
@@ -31,8 +51,7 @@ export interface PerfilDeIntegracao {
   /** Só `via: 'mensagens'`: o provedor da conta de mensagem. */
   canal?: CanalUnipile;
   mcp?: PerfilMcp;
-  /** Onde achar a conta e o portal na resposta do endpoint de token (caminhos alternativos; vale o primeiro que existir). */
-  identificacao?: { portal?: string[]; conta?: string[] };
+  identificacao?: Identificacao;
 }
 
 const CONFIRMAR = 'O servidor oficial existe e aceita conexão automática, mas falta conferir com uma conexão real antes de liberar.';
@@ -50,9 +69,22 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = Object.fromEntries([
     id: 'notion', nome: 'Notion', situacao: 'disponivel', portalFixo: false,
     mcp: { url: 'https://mcp.notion.com/mcp', registro: 'automatico', enviarRecurso: true },
     // não confirmado: os campos exatos da resposta do token do Notion MCP; se nenhum bater, a conta aparece só como "Conta conectada".
-    identificacao: { portal: ['workspace_id'], conta: ['workspace_name', 'owner.user.person.email', 'owner.user.name'] }
+    identificacao: { daRespostaDoToken: { portal: ['workspace_id'], conta: ['workspace_name', 'owner.user.person.email', 'owner.user.name'] } }
   } satisfies PerfilDeIntegracao,
-  emBreve('hubspot', 'HubSpot', 'Precisa do app do HubSpot (MCP Auth App) cadastrado pela Althius. Em preparação.'),
+  {
+    id: 'hubspot', nome: 'HubSpot', situacao: 'disponivel', portalFixo: true,
+    // O HubSpot não aceita registro automático: o app (MCP Auth App) é da Althius e fica no cofre (tipo "app de integração").
+    // Endereços de autorização e de token vêm do metadado que o próprio servidor publica (lido em 06/10/2026:
+    // /oauth/authorize/user e /oauth/v3/token, PKCE S256, segredo no corpo).
+    mcp: { url: 'https://mcp.hubspot.com', registro: 'app_registrado', enviarRecurso: true },
+    // não confirmado: onde o portal vem. Tenta a resposta do token, a consulta ao token e, por último, a ferramenta get_user_details.
+    // Sem portal o HubSpot NÃO conecta (a regra "dois CRMs nunca se misturam" não é opcional).
+    identificacao: {
+      daRespostaDoToken: { portal: ['hub_id', 'portal_id'], conta: ['user', 'hub_domain'] },
+      requisicoes: [{ metodo: 'GET', url: 'https://api.hubapi.com/oauth/v1/access-tokens/{credencial}', portal: ['hub_id'], conta: ['user'] }],
+      porFerramentaMcp: { ferramenta: 'get_user_details', portal: ['hub_id', 'hubId', 'portalId', 'portal_id', 'portal.id'], conta: ['email', 'user', 'userEmail', 'user.email'] }
+    }
+  } satisfies PerfilDeIntegracao,
   emBreve('apollo', 'Apollo.io', CONFIRMAR),
   emBreve('pipedrive', 'Pipedrive', CONFIRMAR),
   emBreve('granola', 'Granola', CONFIRMAR),

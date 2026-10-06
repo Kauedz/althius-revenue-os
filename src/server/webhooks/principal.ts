@@ -44,7 +44,7 @@ const rotasCofre: DepsCofre | undefined = cofre && chaveAnon
 
 // Integrações do catálogo (ADR 0056): os tokens são cifrados com a chave mestra do cofre, então sem ela ficam desligadas.
 const depsIntegracoes: DepsIntegracoes | undefined = siteUrl && chaveAnon && (process.env.COFRE_CHAVE_MESTRA ?? '').trim()
-  ? { banco: bancoIntegracoes({ base, chaveAnon, chaveServico: chave }), chave: chaveMestra(), siteUrl, canais: conexoes ? (jwt, corpo) => iniciarContaDeMensagem(conexoes, jwt, corpo) : undefined }
+  ? { banco: bancoIntegracoes({ base, chaveAnon, chaveServico: chave }), chave: chaveMestra(), siteUrl, cofre: cofre ?? undefined, log: linha => console.log(JSON.stringify(linha)), canais: conexoes ? (jwt, corpo) => iniciarContaDeMensagem(conexoes, jwt, corpo) : undefined }
   : undefined;
 if (!depsIntegracoes) {
   console.warn(JSON.stringify({ nivel: 'aviso', msg: 'integrações desligadas: faltam SITE_URL, ANON_KEY ou COFRE_CHAVE_MESTRA' }));
