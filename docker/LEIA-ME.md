@@ -52,7 +52,31 @@ A Unipile é só um canal: toda a ligação com ela (chave, endereço, assinatur
 ## Aprendizado compartilhado entre contas
 - O serviço `aprendizado` (ADR 0052 e 0053) roda a cada 6 horas (`APRENDIZADO_INTERVALO_HORAS`). Ele só olha clientes que **aceitaram** (aviso único e Configurações → Aprendizado), só publica padrões com **3 ou mais clientes** e só **sugere** ao estrategista, que aplica ou descarta em Playbook → Aprendizados.
 - Ver o que está acontecendo: `docker compose logs -f aprendizado` (linhas `aprendizado_ciclo` com quantos clientes contribuem, padrões e sugestões novas; nunca texto nem nomes).
+
+### Integrações do catálogo
+
+As rotas `/integracoes/*` (ADR 0056) rodam no serviço `webhooks` e precisam de `SITE_URL`, `ANON_KEY` e `COFRE_CHAVE_MESTRA` (os tokens ficam cifrados com ela). Sem isso, o log mostra `integrações desligadas` e o resto segue normal.
+
+- O app autoriza e volta para `SITE_URL/integracoes/retorno`; esse endereço precisa estar acessível pela internet (o Caddy já encaminha).
+- Conectores com registro automático (Notion e, depois, Apollo, Pipedrive, Granola, Confluence) não pedem nenhum cadastro. HubSpot, Slack, Zoom e Google exigem um app criado por você no fornecedor; o Client ID e o Secret entram no cofre, nunca no chat.
+
+### Coleta de sinais
+
+O serviço `sinais` (ADR 0055) roda a cada 30 minutos (`SINAIS_INTERVALO_MINUTOS`). O banco escolhe as contas que precisam de coleta, reserva o crédito e o serviço busca o dado na Apify (as chaves vêm do cofre, na tela Fornecedores). **Nada coleta até o superadmin ligar a receita de cada sinal.**
+
+- Ver o que está acontecendo: `docker compose logs -f sinais` (linhas `sinais_ciclo` com pedidos, concluídos, falhas e acontecimentos novos; nunca nome, texto nem chave).
+- Sem nenhuma chave da Apify cadastrada, a rodada falha com aviso claro e o crédito é devolvido. Nada é simulado.
+- A conta grátis da Apify aceita 5 execuções ao mesmo tempo; `SINAIS_CONCORRENCIA` (padrão 3) respeita isso.
 - Sem cliente que aceitou, ou sem padrão forte o bastante, a rodada não faz nada: é o normal no começo.
+
+### Fontes de sinais pelo agente (ADR 0060)
+
+O agente acha a fonte de um sinal na loja da Apify, testa numa conta do cliente e propõe a receita; depois que uma pessoa aprova, o serviço `sinais` usa essa receita só naquele cliente.
+
+- O teste roda no serviço `webhooks` (rota interna `/integracoes/agente/sinais/testar`; o Caddy responde 404 nela) com as chaves da Apify do cofre (ou `APIFY_TOKEN_*` do `.env`). Sem chave, o teste falha com aviso claro e o crédito volta.
+- Cada teste custa os créditos de uma coleta do sinal. Só roda a pedido de uma pessoa, com limite de 30 por dia por cliente.
+- Teto de gasto: o que o cliente paga pela coleta. O custo real fica em `internal.signal_agent_tests` e `internal.signal_runs`.
+- Mudou o servidor MCP? Rode `npm run agentes:mcp` e reinicie os contêineres `hermes-*` para os agentes verem as ferramentas `sinais_*`.
 
 ## Motor de cadência
 O contêiner `cadencia` roda a cada 60 segundos (`CADENCIA_INTERVALO_SEGUNDOS`). Para cada inscrição ativa cujo passo venceu:

@@ -10,7 +10,8 @@ export const DESTINO_MCP = path.join(raiz, 'docker', 'hermes', 'mcp', 'mcp-althi
 
 export function empacotarMcp() {
   mkdirSync(path.dirname(DESTINO_MCP), { recursive: true });
-  const r = spawnSync(path.join(raiz, 'node_modules', '.bin', 'esbuild'), [
+  // Pelo Node (não pelo atalho de .bin): o atalho não roda direto no Windows.
+  const r = spawnSync(process.execPath, [path.join(raiz, 'node_modules', 'esbuild', 'bin', 'esbuild'),
     path.join(raiz, 'src', 'server', 'mcp', 'principal.ts'),
     '--bundle', '--platform=node', '--target=node22', '--format=esm', '--log-level=warning',
     "--banner:js=import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);",

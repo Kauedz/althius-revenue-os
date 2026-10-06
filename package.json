@@ -23,6 +23,7 @@
     "docker:subir": "node scripts/docker/subir.mjs",
     "agentes:mcp": "node scripts/agentes/empacotar-mcp.mjs",
     "agentes:provisionar": "node scripts/agentes/provisionar-hermes.mjs",
+    "agentes:local": "node scripts/agentes/preparar-local.mjs",
     "docker:parar": "docker compose down",
     "docker:chave-unipile": "node scripts/docker/trocar-chave-unipile.mjs",
     "criar-superadmin": "node scripts/docker/criar-superadmin.mjs"

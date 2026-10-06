@@ -1,3 +1,4 @@
+// @vitest-environment node
 // O executor contra um "Hermes" falso (servidor HTTP de verdade, na porta 0): nenhuma API real.
 import { afterEach, describe, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:http';
@@ -43,6 +44,29 @@ describe('executorHermes', () => {
     expect(h.vistos[0].corpo.messages.map((m: any) => m.role)).toEqual(['system', 'user']);
     expect(h.vistos[0].corpo.messages[1].content).toContain('[Aline Xavier · C-level] Quais contas estão quentes?');
     expect(JSON.stringify(h.vistos[0].corpo)).not.toContain('chave-secreta-do-hermes');
+  });
+
+  it('o Playbook publicado vai no sistema de toda resposta; sem Playbook, o agente é avisado', async () => {
+    const h = await hermesFalso(() => ok('ok'));
+    await executorHermes({ resolver: resolverPara(h.url), playbook: async () => ({ versao: '3.2', conteudo: 'REGRA-DA-EMPRESA' }) }).responder(lote, new AbortController().signal);
+    const sistema = h.vistos[0].corpo.messages[0].content as string;
+    expect(sistema).toContain('REGRA-DA-EMPRESA');
+    expect(sistema).toContain('versão 3.2');
+    await executorHermes({ resolver: resolverPara(h.url), playbook: async () => null }).responder(lote, new AbortController().signal);
+    expect(h.vistos[1].corpo.messages[0].content).toContain('ainda não publicou um Playbook');
+  });
+
+  it('não consegue ler o Playbook: erro, e nada é pedido ao Hermes (nunca responde sem saber a missão)', async () => {
+    const h = await hermesFalso(() => ok('ok'));
+    const e = executorHermes({ resolver: resolverPara(h.url), playbook: async () => { throw new Error('banco fora'); } });
+    await expect(e.responder(lote, new AbortController().signal)).rejects.toThrow('Playbook');
+    expect(h.vistos).toHaveLength(0);
+  });
+
+  it('Hermes sem login do modelo (Codex): vira erro com a instrução, nunca resposta do agente no canal (ADR 0051)', async () => {
+    const h = await hermesFalso(() => ok('Provider authentication failed: No Codex credentials stored. Run hermes auth add openai-codex.'));
+    const e = executorHermes({ resolver: resolverPara(h.url) });
+    await expect(e.responder(lote, new AbortController().signal)).rejects.toThrow('sem login do modelo');
   });
 
   it('resposta grande demais é cortada para caber no banco', async () => {

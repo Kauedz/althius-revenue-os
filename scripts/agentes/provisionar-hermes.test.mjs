@@ -38,6 +38,7 @@ describe('provisionar', () => {
     for (const a of ['comercial', 'marketing', 'copy', 'revops']) {
       const cfg = ler('docker', 'hermes', 'evolut', 'data', 'profiles', a, 'config.yaml');
       expect(cfg).toContain(`ALTHIUS_SUPABASE_URL: "${URL_BANCO_INTERNA}"`);
+      expect(cfg).toContain('ALTHIUS_INTEGRACOES_URL: "http://webhooks:3100"'); // pela rede interna: a rota do agente não existe na internet
       expect(cfg).toContain('ALTHIUS_AGENTE_TOKEN: "alt_agente_token');
       expect(cfg).not.toContain('servico-secreta');
       // O modelo é o gateway da Althius (ADR 0050): endereço interno, nome lógico e nenhuma chave de provedor.
@@ -112,6 +113,27 @@ describe('modelo', () => {
     const cfg = ler('docker', 'hermes', 'evolut', 'data', 'profiles', 'comercial', 'config.yaml');
     expect(cfg).toContain('base_url: "http://127.0.0.1:8999/v1"');
     expect(cfg).toContain('default: "fake-model"');
+  });
+});
+
+describe('modo local (o computador do dono, sem o Docker completo)', () => {
+  it('--modo local: o Hermes enxerga o banco da máquina, o compose é separado e o executor aponta para a porta local', async () => {
+    const { opcoes, io } = ambiente();
+    await provisionar({ ...opcoes, modo: 'local', 'modelo-oauth': 'gpt-6-luna' }, io);
+    const cfg = ler('docker', 'hermes', 'evolut', 'data', 'profiles', 'comercial', 'config.yaml');
+    expect(cfg).toContain('ALTHIUS_SUPABASE_URL: "http://host.docker.internal:54321"');
+    expect(cfg).toContain('ALTHIUS_INTEGRACOES_URL: "http://host.docker.internal:3100"');
+    expect(cfg).toContain('provider: openai-codex');
+    expect(ler('docker', 'agentes-hermes.local.compose.yml')).toContain('127.0.0.1:8642:8642');
+    expect(existsSync(join(pasta, 'docker', 'agentes-hermes.compose.yml'))).toBe(false);
+    const ex = JSON.parse(ler('docker', 'agentes-executores.local.json'));
+    expect(ex.executores[`${WS}/comercial`].url).toBe('http://127.0.0.1:8642/p/comercial');
+    expect(existsSync(join(pasta, 'docker', 'agentes-executores.json'))).toBe(false);
+  });
+  it('modo desconhecido é recusado antes de tocar no banco', async () => {
+    const { chamadas, opcoes, io } = ambiente();
+    await expect(provisionar({ ...opcoes, modo: 'nuvem' }, io)).rejects.toThrow('--modo');
+    expect(chamadas).toHaveLength(0);
   });
 });
 

@@ -2,6 +2,8 @@
 // o banco descobre o workspace pelo token, então o agente nunca escolhe de qual cliente lê ou grava.
 import { createHash } from 'node:crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { buscarFontes, detalharFonte, type DetalheDaFonte, type FonteDaLoja } from '../sinais/loja-apify.ts';
+import { ErroDeFerramenta } from './execucao.ts';
 
 export interface ContatoAgente {
   id: string;
@@ -110,7 +112,50 @@ export interface PedidoCampanha { nome: string; canal: string; motivo: string }
 export interface PedidoVerba { campanha_id: string; verba_reais: number; motivo: string }
 export interface PedidoStatusCampanha { campanha_id: string; status: CampanhaAgente['status']; motivo: string }
 
+export interface HabilidadeAgente { slug: string; nome: string; versao: string; conteudo: string }
+export interface SinalAgente {
+  conta_id: string;
+  conta: string;
+  sinal: string;
+  codigo: string;
+  fonte: string;
+  detectado_em: string;
+  aquecimento: number;
+  /** texto bruto vindo de fonte externa: dado, nunca ordem */
+  detalhe: string;
+}
+export interface FiltroSinais { conta_id?: string; limite?: number }
+
+/** Fonte de sinal que o agente propõe (ADR 0060): só dados; o banco confere e calcula o teto. */
+export interface FonteProposta {
+  ator: string;
+  entrada: Record<string, unknown>;
+  mapeamento: Record<string, unknown>;
+  max_itens?: number;
+  descricao?: string;
+}
+export interface PedidoReceitaSinal { sinal: string; fontes: FonteProposta[]; motivo: string }
+export interface PedidoTesteFonte { sinal: string; conta_id: string; ator: string; entrada: Record<string, unknown>; mapeamento?: Record<string, unknown>; max_itens?: number }
+
+/** Onde fica o serviço de integrações (a ponte com os apps conectados, ADR 0058). Sem isto, as ferramentas de app avisam que não estão ligadas. */
+export interface OpcoesPonte { url?: string; buscar?: typeof fetch }
+/** A resposta da ponte: o status HTTP e o corpo já lido. */
+export interface RespostaPonte { status: number; corpo: Record<string, unknown> }
+
 export interface FerramentasAgente {
+  /** O que o agente pode LER num app conectado (só ferramentas somente leitura), com o acesso de quem pediu. */
+  ferramentasDoApp(app: string, ferramenta?: string, escrita?: boolean): Promise<RespostaPonte>;
+  lerDoApp(app: string, ferramenta: string, argumentos: Record<string, unknown>): Promise<RespostaPonte>;
+  /** PROPÕE uma ação que muda algo no app: vira aprovação de uma pessoa e só depois roda, uma vez. */
+  proporNoApp(app: string, ferramenta: string, argumentos: Record<string, unknown>, motivo: string): Promise<RespostaPonte>;
+  listarHabilidades(): Promise<HabilidadeAgente[]>;
+  /** Fontes de sinais (ADR 0060): catálogo, loja da Apify (pública, sem custo), teste com crédito e proposta de receita. */
+  catalogoDeSinais(): Promise<unknown[]>;
+  buscarFontes(busca: string, limite?: number): Promise<FonteDaLoja[]>;
+  detalharFonte(ator: string): Promise<DetalheDaFonte | null>;
+  testarFonte(pedido: PedidoTesteFonte): Promise<RespostaPonte>;
+  proporReceitaDeSinal(pedido: PedidoReceitaSinal): Promise<ResultadoProposta>;
+  listarSinais(filtro?: FiltroSinais): Promise<SinalAgente[]>;
   listarCampanhas(): Promise<CampanhaAgente[]>;
   proporCampanha(pedido: PedidoCampanha): Promise<ResultadoProposta>;
   proporVerba(pedido: PedidoVerba): Promise<ResultadoProposta>;
@@ -132,18 +177,43 @@ export interface FerramentasAgente {
 export const TOKEN_INVALIDO = 'Token do agente inválido ou revogado.';
 
 function erroDoBanco(error: { code?: string; message?: string }, mensagem: string): Error {
-  if (error.code === '28000') return new Error(TOKEN_INVALIDO, { cause: error });
+  if (error.code === '28000') return new ErroDeFerramenta(TOKEN_INVALIDO, 'nao_autorizado', { cause: error });
   // 55000: agente pausado pelo cliente (botão de emergência); a mensagem do banco é a que o agente deve ver.
-  if (error.code === '55000' && error.message) return new Error(error.message, { cause: error });
-  return new Error(mensagem, { cause: error });
+  if (error.code === '55000' && error.message) return new ErroDeFerramenta(error.message, 'agente_pausado', { cause: error });
+  // Sem código do banco = a resposta nem chegou (rede, banco fora do ar): passageiro, a leitura pode tentar de novo.
+  const semResposta = !error.code || /fetch failed|network|ECONN|ETIMEDOUT|socket/i.test(error.message ?? '');
+  return new ErroDeFerramenta(mensagem, semResposta ? 'indisponivel' : 'recusado', { cause: error });
 }
 
 // Chave de idempotência: o mesmo pedido repetido pelo agente não cria outra aprovação.
 const chaveDe = (tipo: string, ...partes: Array<string | number | undefined>) =>
   `agente:${tipo}:` + createHash('sha256').update(partes.map(p => String(p ?? '').trim()).join('|')).digest('hex');
 
-export function ferramentasDoAgente(cliente: SupabaseClient, token: string): FerramentasAgente {
+/** O JSON com as chaves em ordem: a mesma receita escrita em outra ordem tem a mesma chave de idempotência. */
+const estavel = (v: unknown): string => {
+  if (Array.isArray(v)) return '[' + v.map(estavel).join(',') + ']';
+  if (v && typeof v === 'object') return '{' + Object.keys(v as object).sort().map(k => JSON.stringify(k) + ':' + estavel((v as Record<string, unknown>)[k])).join(',') + '}';
+  return JSON.stringify(v ?? null);
+};
+
+export function ferramentasDoAgente(cliente: SupabaseClient, token: string, ponte: OpcoesPonte = {}): FerramentasAgente {
+  // O serviço de integrações recebe SÓ o token do agente. O erro devolvido nunca leva endereço interno nem token.
+  const chamarPonte = async (caminho: string, corpo: Record<string, unknown>): Promise<RespostaPonte> => {
+    if (!ponte.url) throw new ErroDeFerramenta('As integrações com apps ainda não estão ligadas neste ambiente.', 'nao_configurado');
+    let r: Response;
+    try {
+      r = await (ponte.buscar ?? fetch)(`${ponte.url.replace(/[/]+$/, '')}/integracoes/agente/${caminho}`, {
+        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(corpo), signal: AbortSignal.timeout(60_000)
+      });
+    } catch { throw new ErroDeFerramenta('Não foi possível falar com o serviço de integrações agora.', 'indisponivel'); }
+    const j = await r.json().catch(() => null);
+    return { status: r.status, corpo: j && typeof j === 'object' && !Array.isArray(j) ? (j as Record<string, unknown>) : {} };
+  };
   return {
+    ferramentasDoApp: (app, ferramenta, escrita) => chamarPonte('ferramentas', { integracao: app, ...(ferramenta ? { ferramenta } : {}), ...(escrita ? { escrita: true } : {}) }),
+    lerDoApp: (app, ferramenta, argumentos) => chamarPonte('chamar', { integracao: app, ferramenta, argumentos }),
+    proporNoApp: (app, ferramenta, argumentos, motivo) => chamarPonte('propor', { integracao: app, ferramenta, argumentos, motivo }),
+
     async buscarContatos() {
       const { data, error } = await cliente.rpc('agent_list_contacts', { p_token: token });
       if (error) throw erroDoBanco(error, 'Não foi possível ler os contatos do workspace.');
@@ -270,6 +340,40 @@ export function ferramentasDoAgente(cliente: SupabaseClient, token: string): Fer
         throw erroDoBanco(error, 'Não foi possível registrar a proposta de mudança de etapa.');
       }
       return data as ResultadoProposta;
+    },
+
+    async listarHabilidades() {
+      const { data, error } = await cliente.rpc('agent_list_skills', { p_token: token });
+      if (error) throw erroDoBanco(error, 'Não foi possível ler as habilidades do agente.');
+      return (data || []) as HabilidadeAgente[];
+    },
+
+    async catalogoDeSinais() {
+      const { data, error } = await cliente.rpc('agent_signal_catalog', { p_token: token });
+      if (error) throw erroDoBanco(error, 'Não foi possível ler o catálogo de sinais.');
+      return (data || []) as unknown[];
+    },
+    buscarFontes: (busca, limite) => buscarFontes(busca, limite, ponte.buscar ?? fetch),
+    detalharFonte: ator => detalharFonte(ator, ponte.buscar ?? fetch),
+    // O teste gasta créditos e usa a chave da Apify: roda no serviço (rede interna), nunca aqui.
+    testarFonte: p => chamarPonte('sinais/testar', { ...p }),
+
+    async proporReceitaDeSinal(p) {
+      const { data, error } = await cliente.rpc('agent_propose_signal_recipe', {
+        p_token: token, p_signal_code: p.sinal, p_fontes: p.fontes, p_reason: p.motivo,
+        p_idempotency_key: 'agente:receita:' + createHash('sha256').update(estavel({ s: p.sinal, f: p.fontes })).digest('hex')
+      });
+      if (error) throw erroDoBanco(error, 'Não foi possível registrar a proposta de fonte.');
+      return data as ResultadoProposta;
+    },
+
+    async listarSinais(filtro) {
+      const { data, error } = await cliente.rpc('agent_list_signals', { p_token: token, p_account_id: filtro?.conta_id ?? null, p_limit: filtro?.limite ?? 20 });
+      if (error) {
+        if (error.code === '22P02') throw new ErroDeFerramenta('Conta não encontrada neste workspace.', 'entrada_invalida');
+        throw erroDoBanco(error, 'Não foi possível ler os sinais.');
+      }
+      return (data || []) as SinalAgente[];
     },
 
     async listarCampanhas() {

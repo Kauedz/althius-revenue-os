@@ -1,0 +1,4210 @@
+{
+  "open": false,
+  "provider": {
+    "id": "composite:ghidra+hopper+native-macos+rea-artifact-graph+rea-dotnet-static",
+    "name": "REA composite analysis provider",
+    "version": null
+  },
+  "providers": [
+    {
+      "id": "ghidra",
+      "name": "Ghidra",
+      "version": null
+    },
+    {
+      "id": "hopper",
+      "name": "Hopper Disassembler",
+      "version": null
+    },
+    {
+      "id": "native-macos",
+      "name": "macOS native inspection utilities",
+      "version": null
+    },
+    {
+      "id": "rea-artifact-graph",
+      "name": "REA safe artifact graph provider",
+      "version": "1"
+    },
+    {
+      "id": "rea-dotnet-static",
+      "name": "REA managed static analysis provider",
+      "version": "1"
+    }
+  ],
+  "capabilities": [
+    {
+      "operation": "capture_native_ui_scenario",
+      "available": false,
+      "reason": "Native macOS utilities require macOS.",
+      "availability_code": "unsupported_host",
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": true,
+        "may_show_ui": true,
+        "may_access_network": true,
+        "may_write_filesystem": true,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "Availability and textual formats depend on the installed macOS/Xcode toolchain."
+      ]
+    },
+    {
+      "operation": "decode_interface_builder",
+      "available": true,
+      "reason": null,
+      "availability_code": null,
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": false,
+        "may_show_ui": false,
+        "may_access_network": false,
+        "may_write_filesystem": false,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "DMG child inventory automatically uses a read-only native macOS mount; PKG remains root-hash-only.",
+        "ASAR files discovered in filesystem-backed inventories are expanded without bulk extraction; other nested containers remain recorded only."
+      ]
+    },
+    {
+      "operation": "demangle_swift",
+      "available": false,
+      "reason": "Native macOS utilities require macOS.",
+      "availability_code": "unsupported_host",
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": true,
+        "may_show_ui": false,
+        "may_access_network": false,
+        "may_write_filesystem": false,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "Availability and textual formats depend on the installed macOS/Xcode toolchain."
+      ]
+    },
+    {
+      "operation": "extract_artifact",
+      "available": true,
+      "reason": null,
+      "availability_code": null,
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": true,
+        "may_show_ui": false,
+        "may_access_network": false,
+        "may_write_filesystem": true,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "DMG child inventory automatically uses a read-only native macOS mount; PKG remains root-hash-only.",
+        "ASAR files discovered in filesystem-backed inventories are expanded without bulk extraction; other nested containers remain recorded only."
+      ]
+    },
+    {
+      "operation": "inspect_artifact",
+      "available": true,
+      "reason": null,
+      "availability_code": null,
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": true,
+        "may_show_ui": false,
+        "may_access_network": false,
+        "may_write_filesystem": true,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "DMG child inventory automatically uses a read-only native macOS mount; PKG remains root-hash-only.",
+        "ASAR files discovered in filesystem-backed inventories are expanded without bulk extraction; other nested containers remain recorded only."
+      ]
+    },
+    {
+      "operation": "inspect_asset_catalog",
+      "available": false,
+      "reason": "Apple asset catalogs require macOS assetutil.",
+      "availability_code": "unsupported_host",
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": true,
+        "may_show_ui": false,
+        "may_access_network": false,
+        "may_write_filesystem": false,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "DMG child inventory automatically uses a read-only native macOS mount; PKG remains root-hash-only.",
+        "ASAR files discovered in filesystem-backed inventories are expanded without bulk extraction; other nested containers remain recorded only."
+      ]
+    },
+    {
+      "operation": "inspect_keyed_archive",
+      "available": true,
+      "reason": null,
+      "availability_code": null,
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": false,
+        "may_show_ui": false,
+        "may_access_network": false,
+        "may_write_filesystem": false,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "DMG child inventory automatically uses a read-only native macOS mount; PKG remains root-hash-only.",
+        "ASAR files discovered in filesystem-backed inventories are expanded without bulk extraction; other nested containers remain recorded only."
+      ]
+    },
+    {
+      "operation": "inspect_macho",
+      "available": false,
+      "reason": "Native macOS utilities require macOS.",
+      "availability_code": "unsupported_host",
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": true,
+        "may_show_ui": false,
+        "may_access_network": false,
+        "may_write_filesystem": false,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "Availability and textual formats depend on the installed macOS/Xcode toolchain."
+      ]
+    },
+    {
+      "operation": "inspect_managed_artifact",
+      "available": true,
+      "reason": null,
+      "availability_code": null,
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": false,
+        "may_show_ui": false,
+        "may_access_network": false,
+        "may_write_filesystem": false,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "This capability inventories PE/CLI identity only; inspect_managed_members admits metadata members, signatures, and CIL anchors.",
+        "It never loads the target assembly, resolves dependencies through a CLR, decompiles C#, or executes target code."
+      ]
+    },
+    {
+      "operation": "inspect_managed_members",
+      "available": true,
+      "reason": null,
+      "availability_code": null,
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": false,
+        "may_show_ui": false,
+        "may_access_network": false,
+        "may_write_filesystem": false,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "This capability decodes PE/CLI metadata members, signatures, and file-backed method bodies; decompiled C# reconstruction and cross-build member comparison are separate operations.",
+        "It never loads the target assembly, resolves dependencies through a CLR, decompiles C#, or executes target code."
+      ]
+    },
+    {
+      "operation": "inspect_managed_native_boundaries",
+      "available": true,
+      "reason": null,
+      "availability_code": null,
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": false,
+        "may_show_ui": false,
+        "may_access_network": false,
+        "may_write_filesystem": false,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "This capability inventories managed declarations for native boundaries only; native exports, thunks, and addresses require separate native-provider evidence.",
+        "It never loads the target assembly, resolves dependencies through a CLR, decompiles C#, or executes target code."
+      ]
+    },
+    {
+      "operation": "inspect_native_dispatch_metadata",
+      "available": false,
+      "reason": "Native macOS utilities require macOS.",
+      "availability_code": "unsupported_host",
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": false,
+        "may_show_ui": false,
+        "may_access_network": false,
+        "may_write_filesystem": false,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "Availability and textual formats depend on the installed macOS/Xcode toolchain."
+      ]
+    },
+    {
+      "operation": "inspect_plist",
+      "available": false,
+      "reason": "Native macOS utilities require macOS.",
+      "availability_code": "unsupported_host",
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": true,
+        "may_show_ui": false,
+        "may_access_network": false,
+        "may_write_filesystem": false,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "Availability and textual formats depend on the installed macOS/Xcode toolchain."
+      ]
+    },
+    {
+      "operation": "inspect_signature",
+      "available": false,
+      "reason": "Native macOS utilities require macOS.",
+      "availability_code": "unsupported_host",
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": true,
+        "may_show_ui": false,
+        "may_access_network": false,
+        "may_write_filesystem": false,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "Availability and textual formats depend on the installed macOS/Xcode toolchain."
+      ]
+    },
+    {
+      "operation": "list_architectures",
+      "available": false,
+      "reason": "Native macOS utilities require macOS.",
+      "availability_code": "unsupported_host",
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": true,
+        "may_show_ui": false,
+        "may_access_network": false,
+        "may_write_filesystem": false,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "Availability and textual formats depend on the installed macOS/Xcode toolchain."
+      ]
+    },
+    {
+      "operation": "observe_native_ui",
+      "available": false,
+      "reason": "Native macOS utilities require macOS.",
+      "availability_code": "unsupported_host",
+      "effects": {
+        "mutates_artifact": false,
+        "launches_process": true,
+        "may_show_ui": false,
+        "may_access_network": false,
+        "may_write_filesystem": true,
+        "changes_permissions": false,
+        "requires_root": false
+      },
+      "limitations": [
+        "Availability and textual formats depend on the installed macOS/Xcode toolchain."
+      ]
+    }
+  ],
+  "analysis_provider_binding": null,
+  "analysis_provider_candidates": [
+    {
+      "provider": {
+        "id": "ghidra",
+        "name": "Ghidra",
+        "version": null
+      },
+      "availability": {
+        "status": "unavailable",
+        "code": "not_configured",
+        "reason": "Set GHIDRA_INSTALL_DIR to an extracted Ghidra 12.1.4 release directory.",
+        "diagnostics": {
+          "install_dir": null,
+          "analyze_headless_path": null,
+          "native_decompiler_path": null,
+          "application_properties_path": null,
+          "provider_version": null,
+          "java_command": "/usr/lib/jvm/java-21-openjdk-amd64/bin/java",
+          "java_home": "/usr/lib/jvm/java-21-openjdk-amd64",
+          "java_version": "21.0.12.1",
+          "platform": "linux",
+          "architecture": "x64",
+          "checks": [
+            {
+              "name": "configuration",
+              "ok": false,
+              "code": "not_configured",
+              "detail": "GHIDRA_INSTALL_DIR is not set"
+            },
+            {
+              "name": "platform",
+              "ok": true,
+              "code": null,
+              "detail": "linux"
+            },
+            {
+              "name": "architecture",
+              "ok": true,
+              "code": null,
+              "detail": "x64"
+            },
+            {
+              "name": "installation",
+              "ok": false,
+              "code": "executable_missing",
+              "detail": "Ghidra application properties unavailable"
+            },
+            {
+              "name": "version",
+              "ok": false,
+              "code": "version_unresolved",
+              "detail": "unknown"
+            },
+            {
+              "name": "headless",
+              "ok": false,
+              "code": "executable_missing",
+              "detail": "analyzeHeadless unavailable"
+            },
+            {
+              "name": "native_decompiler",
+              "ok": true,
+              "code": null,
+              "detail": "not required on this platform"
+            },
+            {
+              "name": "java",
+              "ok": true,
+              "code": null,
+              "detail": "21.0.12.1; 64-bit; JDK; /usr/lib/jvm/java-21-openjdk-amd64"
+            }
+          ]
+        }
+      },
+      "target_support": {
+        "status": "unknown",
+        "code": null,
+        "reason": "No target is open.",
+        "diagnostics": {}
+      },
+      "selected": false,
+      "capabilities": [
+        {
+          "operation": "address_name",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>."
+          ]
+        },
+        {
+          "operation": "address_to_file_offset",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "Offsets come from Ghidra source-byte mappings, not virtual-address arithmetic. Uninitialized memory, missing mappings and ambiguous mappings fail explicitly."
+          ]
+        },
+        {
+          "operation": "analyze_function",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "The dossier combines Ghidra FunctionManager, Listing, ReferenceManager, BasicBlockModel, and decompiler observations; provider-specific pseudocode and assembly are not cross-provider text invariants.",
+            "Resolved reference metadata identifies computed, indirect, external, call, jump, and data edges; unresolved targetless flows remain unknown, and function classifications distinguish thunks and externals.",
+            "Synthetic Ghidra entry-point references without actionable memory sources are omitted.",
+            "The Java bridge serializes one function request per Program and lets each decompilation run until it completes or the caller cancels."
+          ]
+        },
+        {
+          "operation": "annotate_native_function",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": true,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "Names use Ghidra USER_DEFINED source. Name writes preserve the existing namespace; readback uses the fully qualified name. Regular comments map to PRE and inline comments to EOL at the exact function entry. Changes commit together after readback and refreshed analysis; failure rolls them all back.",
+            "Metadata edits invalidate immutable analysis snapshots and are discarded on close. CLI returns the updated dossier before session cleanup; this is not a saved Ghidra project."
+          ]
+        },
+        {
+          "operation": "inspect_native_data_type",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>."
+          ]
+        },
+        {
+          "operation": "inspect_native_instruction",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>."
+          ]
+        },
+        {
+          "operation": "inspect_native_load_image",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "Independent verification supports DOS MZ and explicitly selected COM, including measured COM entry context. Measured source mappings use inclusive end addresses and complete region digests; no target execution or project mutation occurs."
+          ]
+        },
+        {
+          "operation": "list_documents",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "A headless Ghidra session contains exactly one imported Program, unlike Hopper's multi-document GUI session."
+          ]
+        },
+        {
+          "operation": "list_names",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "The symbol inventory includes memory and external symbols, including dynamic symbols, but excludes variable and no-address namespace records."
+          ]
+        },
+        {
+          "operation": "list_procedures",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "External functions and local thunks are distinct; procedure metadata identifies both and preserves a thunk target when Ghidra resolves one."
+          ]
+        },
+        {
+          "operation": "list_segments",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "Memory-block end addresses are exclusive; permissions come from Ghidra MemoryBlock flags rather than inference from section names."
+          ]
+        },
+        {
+          "operation": "list_strings",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "Only Ghidra-defined string Data is observed; charset is reported, while a non-missing terminator cannot distinguish a present terminator from a fixed or Pascal layout."
+          ]
+        },
+        {
+          "operation": "procedure_address",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "External functions and local thunks are distinct; procedure metadata identifies both and preserves a thunk target when Ghidra resolves one."
+          ]
+        },
+        {
+          "operation": "procedure_assembly",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "Assembly is Ghidra Listing text and does not claim textual equivalence with Hopper output."
+          ]
+        },
+        {
+          "operation": "procedure_callees",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "Only resolved Ghidra call references are returned; unresolved computed or indirect calls remain unknown, while function classifications distinguish thunks and externals."
+          ]
+        },
+        {
+          "operation": "procedure_callers",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "Only resolved Ghidra call references are returned; unresolved computed or indirect calls remain unknown, while function classifications distinguish thunks and externals."
+          ]
+        },
+        {
+          "operation": "procedure_info",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>."
+          ]
+        },
+        {
+          "operation": "procedure_pseudo_code",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "Pseudocode is Ghidra decompiler output, not original source and not text-equivalent to Hopper output.",
+            "External functions and functions without an analyzable body return null; other decompiler failures remain explicit."
+          ]
+        },
+        {
+          "operation": "procedure_references",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "Reference kinds are direct Ghidra ReferenceManager observations; unresolved computed flows without a target are absent and remain unknown.",
+            "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+          ]
+        },
+        {
+          "operation": "read_bytes",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "Bytes reflect Ghidra's initialized memory, including loader fixups. Reads stop at an unmapped or uninitialized byte and report completeness explicitly."
+          ]
+        },
+        {
+          "operation": "read_function_instructions",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "This fast path reads only the requested function and does not invoke the decompiler or whole-program string/name inventories.",
+            "Instruction text is Ghidra-specific and does not claim textual equivalence with Hopper output."
+          ]
+        },
+        {
+          "operation": "resolve_containing_procedure",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>."
+          ]
+        },
+        {
+          "operation": "resolve_native_call_targets",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>."
+          ]
+        },
+        {
+          "operation": "search_procedures",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>."
+          ]
+        },
+        {
+          "operation": "search_strings",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>."
+          ]
+        },
+        {
+          "operation": "xrefs",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": false,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "The session serves operations only after Ghidra reports default auto-analysis complete; incomplete analysis does not expose partial results.",
+            "The imported Program and temporary project are ephemeral and deleted on close. Annotation operations edit session database metadata; original executable bytes are never written.",
+            "Default-space addresses use lowercase 0x-prefixed hexadecimal; other address spaces use <percent-encoded-space>:0x<hex>.",
+            "The direct address list projects exact Ghidra references to one address but does not expose their kinds; procedure_references and analyze_function preserve available kind metadata.",
+            "Synthetic Ghidra entry-point references without actionable memory sources are omitted."
+          ]
+        }
+      ]
+    },
+    {
+      "provider": {
+        "id": "hopper",
+        "name": "Hopper Disassembler",
+        "version": null
+      },
+      "availability": {
+        "status": "unavailable",
+        "code": "executable_missing",
+        "reason": "Hopper launcher is missing or not executable: /opt/hopper/bin/Hopper",
+        "diagnostics": {
+          "launcher_path": "/opt/hopper/bin/Hopper",
+          "platform": "linux"
+        }
+      },
+      "target_support": {
+        "status": "unknown",
+        "code": null,
+        "reason": "No target is open.",
+        "diagnostics": {}
+      },
+      "selected": false,
+      "capabilities": [
+        {
+          "operation": "address_name",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "address_to_file_offset",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "analyze_function",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "comment",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "current_address",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "current_document",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "current_procedure",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "goto_address",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "inline_comment",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "list_bookmarks",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "list_documents",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "list_names",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "list_procedures",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "list_segments",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "list_strings",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "next_address",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "prev_address",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "procedure_address",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "procedure_assembly",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "procedure_callees",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "procedure_callers",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "procedure_info",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "procedure_pseudo_code",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "procedure_references",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "read_bytes",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "read_function_instructions",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "resolve_containing_procedure",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "search_procedures",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "search_strings",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "set_address_name",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": true,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "set_addresses_names",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": true,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "set_bookmark",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": true,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "set_comment",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": true,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "set_current_document",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "set_inline_comment",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": true,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "unset_bookmark",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": true,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": true,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        },
+        {
+          "operation": "xrefs",
+          "available": true,
+          "reason": null,
+          "availability_code": null,
+          "effects": {
+            "mutates_artifact": false,
+            "launches_process": true,
+            "may_show_ui": true,
+            "may_access_network": false,
+            "may_write_filesystem": false,
+            "changes_permissions": false,
+            "requires_root": false
+          },
+          "limitations": [
+            "Results depend on Hopper's completed static analysis."
+          ]
+        }
+      ]
+    }
+  ],
+  "analysis_run": null,
+  "analysis_activity": {
+    "status": "not_observed",
+    "providers": []
+  },
+  "server_identity": {
+    "package": {
+      "name": "rea-agents",
+      "version": "4.0.1",
+      "root_path": "/home/claude/rea",
+      "build_commit": null
+    },
+    "server": {
+      "name": "rea",
+      "version": "4.0.1",
+      "started_at": "2026-10-06T18:02:14.901Z",
+      "command_path": "/home/claude/rea/scripts/rea.mjs"
+    },
+    "sdk": {
+      "server": "2.3.1",
+      "client_test": "2.3.1",
+      "core": "2.3.1"
+    },
+    "negotiated_protocol_version": null,
+    "client": null,
+    "skill": {
+      "name": "reverse-engineer-anything",
+      "expected_version": "25"
+    },
+    "catalog": {
+      "counts": {
+        "cli_commands": 80,
+        "mcp_tools": 125,
+        "mcp_prompts": 6
+      },
+      "digests": {
+        "tools_sha256": "eec3abb8fa5b25c6e5d6e361b7ebd157e3599f69b68defda85680dbfe061b3d3",
+        "prompts_sha256": "ef2de8814390b340623c32001610aa2709d90bed51537b6e562ab3abf144ab4d",
+        "combined_sha256": "ed9c36900e9223561d38ba30a44921f4ff101d5eca989920f9edc9dc91df470b"
+      },
+      "tools": [
+        {
+          "name": "address_name",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "address_to_file_offset",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "analyze_function",
+          "surface": "enhanced",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "analyze_javascript_application",
+          "surface": "electron-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "analyze_swift_types",
+          "surface": "enhanced",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "analyze_web_bundle",
+          "surface": "browser-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": true,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "annotate_native_function",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": true,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "batch_decompile",
+          "surface": "enhanced",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "binary_overview",
+          "surface": "enhanced",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "binary_session",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": false,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": true,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "build_call_path",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "build_reconstruction_obligation_ledger",
+          "surface": "application",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "capture_browser_scenario",
+          "surface": "browser-provider",
+          "effects": {
+            "mutatesTarget": true,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": true,
+            "accessesNetwork": true,
+            "changesUiState": true,
+            "mayDiscardData": true,
+            "idempotent": false
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": true,
+            "idempotent": false,
+            "open_world": true
+          }
+        },
+        {
+          "name": "capture_electron_scenario",
+          "surface": "electron-provider",
+          "effects": {
+            "mutatesTarget": true,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": true,
+            "accessesNetwork": true,
+            "changesUiState": true,
+            "mayDiscardData": true,
+            "idempotent": false
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": true,
+            "idempotent": false,
+            "open_world": true
+          }
+        },
+        {
+          "name": "capture_native_ui_scenario",
+          "surface": "native-provider",
+          "effects": {
+            "mutatesTarget": true,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": true,
+            "accessesNetwork": true,
+            "changesUiState": true,
+            "mayDiscardData": true,
+            "idempotent": false
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": true,
+            "idempotent": false,
+            "open_world": true
+          }
+        },
+        {
+          "name": "capture_process_scenario",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": true,
+            "accessesNetwork": true,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": false
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": false,
+            "open_world": true
+          }
+        },
+        {
+          "name": "capture_web_screenshot",
+          "surface": "browser-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": true,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "close_binary",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": true,
+            "idempotent": false
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": true,
+            "idempotent": false,
+            "open_world": false
+          }
+        },
+        {
+          "name": "comment",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "compare_application_versions",
+          "surface": "application",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "compare_artifacts",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "compare_bundles",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "compare_functions",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "compare_javascript_export_shapes",
+          "surface": "application",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "compare_managed_members",
+          "surface": "application",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "compare_process_captures",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "compare_source_to_bundle",
+          "surface": "application",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "compare_web_captures",
+          "surface": "browser-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "compare_web_screenshots",
+          "surface": "browser-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "correlate_static_and_runtime",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "current_address",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "current_document",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "current_procedure",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "decode_interface_builder",
+          "surface": "artifact-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "demangle_swift",
+          "surface": "native-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "discover_webmcp_tools",
+          "surface": "browser-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": true,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "evaluate_reconstruction_coverage",
+          "surface": "application",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": false,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": true,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "export_evidence_bundle",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": false,
+            "writesFilesystem": true,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": true,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": true,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "extract_artifact",
+          "surface": "artifact-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": false
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": false,
+            "open_world": true
+          }
+        },
+        {
+          "name": "extract_firmware",
+          "surface": "firmware-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": false
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": false,
+            "open_world": true
+          }
+        },
+        {
+          "name": "find_changed_behavior",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "find_xrefs_to_name",
+          "surface": "enhanced",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "get_call_graph",
+          "surface": "enhanced",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "get_evidence_bundle",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": false,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": true,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "get_navigation_context",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "get_objc_classes",
+          "surface": "enhanced",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "get_objc_protocols",
+          "surface": "enhanced",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "goto_address",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": true,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "import_evidence_bundle",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "import_managed_reconstruction",
+          "surface": "application",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "inline_comment",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "inspect_address_context",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "inspect_android_class",
+          "surface": "android-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "inspect_android_method",
+          "surface": "android-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "inspect_android_package",
+          "surface": "android-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "inspect_artifact",
+          "surface": "artifact-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "inspect_asset_catalog",
+          "surface": "artifact-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "inspect_electron_page",
+          "surface": "electron-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": true,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "inspect_firmware_regions",
+          "surface": "firmware-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "inspect_keyed_archive",
+          "surface": "artifact-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "inspect_macho",
+          "surface": "native-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "inspect_managed_artifact",
+          "surface": "managed-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "inspect_managed_members",
+          "surface": "managed-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "inspect_managed_native_boundaries",
+          "surface": "managed-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "inspect_native_api",
+          "surface": "enhanced",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": false
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": false,
+            "open_world": false
+          }
+        },
+        {
+          "name": "inspect_native_data_type",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "inspect_native_dispatch_metadata",
+          "surface": "enhanced",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "inspect_native_instruction",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "inspect_native_load_image",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "inspect_plist",
+          "surface": "native-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "inspect_signature",
+          "surface": "native-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "inspect_web_page",
+          "surface": "browser-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": true,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "list_architectures",
+          "surface": "native-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "list_bookmarks",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "list_browser_targets",
+          "surface": "browser-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": true,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "list_documents",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "list_electron_targets",
+          "surface": "electron-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": true,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "list_javascript_runtime_targets",
+          "surface": "runtime-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": true,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "list_names",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "list_procedures",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "list_segments",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "list_strings",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "list_unknowns",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": false,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": true,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "next_address",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "observe_javascript_runtime",
+          "surface": "runtime-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": true,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "observe_native_ui",
+          "surface": "native-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "observe_web_session",
+          "surface": "browser-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": true,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "open_binary",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "prev_address",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "procedure_address",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "procedure_assembly",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "procedure_callees",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "procedure_callers",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "procedure_info",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "procedure_pseudo_code",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "procedure_references",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "project_managed_application_graph",
+          "surface": "application",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "read_bytes",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "read_function_instructions",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "reconcile_javascript_runtime",
+          "surface": "electron-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "record_unknown",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": false
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": false,
+            "open_world": false
+          }
+        },
+        {
+          "name": "resolve_containing_procedure",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "resolve_native_call_targets",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "search_android_classes",
+          "surface": "android-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "search_procedures",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "search_strings",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "set_address_name",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": true,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "set_addresses_names",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": true,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "set_bookmark",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": true,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "set_comment",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": true,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "set_current_document",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": true,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "set_inline_comment",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": true,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "trace_android_references",
+          "surface": "android-provider",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": true,
+            "launchesProcess": true,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": true
+          }
+        },
+        {
+          "name": "trace_application_feature",
+          "surface": "application",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "trace_call_path",
+          "surface": "enhanced",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": false
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": false,
+            "open_world": false
+          }
+        },
+        {
+          "name": "trace_feature",
+          "surface": "enhanced",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": false
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": false,
+            "open_world": false
+          }
+        },
+        {
+          "name": "trace_javascript_semantics",
+          "surface": "application",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "trace_native_ui_action",
+          "surface": "enhanced",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "trace_native_values",
+          "surface": "enhanced",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "unset_bookmark",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": true,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": true,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": true,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "update_unknown",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": false
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": false,
+            "open_world": false
+          }
+        },
+        {
+          "name": "verify_managed_native_boundaries",
+          "surface": "application",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "verify_reconstruction",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "verify_unknown_resolution",
+          "surface": "session",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": false,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": true,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        },
+        {
+          "name": "xrefs",
+          "surface": "official-proxy",
+          "effects": {
+            "mutatesTarget": false,
+            "mutatesSession": true,
+            "writesFilesystem": false,
+            "launchesProcess": false,
+            "accessesNetwork": false,
+            "changesUiState": false,
+            "mayDiscardData": false,
+            "idempotent": true
+          },
+          "annotations": {
+            "read_only": false,
+            "destructive": false,
+            "idempotent": true,
+            "open_world": false
+          }
+        }
+      ]
+    },
+    "protocol_features": {
+      "progress": true,
+      "cancellation": true,
+      "elicitation": false
+    },
+    "alignment": {
+      "state": "unknown",
+      "reasons": [],
+      "remediation": "Supply expected package, catalog, or registration identity to compare the live server."
+    }
+  }
+}

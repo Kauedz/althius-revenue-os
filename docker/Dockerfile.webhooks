@@ -1,10 +1,14 @@
 # Receptor de webhooks (Unipile) e rotas do cofre/conexões. Só Node: sem dependências, sem build. Roda o TypeScript
-# direto (Node 22.18+). Copia as pastas inteiras (o principal importa de ../unipile e ../cofre).
+# direto (Node 22.18+). Copia as pastas inteiras (o principal importa de ../unipile, ../cofre, ../integracoes e, para o
+# teste de fontes de sinal do agente (ADR 0060), ../sinais e ../providers).
 FROM node:22-alpine
 WORKDIR /app
 COPY src/server/webhooks ./src/server/webhooks
 COPY src/server/unipile ./src/server/unipile
 COPY src/server/cofre ./src/server/cofre
+COPY src/server/integracoes ./src/server/integracoes
+COPY src/server/sinais ./src/server/sinais
+COPY src/server/providers ./src/server/providers
 USER node
 EXPOSE 3100
 CMD ["node", "src/server/webhooks/principal.ts"]

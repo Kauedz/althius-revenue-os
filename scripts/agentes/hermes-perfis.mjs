@@ -23,7 +23,7 @@ const desligadas = () => [
 ].join('\n');
 
 /** Perfil de um agente: modelo, só o MCP da Althius, nenhuma ferramenta embutida. */
-export function perfilDoAgente({ urlBanco, chavePublica, token, modelo }) {
+export function perfilDoAgente({ urlBanco, chavePublica, token, modelo, integracoesUrl }) {
   for (const [k, v] of Object.entries({ urlBanco, chavePublica, token })) if (!v) throw new Error(`perfilDoAgente: falta ${k}`);
   // Modo assinatura (teste sem custo): o Hermes usa o login do Codex (ChatGPT) feito dentro do contêiner, sem chave.
   if (!modelo?.nome || (!modelo.oauth && !modelo.url)) throw new Error('perfilDoAgente: falta o modelo (url e nome)');
@@ -42,6 +42,8 @@ export function perfilDoAgente({ urlBanco, chavePublica, token, modelo }) {
     `      ALTHIUS_SUPABASE_URL: ${q(urlBanco)}`,
     `      ALTHIUS_SUPABASE_CHAVE_PUBLICA: ${q(chavePublica)}`,
     `      ALTHIUS_AGENTE_TOKEN: ${q(token)}`,
+    // A ponte com os apps conectados (ADR 0058): serviço de integrações, só pela rede interna.
+    ...(integracoesUrl ? [`      ALTHIUS_INTEGRACOES_URL: ${q(integracoesUrl)}`] : []),
     ''
   ].join('\n');
 }
@@ -60,14 +62,16 @@ export function envPadrao({ chaveAleatoria }) {
 export const nomeDoServico = slug => `hermes-${slug}`;
 
 /** Compose (arquivo gerado, fora do git) com um contêiner Hermes por cliente. Caminhos relativos à raiz do projeto. */
-export function montarCompose(slugs, imagem = HERMES_IMAGEM) {
+export function montarCompose(slugs, imagem = HERMES_IMAGEM, { local = false } = {}) {
   if (!slugs.length) return 'services: {}\n';
+  if (local && slugs.length > 1) throw new Error('Modo local: só um cliente por vez (a porta do Hermes é uma só neste computador).');
   const linhas = ['# GERADO por scripts/agentes/provisionar-hermes.mjs. Não edite à mão (ADR 0048).', 'services:'];
   for (const slug of [...slugs].sort()) {
     if (!slugValido(slug)) throw new Error(`slug inválido: ${slug}`);
     linhas.push(
       `  ${nomeDoServico(slug)}:`,
       `    image: ${imagem}`,
+      ...(local ? [`    container_name: ${nomeDoServico(slug)}`] : []),
       '    restart: unless-stopped',
       '    command: ["gateway", "run"]',
       '    environment:',
@@ -76,12 +80,11 @@ export function montarCompose(slugs, imagem = HERMES_IMAGEM) {
       '    volumes:',
       `      - ./docker/hermes/${slug}/data:/opt/data`,
       '      - ./docker/hermes/mcp:/opt/althius:ro',
-      '    depends_on:',
-      '      web:',
-      '        condition: service_started',
-      '      gateway:',
-      '        condition: service_started',
-      '    networks: [interna]',
+      ...(local
+        // Modo local (computador do dono): sem os outros serviços; a porta só abre para o próprio computador e o
+        // banco do Supabase CLI é alcançado pelo nome da máquina.
+        ? ['    ports:', `      - "127.0.0.1:${PORTA_API}:${PORTA_API}"`, '    extra_hosts:', '      - "host.docker.internal:host-gateway"']
+        : ['    depends_on:', '      web:', '        condition: service_started', '      gateway:', '        condition: service_started', '    networks: [interna]']),
       ''
     );
   }
@@ -89,12 +92,12 @@ export function montarCompose(slugs, imagem = HERMES_IMAGEM) {
 }
 
 /** Acrescenta (ou troca) as entradas do cliente no registro de executores, preservando os outros clientes. */
-export function mesclarExecutores(existente, { workspaceId, slug, chaves }) {
+export function mesclarExecutores(existente, { workspaceId, slug, chaves, urlBase }) {
   const base = existente && typeof existente === 'object' && existente.executores && typeof existente.executores === 'object' ? existente : { executores: {} };
   const executores = { ...base.executores };
   for (const agente of AGENTES) {
     if (!chaves[agente]) continue;
-    executores[`${workspaceId.toLowerCase()}/${agente}`] = { url: `http://${nomeDoServico(slug)}:${PORTA_API}/p/${agente}`, chave: chaves[agente], modelo: agente };
+    executores[`${workspaceId.toLowerCase()}/${agente}`] = { url: `${urlBase ?? `http://${nomeDoServico(slug)}:${PORTA_API}`}/p/${agente}`, chave: chaves[agente], modelo: agente };
   }
   return { ...base, executores };
 }

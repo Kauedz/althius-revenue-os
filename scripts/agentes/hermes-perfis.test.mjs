@@ -19,6 +19,11 @@ describe('perfilDoAgente', () => {
     expect(c).toContain('ALTHIUS_SUPABASE_CHAVE_PUBLICA: "anon-publica"');
     expect(c).not.toMatch(/service_role|SERVICE_ROLE|MODELO_CHAVE=/);
   });
+  it('com o endereço do serviço de integrações, o MCP recebe ALTHIUS_INTEGRACOES_URL (a ponte com os apps)', () => {
+    const c = perfilDoAgente({ ...base, integracoesUrl: 'http://webhooks:3100' });
+    expect(c).toContain('ALTHIUS_INTEGRACOES_URL: "http://webhooks:3100"');
+    expect(perfilDoAgente(base)).not.toContain('ALTHIUS_INTEGRACOES_URL');
+  });
   it('valores com aspas ou quebra de linha não escapam do YAML', () => {
     const c = perfilDoAgente({ ...base, modelo: { url: 'https://x.test/v1', nome: 'a"b\nc: d' } });
     expect(c).toContain('default: "a\\"b\\nc: d"');
@@ -74,6 +79,26 @@ describe('montarCompose', () => {
   });
 });
 
+describe('montarCompose no modo local (sem o Docker completo)', () => {
+  const c = montarCompose(['evolut'], HERMES_IMAGEM, { local: true });
+  it('publica a porta só no próprio computador e não depende dos outros serviços', () => {
+    expect(c).toContain('127.0.0.1:8642:8642');
+    expect(c).not.toMatch(/0.0.0.0:8642/);
+    expect(c).not.toContain('depends_on');
+    expect(c).not.toContain('networks');
+  });
+  it('enxerga o banco local pelo nome da máquina e mantém imagem, pastas e reinício', () => {
+    expect(c).toContain('host.docker.internal:host-gateway');
+    expect(c).toContain('container_name: hermes-evolut'); // nome fixo: o comando de login do Codex é sempre o mesmo
+    expect(c).toContain(`image: ${HERMES_IMAGEM}`);
+    expect(c).toContain('./docker/hermes/evolut/data:/opt/data');
+    expect(c).toContain('./docker/hermes/mcp:/opt/althius:ro');
+  });
+  it('com mais de um cliente recusa: a porta é uma só no computador', () => {
+    expect(() => montarCompose(['a', 'b'], HERMES_IMAGEM, { local: true })).toThrow('um cliente');
+  });
+});
+
 describe('mesclarExecutores', () => {
   it('acrescenta os 4 agentes do cliente sem tocar nos outros', () => {
     const chaves = { comercial: 'a', marketing: 'b', copy: 'c', revops: 'd' };
@@ -89,6 +114,10 @@ describe('mesclarExecutores', () => {
     const r2 = mesclarExecutores(r1, { workspaceId: WS, slug: 's', chaves: { copy: 'novo' } });
     expect(r2.executores[`${WS}/copy`].chave).toBe('novo');
     expect(r2.executores[`${WS}/revops`].chave).toBe('y');
+  });
+  it('no modo local o endereço do Hermes é o do próprio computador', () => {
+    const r = mesclarExecutores(null, { workspaceId: WS, slug: 'evolut', chaves: { comercial: 'a' }, urlBase: 'http://127.0.0.1:8642' });
+    expect(r.executores[`${WS}/comercial`].url).toBe('http://127.0.0.1:8642/p/comercial');
   });
   it('os 4 agentes fixos', () => expect(AGENTES).toEqual(['comercial', 'marketing', 'copy', 'revops']));
 });

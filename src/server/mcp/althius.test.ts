@@ -23,6 +23,9 @@ const TAREFA_CANARIO = 'f7000000-0000-0000-0000-0000000000d1';
 const NEGOCIO_CANARIO = 'f9000000-0000-0000-0000-0000000000d1';
 const CONTA_EVOLUT = 'c0000000-0000-0000-0000-000000000001';
 const CAMPANHA_CANARIO = 'fa000000-0000-0000-0000-0000000000d1';
+const CONTA_SINAL = 'c0000000-0000-0000-0000-000000000001';
+const SLUG_HABILIDADE = 'canario-mcp-9921';
+const DETALHE_SINAL = 'CANÁRIO sinal MCP-5532';
 const TITULO_TAREFA = 'Ligar para Aline (teste MCP fatia A)';
 
 async function conectar(token: string) {
@@ -67,6 +70,10 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
       title: 'CANÁRIO negócio MCP-8813', amount: 4321.5, owner_member_id: LUCAS_MEMBRO
     });
     if (erroNegocio) throw erroNegocio;
+    // Fixtures do ticket 02 dos agentes: uma habilidade da Zoe da Evolut e um sinal numa conta da Evolut.
+    await admin.from('agent_skills').upsert({ workspace_id: EVOLUT, agent_id: 'comercial', name: 'CANÁRIO habilidade MCP-9921', slug: SLUG_HABILIDADE, content_markdown: '# Passo a passo', enabled: true }, { onConflict: 'workspace_id,agent_id,slug' });
+    const { data: def } = await admin.from('signal_definitions').select('id').order('code').limit(1).single();
+    await admin.from('signal_events').insert({ workspace_id: EVOLUT, signal_id: def!.id, account_id: CONTA_SINAL, payload: { detalhe: DETALHE_SINAL }, temperature_bump: 2 });
     await admin.from('tasks').upsert({ id: TAREFA_CANARIO, workspace_id: EVOLUT, title: 'CANÁRIO tarefa MCP-5521', assignee_member_id: LUCAS_MEMBRO, status: 'pendente' });
   });
 
@@ -77,6 +84,8 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
       await admin.from('notifications').delete().in('entity_id', aprovacoesCriadas);
       await admin.from('approvals').delete().in('id', aprovacoesCriadas);
     }
+    await admin.from('agent_skills').delete().eq('workspace_id', EVOLUT).eq('slug', SLUG_HABILIDADE);
+    await admin.from('signal_events').delete().eq('workspace_id', EVOLUT).eq('payload->>detalhe', DETALHE_SINAL);
     await admin.from('tasks').delete().eq('workspace_id', EVOLUT).in('title', [TITULO_TAREFA, 'CANÁRIO tarefa MCP-5521']);
     await admin.from('campaigns').delete().eq('workspace_id', EVOLUT).in('name', ['CANÁRIO campanha MCP-3307', 'Campanha de teste MCP']);
     await admin.from('opportunities').delete().eq('workspace_id', EVOLUT).or(`id.eq.${NEGOCIO_CANARIO},amount.eq.88888`);
@@ -91,9 +100,9 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
     const cliente = await conectar(tokenGrao);
     const { tools } = await cliente.listTools();
     expect(tools.map(t => t.name).sort()).toEqual([
-      'buscar_contatos', 'listar_cadencias', 'listar_campanhas', 'listar_contas', 'listar_membros', 'listar_negocios', 'listar_quadros', 'listar_tarefas',
+      'buscar_contatos', 'integracao_ferramentas', 'integracao_ler', 'integracao_propor', 'listar_cadencias', 'listar_campanhas', 'listar_contas', 'listar_habilidades', 'listar_membros', 'listar_negocios', 'listar_quadros', 'listar_sinais', 'listar_tarefas',
       'propor_atualizacao', 'propor_campanha', 'propor_inscricao_cadencia', 'propor_mover_negocio', 'propor_negocio', 'propor_status_campanha', 'propor_tarefa',
-      'propor_verba_campanha'
+      'propor_verba_campanha', 'sinais_buscar_fontes', 'sinais_catalogo', 'sinais_detalhar_fonte', 'sinais_propor_receita', 'sinais_testar_fonte'
     ]);
     for (const t of tools) expect(JSON.stringify(t.inputSchema)).not.toMatch(/workspace/i);
   });
@@ -273,6 +282,24 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
     expect(data).toEqual([{ stage_key: 'entrada', status: 'ativa', owner_member_id: LUCAS_MEMBRO }]);
   });
 
+  it('o agente lê as habilidades dele e os sinais recentes das contas; nada vaza para outro cliente', async () => {
+    const evolut = await conectar(tokenEvolut);
+    const grao = await conectar(tokenGrao);
+    const hab = await evolut.callTool({ name: 'listar_habilidades', arguments: {} });
+    expect(hab.isError).not.toBe(true);
+    expect(texto(hab)).toContain('MCP-9921');
+    expect(texto(await grao.callTool({ name: 'listar_habilidades', arguments: {} }))).not.toContain('MCP-9921');
+    expect(texto(await evolut.callTool({ name: 'listar_sinais', arguments: {} }))).toContain('MCP-5532');
+    expect(texto(await evolut.callTool({ name: 'listar_sinais', arguments: { conta_id: CONTA_SINAL, limite: 5 } }))).toContain('MCP-5532');
+    expect(texto(await grao.callTool({ name: 'listar_sinais', arguments: {} }))).not.toContain('MCP-5532');
+    expect(texto(await grao.callTool({ name: 'listar_sinais', arguments: { conta_id: CONTA_SINAL } }))).toBe('[]');
+  });
+
+  it('as leituras novas são marcadas como somente leitura', async () => {
+    const { tools } = await (await conectar(tokenEvolut)).listTools();
+    for (const nome of ['listar_habilidades', 'listar_sinais']) expect(tools.find(t => t.name === nome)?.annotations?.readOnlyHint, nome).toBe(true);
+  });
+
   it('CANÁRIO: campanhas também não vazam entre clientes, e a Grão Norte não mexe nas da Evolut', async () => {
     const grao = await conectar(tokenGrao);
     const evolut = await conectar(tokenEvolut);
@@ -328,7 +355,7 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
     try {
       const r = await (await conectar(tokenEvolut)).callTool({ name: 'buscar_contatos', arguments: {} });
       expect(r.isError).toBe(true);
-      expect(texto(r)).toBe('Agente pausado pelo cliente. Nada será feito até ele ser retomado.');
+      expect(texto(r)).toMatch(/^Agente pausado pelo cliente\. Nada será feito até ele ser retomado\. Não tente de novo/);
     } finally {
       await admin.from('workspace_agents').update({ estado: 'ativo' }).eq('workspace_id', EVOLUT).eq('agent_code', 'comercial');
     }
@@ -338,6 +365,6 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
     const intruso = await conectar('alt_agente_inventado');
     const r = await intruso.callTool({ name: 'buscar_contatos', arguments: {} });
     expect(r.isError).toBe(true);
-    expect(texto(r)).toBe('Token do agente inválido ou revogado.');
+    expect(texto(r)).toMatch(/^Token do agente inválido ou revogado\. Não tente de novo/);
   });
 });

@@ -11,3 +11,8 @@ backups
 docker/agentes-executores.json
 docker/hermes/
 docker/agentes-hermes.compose.yml
+docker/agentes-hermes.local.compose.yml
+docker/agentes-executores.local.json
+
+# Protótipo antigo, só para consulta (tem .env.local próprio e .git próprio)
+AppAlthius/

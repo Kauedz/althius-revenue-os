@@ -47,6 +47,7 @@ export async function listarCanais(cliente: SupabaseClient, workspaceId: string)
     .from('chat_channels')
     .select('id, slug, description, is_general, created_by, created_at')
     .eq('workspace_id', workspaceId)
+    .eq('kind', 'canal') // conversas diretas com agentes (kind = direto) não são canais
     .order('is_general', { ascending: true })
     .order('created_at');
   if (error) throw new Error('Não foi possível carregar os canais.', { cause: error });

@@ -2,7 +2,7 @@
 // mestra e guarda o resultado por 30s. Se o banco falhar, usa o que já tinha; sem nada, erro claro. Nunca inventa chave.
 import { decifrar } from './cifra.ts';
 
-export type Provedor = 'apify' | 'unipile' | 'unipile_webhook' | 'modelo_ia';
+export type Provedor = 'apify' | 'unipile' | 'unipile_webhook' | 'modelo_ia' | 'integracao_app';
 export interface SegredoLido { id: string; rotulo: string; segredo: string; config: Record<string, unknown> }
 
 export interface Cofre {

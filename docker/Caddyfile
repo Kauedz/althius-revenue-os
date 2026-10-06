@@ -40,6 +40,20 @@
 		reverse_proxy webhooks:3100
 	}
 
+	# Ponte dos agentes com os apps (ADR 0058): só o Hermes, pela rede interna do Docker (webhooks:3100). Nunca pela internet.
+	handle /integracoes/agente/* {
+		respond 404
+	}
+
+	# Integrações do catálogo (ADR 0056): conectar, desconectar, retirar e listar ferramentas usam o login da pessoa;
+	# /integracoes/retorno é o redirecionamento do app depois do consentimento (a prova é o state de uso único).
+	handle /integracoes/* {
+		request_body {
+			max_size 16KB
+		}
+		reverse_proxy webhooks:3100
+	}
+
 	# Cofre de chaves (tela do superadmin): guardar e testar chave. Quem confere o superadmin é o banco.
 	handle /cofre/* {
 		request_body {

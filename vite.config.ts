@@ -14,6 +14,11 @@ export default defineConfig({
     }
   },
   server: {
-    port: 3000
+    port: 3000,
+    // Só no desenvolvimento: em produção o Caddy encaminha estas rotas para o serviço `webhooks` (docker/Caddyfile).
+    proxy: {
+      '/cofre': 'http://127.0.0.1:3100',
+      '/integracoes': 'http://127.0.0.1:3100'
+    }
   }
 });

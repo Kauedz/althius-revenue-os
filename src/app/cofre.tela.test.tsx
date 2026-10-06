@@ -90,6 +90,30 @@ describe.skipIf(!bancoLocalNoAr)('Chaves dos fornecedores (banco local)', () => 
     expect(espia.mock.calls.some(c => String(c[0]) === '/cofre/guardar')).toBe(false);
   });
 
+  it('app de integração (HubSpot): exige o ID do cliente e o envia na configuração, sem repetir o segredo na tela', async () => {
+    cleanup();
+    const original = globalThis.fetch;
+    const guardados: any[] = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (alvo: any, init?: RequestInit) => {
+      if (String(alvo) === '/cofre/guardar') { guardados.push(JSON.parse(init!.body as string)); return new Response(JSON.stringify({ ok: true }), { status: 200 }); }
+      return original(alvo, init);
+    });
+    await entrar('rafael@althius.com.br', '#/admin/providers', 'Fornecedores');
+    fireEvent.click(screen.getByRole('button', { name: 'Nova chave' }));
+    const form = await screen.findByRole('region', { name: 'Nova chave' });
+    fireEvent.change(within(form).getByLabelText('Fornecedor'), { target: { value: 'integracao_app' } });
+    fireEvent.change(within(form).getByLabelText('Nome da chave'), { target: { value: 'hubspot' } });
+    fireEvent.change(within(form).getByLabelText('Chave (não aparece de novo)'), { target: { value: 'segredo-do-app-123456' } });
+    fireEvent.click(within(form).getByRole('button', { name: 'Guardar no cofre' }));
+    expect(await within(form).findByRole('alert')).toHaveTextContent('Cole o ID do cliente do app.');
+    expect(guardados).toHaveLength(0);
+    fireEvent.change(within(form).getByLabelText(/^ID do cliente/), { target: { value: '1b69203f-e24e-4bce-990e-c9471504ed73' } });
+    fireEvent.click(within(form).getByRole('button', { name: 'Guardar no cofre' }));
+    await waitFor(() => expect(guardados).toHaveLength(1));
+    expect(guardados[0]).toMatchObject({ provedor: 'integracao_app', rotulo: 'hubspot', config: { client_id: '1b69203f-e24e-4bce-990e-c9471504ed73' } });
+    expect(document.body.textContent).not.toContain('segredo-do-app-123456');
+  });
+
   it('C-level não abre Fornecedores', async () => {
     cleanup();
     await entrar('aline@evolut.com.br', '#/admin/providers', 'Início');

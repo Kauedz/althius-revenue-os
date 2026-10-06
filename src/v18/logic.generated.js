@@ -132,6 +132,7 @@ export class AlthiusLogic extends React.Component {
     }
   }
   chatDe(a) {
+    if (this.modoDemo === false) return this.mensagensDaConversaDireta(a);
     if (this.state.chats[a.id]) return this.state.chats[a.id];
     const POR = {
       marketing: [{ tipo: 'user', texto: 'Como está o custo por lead em cada canal?', hora: '09:02', status: 'Lida' }, { tipo: 'agente', hora: '09:02', texto: 'LinkedIn Ads está em R$ 118 por lead e Meta Ads em R$ 190. Para diretores de Supply Chain, LinkedIn rende mais. Sugiro mover R$ 3.000 de Meta para LinkedIn até o fim do mês.' }, { tipo: 'plano', passos: ['Reduzir o orçamento de Meta Ads em R$ 3.000', 'Aumentar o orçamento de LinkedIn Ads em R$ 3.000', 'Avisar o time no #geral'], estado: 'pendente' }],
@@ -827,13 +828,13 @@ export class AlthiusLogic extends React.Component {
       const q = (st.catBusca || '').trim().toLowerCase(), fc = st.catFiltro || 'todos';
       const lista = KC.lista.filter(c => !q || (c.nome + ' ' + c.empresa).toLowerCase().indexOf(q) >= 0);
       const nCon = KC.lista.filter(c => cons[c.id]).length;
-      v.cat.resumo = this.modoDemo === false ? 'Em breve: estes conectores ainda não estão disponíveis. Suas contas de e-mail, WhatsApp, LinkedIn e Instagram você conecta na Caixa de entrada.' : nCon + ' conectados de ' + KC.lista.length + ' disponíveis · cada conexão é autorizada na página oficial da ferramenta';
+      v.cat.resumo = this.modoDemo === false ? this.resumoDosConectores() : nCon + ' conectados de ' + KC.lista.length + ' disponíveis · cada conexão é autorizada na página oficial da ferramenta';
       v.cat.busca = st.catBusca || ''; v.cat.mudarBusca = ev => this.setState({ catBusca: ev.target.value });
       v.cat.filtros = [{ id: 'todos', nome: 'Todos' }, { id: 'conectados', nome: 'Conectados' }].concat(KC.cats).map(c => ({ label: c.nome, ativo: fc === c.id ? 'true' : 'false', ir: () => this.setState({ catFiltro: c.id }),
         n: c.id === 'todos' ? lista.length : c.id === 'conectados' ? lista.filter(x => cons[x.id]).length : lista.filter(x => x.cat === c.id).length }));
       v.cat.grupos = KC.cats.map(g => ({ nome: g.nome, desc: g.desc, itens: lista.filter(c => c.cat === g.id && (fc === 'todos' || fc === g.id || (fc === 'conectados' && cons[c.id]))).map(c => {
-        const k = cons[c.id], ok = !!k && !k.erro, erro = !!k && !!k.erro, em = this.modoDemo === false;
-        return { nome: c.nome, desc: c.desc, auth: c.auth, logo: LG[c.id], conectado: ok, erro, estado: ok ? 'ok' : erro ? 'erro' : 'off', usoTexto: k ? 'usado por ' + usoTexto(k) : '', emBreve: em,
+        const k = cons[c.id], ok = !!k && !k.erro, erro = !!k && !!k.erro, em = this.modoDemo === false && !(this.conectorReal && this.conectorReal(c.id));
+        return { nome: c.nome, desc: this.modoDemo === false ? (em ? c.desc + ' Em breve: ' + this.motivoDoConector(c.id) : erro ? c.desc + ' Precisa reconectar.' : c.desc) : c.desc, auth: c.auth, logo: LG[c.id], conectado: ok, erro, estado: ok ? 'ok' : erro ? 'erro' : 'off', usoTexto: this.modoDemo === false ? (k && !erro ? 'Conta: ' + k.conta : '') : (k ? 'usado por ' + usoTexto(k) : ''), emBreve: em,
           btnCls: em || ok ? 'con-btn-sec' : 'con-btn', acaoLabel: em ? 'Em breve' : ok ? 'Gerenciar' : erro ? 'Reconectar' : 'Conectar', acaoRotulo: em ? c.nome + ' (em breve)' : (ok ? 'Gerenciar ' : 'Conectar ') + c.nome, acao: () => { if (!em) this.abrirOauth(c.id); } };
       }) })).filter(g => g.itens.length);
       v.cat.vazio = v.cat.grupos.length === 0;
@@ -1151,7 +1152,7 @@ export class AlthiusLogic extends React.Component {
         estadoLabel: ESTADO_AG[a.estado][0], estadoCor: ESTADO_AG[a.estado][1], acoes: acoesAg(a, true) };
       v.agTabsDet = tabsOk.map(([id, label]) => ({ label, ativo: id === tab ? 'true' : 'false', barra: id === tab ? '#F7054F' : 'transparent', ir: () => this.setState({ agDetTab: id }) }));
       ['visao','conversa','capacidades','playbooks','conhecimento','sinais','integracoes','execucoes','auditoria'].forEach(id => { v['t' + id.charAt(0).toUpperCase() + id.slice(1)] = tab === id; });
-      v.threads = [['Prioridades de hoje', 'agora', true], ['Revisão da lista Sudeste', 'ontem', false], ['Objeções de câmbio', 'seg', false]].map(t => ({ titulo: t[0], quando: t[1], bg: t[2] ? 'var(--mist)' : 'var(--paper)' }));
+      v.threads = this.modoDemo === false ? this.threadsDaConversaDireta(a) : [['Prioridades de hoje', 'agora', true], ['Revisão da lista Sudeste', 'ontem', false], ['Objeções de câmbio', 'seg', false]].map(t => ({ titulo: t[0], quando: t[1], bg: t[2] ? 'var(--mist)' : 'var(--paper)' }));
       const msgs = this.chatDe(a);
       const fb = st.feedback || {};
       v.chat = msgs.map((m, i) => {
@@ -1173,6 +1174,7 @@ export class AlthiusLogic extends React.Component {
         this.setState({ chats: Object.assign({}, st.chats, { [a.id]: nova }) });
       };
       const enviar = texto => {
+        if (this.modoDemo === false) return this.enviarNaConversaDireta(a, texto);
         const t = (texto || '').trim(); if (!t) return;
         const h = this.hora();
         const atual = this.chatDe(a).concat([{ tipo: 'user', texto: t, hora: h, status: 'Enviada' }, { tipo: 'agente', hora: h, stream: 0, texto: 'Entendido. Vou levantar isso com base no ICP vigente e te mostro o plano antes de qualquer ação no CRM.' }]);
@@ -1183,6 +1185,7 @@ export class AlthiusLogic extends React.Component {
       v.msgTexto = st.msgTexto; v.mudarMsg = e => this.setState({ msgTexto: e.target.value });
       v.teclaMsg = e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviar(this.state.msgTexto); } };
       v.enviarMsg = () => enviar(st.msgTexto);
+      v.novaConversa = this.modoDemo === false ? () => this.novaConversaDireta(a) : undefined;
       v.comandos = ['/resumo da conta', '/próximo lead', '/objeções prováveis'].map(c => ({ label: c, fn: () => enviar(c) }));
       const capsAg = Object.assign({}, a.caps, st.caps[a.id] || {});
       const editavel = can('agents.configure');

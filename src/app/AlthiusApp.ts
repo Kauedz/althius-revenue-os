@@ -25,6 +25,8 @@ import { listarAgentes, pausarAgente, salvarCapacidades, type AgenteBase, type A
 import { alterarSenha, lerMinhaConta, removerFoto, sairDosOutrosDispositivos, salvarMinhaConta, salvarPreferencias, trocarFoto } from './servicos/conta';
 import { decidirAprendizado, lerPlaybooks, listarSugestoes, publicarPlaybook } from './servicos/aprendizados';
 import { desconectarConta, iniciarConexaoConta, provedorDoCanal } from './servicos/conexoes';
+import { carregarIntegracoes, desconectarIntegracao, iniciarConexaoIntegracao, montarConexoes, resultadoDaConexao } from './servicos/integracoes';
+import { PERFIS } from '../server/integracoes/perfis';
 import { excluirContatoDoCrm, listarCaixa, marcarLida, minhasConexoes, pedirSugestaoDeResposta, type CaixaTela, type ConexoesTela } from './servicos/caixa';
 import * as admin from './servicos/admin';
 import { decidirConsentimento, lerConsentimento, marcarAvisoVisto, type EstadoAprendizado } from './servicos/aprendizado';
@@ -33,13 +35,17 @@ import { arquivarCanal, criarCanal, editarMensagem, enviarNoCanal, lerMensagens,
 import { pedirAoCopiloto } from './servicos/copiloto';
 import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla } from './servicos/notificacoes';
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
-import { listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
+import { avisoDeColeta, listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
 import { listarProspeccao, prospeccaoSemDados, type ProspeccaoTela } from './servicos/prospeccao';
 import { arquivarNegocio, atualizarNegocio, criarNegocio, criarQuadro, excluirQuadro, listarPipeline, moverNegocio, MOTIONS, pipelineVazio, reordenarEtapas, renomearQuadro, type Motion, type PipelineTela, type Resultado } from './servicos/pipeline';
 import { adiarTarefa, criarTarefa, listarTarefas, mudarStatusTarefa, tarefasVazias, type TarefasTela } from './servicos/tarefas';
 import { CANAIS_CAMPANHA, campanhasVazias, criarCampanha, listarCampanhas, mudarStatusCampanha, mudarVerba, type CampanhasTela } from './servicos/campanhas';
 import { adicionarPasso, cadenciasVazias, CANAL_PASSO, DICA_VARIAVEIS, inscreverContato, listarCadencias, removerUltimoPasso, salvarCadencia, type CadenciasTela } from './servicos/cadencias';
 import { nomeDoAgente } from './agentes-exibicao';
+import { abrirConversa, arquivarConversa, listarConversas, tituloDaPrimeiraMensagem, type ConversaDireta } from './servicos/conversaDireta';
+
+/** O que a aba Conversa de um agente guarda: as conversas dele, a aberta (nulo = nova) e as mensagens já lidas. */
+type EstadoDaConversa = { lista: ConversaDireta[]; atual: string | null; carregou: boolean; enviando: boolean; msgs: Record<string, Array<{ autor: string; texto: string; hora: string; agente: boolean }>> };
 import { normalizarDominio } from './normalizacao';
 
 export interface AlthiusAppProps {
@@ -129,6 +135,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   componentWillUnmount() {
     this.vivo = false;
+    if (this.temporizadorConversa) clearTimeout(this.temporizadorConversa);
     this.cargaEquipe++;
     this.cargaWorkspace++;
     this.publicarContas([]);
@@ -702,7 +709,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     mod.signals.linhas = sinais.eventos;
     mod.signals.acoesLinha = [];
     // A coleta (Apify) ainda não está ligada: nada busca sinais sozinho. A tela diz isso em vez de parecer que coleta.
-    mod.signals.sub = 'Coleta automática em breve. Aqui aparecem só os sinais já registrados no sistema.';
+    mod.signals.sub = avisoDeColeta(sinais) + ' Aqui aparecem só os sinais já registrados no sistema.';
   }
 
   /** Troca o catálogo do protótipo pelo do banco, só na página de Sinais. */
@@ -710,7 +717,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const sinais: SinaisTela = this.state.sinaisReais || sinaisSemDados();
     if (!v.sigCat) return;
     const anteriores = Array.isArray(v.sigCat.grupos) ? v.sigCat.grupos : [];
-    v.sigCat.resumo = 'Coleta automática em breve. ' + sinais.resumo;
+    v.sigCat.resumo = avisoDeColeta(sinais) + ' ' + sinais.resumo;
     v.sigCat.grupos = sinais.grupos.map((g, i) => {
       const antigo = g.codigo
         ? anteriores.find((a: { nome?: string; sigla?: string; href?: string }) => typeof a?.nome === 'string' && a.nome.toLowerCase().includes(g.codigo))
@@ -939,6 +946,11 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   private carregarPaginaSobDemanda(prev: Readonly<Record<string, any>>) {
     const rota = this.state.rota || {}, antes = prev.rota || {};
+    // Conversa direta (migration 124): ao abrir um agente, ou trocar de agente ou de workspace, busca as conversas dele.
+    if (this.modoDemo === false && this.state.pronto) {
+      if (rota.ws !== antes.ws && this.state.convDireta && Object.keys(this.state.convDireta).length) this.setState({ convDireta: {} });
+      if (rota.page === 'agents' && rota.id && (rota.id !== antes.id || rota.page !== antes.page || rota.ws !== antes.ws || !prev.pronto)) void this.carregarConversaDireta(String(rota.id));
+    }
     const entrou = rota.page !== antes.page || rota.ws !== antes.ws || (this.state.pronto && !prev.pronto);
     if (!entrou || !this.state.pronto) return;
     if (rota.page === 'inbox') void this.carregarCaixa();
@@ -958,9 +970,71 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (mod?.integrations) Object.assign(mod.integrations, { linhas: [], kpis: [], acao: undefined, acoesLinha: [] });
   }
 
-  /** No modo real nenhum conector do catálogo está conectado (o protótipo trazia HubSpot, Gmail etc. de exemplo). */
+  /**
+   * No modo real, os cartões conectados são os de verdade: os apps (OAuth) que a pessoa conectou e as contas de mensagem
+   * da Caixa de entrada. O protótipo trazia HubSpot, Gmail etc. de exemplo; no modo real nada disso existe.
+   */
   conexoes() {
-    return this.modoDemo === false ? {} : (AlthiusLogic.prototype as any).conexoes.call(this);
+    if (this.modoDemo !== false) return (AlthiusLogic.prototype as any).conexoes.call(this);
+    return montarConexoes(this.state.integracoesReais || {}, this.state.conexoesReais || null);
+  }
+
+  /** Só conecta o conector que tem perfil disponível (servidor oficial ou canal de mensagem). O resto fica "Em breve". */
+  conectorReal(id: string): boolean {
+    return PERFIS[id]?.situacao === 'disponivel';
+  }
+
+  /** Por que um conector ainda é "Em breve" (texto do perfil). */
+  motivoDoConector(id: string): string {
+    return PERFIS[id]?.motivo ?? 'Ainda não está disponível.';
+  }
+
+  resumoDosConectores(): string {
+    const n = Object.values(PERFIS).filter(p => p.situacao === 'disponivel').length;
+    return n + ' conectores disponíveis para conectar. Os demais aparecem como "Em breve", com o motivo.';
+  }
+
+  /** Clique no cartão: conecta (apps e canais pelo mesmo caminho) ou, se já conectado, oferece desconectar. */
+  abrirOauth(id: string) {
+    if (this.modoDemo !== false) return (AlthiusLogic.prototype as any).abrirOauth.call(this, id);
+    void this.tratarCartaoReal(id);
+  }
+
+  private async tratarCartaoReal(id: string) {
+    const perfil = PERFIS[id];
+    const ws = this.workspaceAtual();
+    if (!perfil || perfil.situacao !== 'disponivel' || !ws?.membroId) return;
+    const atual = (this.conexoes() as Record<string, { conta: string; erro?: boolean }>)[id];
+    if (atual && !atual.erro) {
+      this.confirmar(`Gerenciar ${perfil.nome}`, `Conta conectada: ${atual.conta}. Desconectar tira só o seu acesso; nada do que já foi trazido para a Althius é apagado.`, 'Desconectar', () => { void this.desconectarCartaoReal(id); });
+      return;
+    }
+    const r = await iniciarConexaoIntegracao(this.props.supabase, ws.uuid, ws.membroId, id);
+    if (!r.ok) return this.confirmar('Não foi possível conectar', r.mensagem, 'Entendi', () => {});
+    this.abrirJanelaDeConexao(r.url);
+  }
+
+  private async desconectarCartaoReal(id: string) {
+    const ws = this.workspaceAtual();
+    if (!ws) return;
+    if (PERFIS[id]?.via === 'mensagens') {
+      // Contas de mensagem: o mesmo caminho da Caixa de entrada (e-mail pelo Gmail ou Outlook; os demais pelo próprio canal).
+      const email = id === 'gmail' || id === 'outlook';
+      return this.desconectarContaReal(email ? 'email' : id, email ? { via: id } : null);
+    }
+    const r = await desconectarIntegracao(this.props.supabase, ws.uuid, id);
+    if (!r.ok) return this.confirmar('Não foi possível desconectar', r.mensagem, 'Entendi', () => {});
+    await this.carregarConexoes();
+    this.avisar('mod', 'Conexão removida.');
+  }
+
+  /** Quando o app devolve a pessoa (`/?conexao=ok|erro&integracao=...`), diz o resultado uma vez e limpa o endereço. */
+  private avisarRetornoDaConexao() {
+    if (typeof window === 'undefined' || this.modoDemo !== false) return;
+    const r = resultadoDaConexao(window.location.search);
+    if (!r) return;
+    window.history.replaceState(null, '', window.location.pathname + window.location.hash);
+    this.confirmar(r.titulo, r.mensagem, 'Entendi', () => {});
   }
 
   /** No modo real, as conexões pessoais são as da pessoa no banco (o protótipo trazia as da Camila). */
@@ -971,14 +1045,17 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   private async carregarConexoes() {
     const ws = this.workspaceAtual();
-    this.setState({ conexoesReais: null });
+    this.setState({ conexoesReais: null, integracoesReais: null });
     if (!ws) return;
-    try {
-      const conexoesReais = await minhasConexoes(this.props.supabase, ws.uuid);
-      if (this.vivo && this.workspaceAtual()?.uuid === ws.uuid) this.setState({ conexoesReais });
-    } catch (falha) {
-      console.error(falha);
-    }
+    const [contas, apps] = await Promise.allSettled([minhasConexoes(this.props.supabase, ws.uuid), carregarIntegracoes(this.props.supabase, ws.uuid)]);
+    if (contas.status === 'rejected') console.error(contas.reason);
+    if (apps.status === 'rejected') console.error(apps.reason);
+    if (!this.vivo || this.workspaceAtual()?.uuid !== ws.uuid) return;
+    this.setState({
+      ...(contas.status === 'fulfilled' ? { conexoesReais: contas.value } : {}),
+      ...(apps.status === 'fulfilled' ? { integracoesReais: apps.value } : {})
+    });
+    this.avisarRetornoDaConexao();
   }
 
   /** Conectar a PRÓPRIA conta de mensagem: pede o link ao backend e abre a janela segura do provedor. */
@@ -1551,7 +1628,8 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
         { k: 'modelo', label: 'Nome do modelo (só modelo de IA)', valor: '', placeholder: 'Copie o nome exato do painel do fornecedor' },
         { k: 'prioridade', label: 'Prioridade (1 = principal; números maiores = reserva)', valor: '', placeholder: 'Ex.: 1' },
         { k: 'preco_entrada', label: 'Preço por 1 milhão de tokens de entrada, em US$ (opcional, só superadmin)', valor: '', placeholder: 'Para calcular o custo real' },
-        { k: 'preco_saida', label: 'Preço por 1 milhão de tokens de saída, em US$ (opcional, só superadmin)', valor: '', placeholder: 'Preencha os dois ou nenhum' }
+        { k: 'preco_saida', label: 'Preço por 1 milhão de tokens de saída, em US$ (opcional, só superadmin)', valor: '', placeholder: 'Preencha os dois ou nenhum' },
+        { k: 'client_id', label: 'ID do cliente (só app de integração; o nome da chave é o da integração, ex.: hubspot)', valor: '', placeholder: 'O ID do cliente do app no fornecedor' }
       ] });
       return true;
     }
@@ -1606,6 +1684,10 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       if (val('preco_saida')) config.preco_saida = val('preco_saida');
     }
     else if (provedor === 'mensagens' && val('endereco')) config.url = val('endereco');
+    else if (provedor === 'integracao_app') {
+      if (!val('client_id')) return falhou('Cole o ID do cliente do app.');
+      config.client_id = val('client_id');
+    }
     const r = await guardarChave(this.props.supabase, { provedor, rotulo: val('rotulo'), segredo: val('segredo'), config });
     if (!this.vivo) return;
     if (!r.ok) return falhou(r.mensagem);
@@ -1683,6 +1765,102 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     } catch (falha) {
       if (this.vivo && carga === this.cargaMensagens) this.avisarFalha('Não foi possível carregar as mensagens', falha);
     }
+  }
+
+  // ---- Conversa direta e privada com um agente (migration 124, ADR 0059): a aba Conversa do agente
+
+  private cargaConversa = 0;
+  private temporizadorConversa: ReturnType<typeof setTimeout> | null = null;
+
+  private conversaDe(agente: string): EstadoDaConversa {
+    return ((this.state.convDireta || {})[agente] || { lista: [], atual: null, carregou: false, enviando: false, msgs: {} }) as EstadoDaConversa;
+  }
+
+  private gravarConversa(agente: string, parte: Record<string, unknown>) {
+    this.setState({ convDireta: Object.assign({}, this.state.convDireta, { [agente]: Object.assign({}, this.conversaDe(agente), parte) }) });
+  }
+
+  /** Busca as conversas do agente e as mensagens da aberta. Enquanto o agente responde, volta a buscar sozinho. */
+  async carregarConversaDireta(agente: string, abrir?: string | null) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId || this.modoDemo !== false) return;
+    const carga = ++this.cargaConversa;
+    try {
+      const lista = await listarConversas(this.props.supabase, ws.uuid, ws.membroId, agente);
+      const antes = this.conversaDe(agente);
+      // Quem já tem uma conversa aberta (inclusive uma que acabou de criar) não a perde numa recarga; na primeira carga abre a mais recente.
+      const atual = abrir !== undefined ? abrir : antes.atual ?? (antes.carregou ? null : (lista[0]?.slug ?? null));
+      const msgs = atual ? await lerMensagens(this.props.supabase, ws.uuid, atual, ws.membroId) : [];
+      if (!this.vivo || carga !== this.cargaConversa) return;
+      this.gravarConversa(agente, { lista, atual, carregou: true, msgs: Object.assign({}, antes.msgs, atual ? { [atual]: msgs } : {}) });
+      if (this.temporizadorConversa) clearTimeout(this.temporizadorConversa);
+      if (lista.some(c => c.slug === atual && c.aguardando)) this.temporizadorConversa = setTimeout(() => { void this.carregarConversaDireta(agente); }, 3000);
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaConversa) this.avisarFalha('Não foi possível carregar as conversas', falha);
+    }
+  }
+
+  /** As mensagens que a tela mostra (o formato do protótipo): pessoa, agente, avisos do sistema e o "pensando" enquanto a fila não foi atendida. */
+  mensagensDaConversaDireta(a: { id: string }) {
+    const c = this.conversaDe(a.id);
+    const conversa = c.lista.find(x => x.slug === c.atual);
+    const saida: Array<Record<string, unknown>> = [];
+    for (const m of (c.atual ? c.msgs[c.atual] || [] : [])) {
+      if (m.autor === 'Althius') { if (!/^Pedido enviado para /.test(m.texto)) saida.push({ tipo: 'deleg', texto: m.texto }); continue; }
+      saida.push(m.agente ? { tipo: 'agente', texto: m.texto, hora: m.hora, stream: null } : { tipo: 'user', texto: m.texto, hora: m.hora, status: 'Enviada' });
+    }
+    if (c.enviando || conversa?.aguardando) saida.push({ tipo: 'agente', hora: '', stream: 0, texto: '' });
+    return saida;
+  }
+
+  threadsDaConversaDireta(a: { id: string }) {
+    const c = this.conversaDe(a.id);
+    const itens = c.lista.map(t => ({
+      titulo: t.titulo, quando: t.aguardando ? 'respondendo…' : t.quando, bg: t.slug === c.atual ? 'var(--mist)' : 'var(--paper)',
+      abrir: () => { void this.carregarConversaDireta(a.id, t.slug); }, arquivar: () => { void this.arquivarConversaDireta(a.id, t.slug); }
+    }));
+    // Uma conversa ainda não aberta (a primeira mensagem a cria) aparece no alto como rascunho.
+    return c.carregou && c.atual === null ? [{ titulo: 'Nova conversa', quando: 'rascunho', bg: 'var(--mist)', abrir: () => {}, arquivar: undefined }, ...itens] : itens;
+  }
+
+  novaConversaDireta(a: { id: string }) {
+    this.setState({ msgTexto: '' });
+    this.gravarConversa(a.id, { atual: null, carregou: true });
+  }
+
+  async arquivarConversaDireta(agente: string, slug: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await arquivarConversa(this.props.supabase, ws.uuid, ws.membroId, slug);
+    if (!this.vivo) return;
+    if (!r.ok) return this.confirmar('Conversa não arquivada', r.mensagem, 'Entendi', () => {});
+    await this.carregarConversaDireta(agente, this.conversaDe(agente).atual === slug ? null : undefined);
+  }
+
+  /** Escreve para o agente. Sem conversa aberta, a primeira mensagem cria uma (com o título dela). Falha: o texto volta para a caixa. */
+  async enviarNaConversaDireta(a: { id: string }, texto: string) {
+    const t = (texto || '').trim();
+    const ws = this.workspaceAtual();
+    if (!t || !ws?.membroId) return;
+    let slug = this.conversaDe(a.id).atual;
+    this.setState({ msgTexto: '' });
+    this.gravarConversa(a.id, { enviando: true });
+    const falhou = (titulo: string, mensagem: string) => {
+      this.gravarConversa(a.id, { enviando: false });
+      this.setState({ msgTexto: t });
+      this.confirmar(titulo, mensagem, 'Entendi', () => {});
+    };
+    if (!slug) {
+      const aberta = await abrirConversa(this.props.supabase, ws.uuid, ws.membroId, a.id, tituloDaPrimeiraMensagem(t));
+      if (!this.vivo) return;
+      if (!aberta.ok) return falhou('Conversa não aberta', aberta.mensagem);
+      slug = aberta.slug;
+    }
+    const r = await enviarNoCanal(this.props.supabase, ws.uuid, ws.membroId, slug, t, null, a.id);
+    if (!this.vivo) return;
+    if (!r.ok) return falhou('Mensagem não enviada', r.mensagem);
+    this.gravarConversa(a.id, { enviando: false });
+    await this.carregarConversaDireta(a.id, slug);
   }
 
   /** Mesma regra do protótipo para saber qual agente foi chamado: o nome citado com @, ou o primeiro do canal. */

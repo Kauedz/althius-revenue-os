@@ -605,18 +605,18 @@ export const PATCHES = [
     }
   },
 
-  // ---- Conectores (Claude): nenhum conector do catálogo conecta de verdade ainda; no modo real ficam "Em breve"
+  // ---- Conectores (Claude): no modo real só conecta o que tem perfil disponível (AlthiusApp.conectorReal); o resto fica "Em breve" com o motivo
   {
-    regra: 'conectores: no modo real todo conector do catálogo aparece como "Em breve" (sem autorização simulada)',
+    regra: 'conectores: no modo real só o que existe de verdade conecta; o resto aparece como "Em breve" com o motivo (sem autorização simulada)',
     arquivo: 'logic.generated.js',
     trocar: "const k = cons[c.id], ok = !!k && !k.erro, erro = !!k && !!k.erro;\n        return { nome: c.nome, desc: c.desc, auth: c.auth, logo: LG[c.id], conectado: ok, erro, estado: ok ? 'ok' : erro ? 'erro' : 'off', usoTexto: k ? 'usado por ' + usoTexto(k) : '',\n          btnCls: ok ? 'con-btn-sec' : 'con-btn', acaoLabel: ok ? 'Gerenciar' : erro ? 'Reconectar' : 'Conectar', acaoRotulo: (ok ? 'Gerenciar ' : 'Conectar ') + c.nome, acao: () => this.abrirOauth(c.id) };",
-    por: "const k = cons[c.id], ok = !!k && !k.erro, erro = !!k && !!k.erro, em = this.modoDemo === false;\n        return { nome: c.nome, desc: c.desc, auth: c.auth, logo: LG[c.id], conectado: ok, erro, estado: ok ? 'ok' : erro ? 'erro' : 'off', usoTexto: k ? 'usado por ' + usoTexto(k) : '', emBreve: em,\n          btnCls: em || ok ? 'con-btn-sec' : 'con-btn', acaoLabel: em ? 'Em breve' : ok ? 'Gerenciar' : erro ? 'Reconectar' : 'Conectar', acaoRotulo: em ? c.nome + ' (em breve)' : (ok ? 'Gerenciar ' : 'Conectar ') + c.nome, acao: () => { if (!em) this.abrirOauth(c.id); } };"
+    por: "const k = cons[c.id], ok = !!k && !k.erro, erro = !!k && !!k.erro, em = this.modoDemo === false && !(this.conectorReal && this.conectorReal(c.id));\n        return { nome: c.nome, desc: this.modoDemo === false ? (em ? c.desc + ' Em breve: ' + this.motivoDoConector(c.id) : erro ? c.desc + ' Precisa reconectar.' : c.desc) : c.desc, auth: c.auth, logo: LG[c.id], conectado: ok, erro, estado: ok ? 'ok' : erro ? 'erro' : 'off', usoTexto: this.modoDemo === false ? (k && !erro ? 'Conta: ' + k.conta : '') : (k ? 'usado por ' + usoTexto(k) : ''), emBreve: em,\n          btnCls: em || ok ? 'con-btn-sec' : 'con-btn', acaoLabel: em ? 'Em breve' : ok ? 'Gerenciar' : erro ? 'Reconectar' : 'Conectar', acaoRotulo: em ? c.nome + ' (em breve)' : (ok ? 'Gerenciar ' : 'Conectar ') + c.nome, acao: () => { if (!em) this.abrirOauth(c.id); } };"
   },
   {
-    regra: 'conectores: o resumo do modo real explica onde conectar as contas de mensagem',
+    regra: 'conectores: o resumo do modo real diz quantos conectores já conectam e que os demais chegam em breve',
     arquivo: 'logic.generated.js',
     trocar: "v.cat.resumo = nCon + ' conectados de ' + KC.lista.length + ' disponíveis · cada conexão é autorizada na página oficial da ferramenta';",
-    por: "v.cat.resumo = this.modoDemo === false ? 'Em breve: estes conectores ainda não estão disponíveis. Suas contas de e-mail, WhatsApp, LinkedIn e Instagram você conecta na Caixa de entrada.' : nCon + ' conectados de ' + KC.lista.length + ' disponíveis · cada conexão é autorizada na página oficial da ferramenta';"
+    por: "v.cat.resumo = this.modoDemo === false ? this.resumoDosConectores() : nCon + ' conectados de ' + KC.lista.length + ' disponíveis · cada conexão é autorizada na página oficial da ferramenta';"
   },
   {
     regra: 'conectores: a autorização simulada não abre no modo real',
@@ -629,6 +629,50 @@ export const PATCHES = [
     arquivo: 'template.generated.tsx',
     trocar: '<button className={c?.btnCls} onClick={c?.acao} aria-label={c?.acaoRotulo}>',
     por: '<button className={c?.btnCls} onClick={c?.acao} aria-label={c?.acaoRotulo} disabled={c?.emBreve}>'
+  },
+
+  // ---- Conversa direta e privada com o agente (migration 124, ADR 0059): a aba Conversa deixa de ser encenação
+  {
+    regra: 'conversa do agente: no modo real as mensagens vêm do banco (nada de resposta fixa, plano ou delegação inventados)',
+    arquivo: 'logic.generated.js',
+    trocar: 'chatDe(a) {',
+    por: 'chatDe(a) {\n    if (this.modoDemo === false) return this.mensagensDaConversaDireta(a);'
+  },
+  {
+    regra: 'conversa do agente: as threads são as conversas reais da pessoa com aquele agente',
+    arquivo: 'logic.generated.js',
+    trocar: "v.threads = [['Prioridades de hoje', 'agora', true],",
+    por: "v.threads = this.modoDemo === false ? this.threadsDaConversaDireta(a) : [['Prioridades de hoje', 'agora', true],"
+  },
+  {
+    regra: 'conversa do agente: enviar escreve de verdade para o agente (o protótipo respondia com texto fixo)',
+    arquivo: 'logic.generated.js',
+    trocar: 'const enviar = texto => {',
+    por: 'const enviar = texto => {\n        if (this.modoDemo === false) return this.enviarNaConversaDireta(a, texto);'
+  },
+  {
+    regra: 'conversa do agente: botão "Nova conversa" (só no modo real)',
+    arquivo: 'logic.generated.js',
+    trocar: 'v.enviarMsg = () => enviar(st.msgTexto);',
+    por: 'v.enviarMsg = () => enviar(st.msgTexto);\n      v.novaConversa = this.modoDemo === false ? () => this.novaConversaDireta(a) : undefined;'
+  },
+  {
+    regra: 'conversa do agente: o cabeçalho das threads ganha "Nova conversa"',
+    arquivo: 'template.generated.tsx',
+    trocar: '{"Threads"}',
+    por: '<span style={{"display":"flex","justifyContent":"space-between","alignItems":"center","gap":"8px"}}>{"Threads"}{$v.novaConversa ? (<button onClick={$v.novaConversa} style={{"minHeight":"32px","padding":"0 10px","border":"1px solid var(--rule)","background":"var(--paper)","fontFamily":"inherit","fontSize":"13px","cursor":"pointer","borderRadius":"8px"}}>{"Nova conversa"}</button>) : null}</span>'
+  },
+  {
+    regra: 'conversa do agente: clicar numa thread abre a conversa',
+    arquivo: 'template.generated.tsx',
+    trocar: "<span style={__css(`min-height: 44px; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-size: 14px; background: ${__s(th?.bg)}; display: flex; flex-direction: column;`)}>",
+    por: "<span onClick={th?.abrir} onKeyDown={(e) => { if (th?.abrir && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); th.abrir(); } }} role={th?.abrir ? 'button' : undefined} tabIndex={th?.abrir ? 0 : undefined} style={__css(`min-height: 44px; padding: 10px 14px; border-bottom: 1px solid var(--rule); font-size: 14px; background: ${__s(th?.bg)}; display: flex; flex-direction: column; cursor: ${th?.abrir ? 'pointer' : 'default'};`)}>"
+  },
+  {
+    regra: 'conversa do agente: arquivar uma conversa (só no modo real)',
+    arquivo: 'template.generated.tsx',
+    trocar: '{__t(th?.quando)}',
+    por: '{__t(th?.quando)}{th?.arquivar ? (<button aria-label="Arquivar conversa" title="Arquivar" onClick={(e) => { e.stopPropagation(); th.arquivar(); }} style={{"marginLeft":"8px","border":"none","background":"transparent","cursor":"pointer","color":"var(--graphite)"}}>{"×"}</button>) : null}'
   },
 
   // ---- Relatórios, Sinais e Prospecção (Grok)
