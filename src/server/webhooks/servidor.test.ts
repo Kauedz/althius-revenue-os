@@ -121,3 +121,58 @@ describe('servidor do webhook da Unipile', () => {
     expect(r.status).toBe(200);
   });
 });
+
+describe('servidor: cofre de chaves (ADR 0049)', () => {
+  async function subirComCofre(segredo: string | (() => Promise<string>) = SEGREDO, cofre?: Parameters<typeof criarServidor>[0]['cofre']) {
+    const { servidor } = criarServidor({ segredo, banco: { ingerirMensagem: async () => ({ action: 'persisted' }), definirStatus: async () => ({}), novaRelacao: async () => ({}), concluirConexao: async () => ({}) } as unknown as Banco, log: () => {}, cofre });
+    await new Promise<void>(r => servidor.listen(0, '127.0.0.1', r));
+    abertos.push(() => new Promise<void>(r => servidor.close(() => r())));
+    return `http://127.0.0.1:${(servidor.address() as AddressInfo).port}`;
+  }
+  const post = (url: string, caminho: string, corpo: unknown, auth?: string) => fetch(url + caminho, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...(auth ? { Authorization: `Bearer ${auth}` } : {}) }, body: JSON.stringify(corpo)
+  });
+
+  it('sem login: 401 (nem lê o corpo); com login mas sem cofre ligado: 503', async () => {
+    const url = await subirComCofre();
+    expect((await post(url, '/cofre/guardar', {})).status).toBe(401);
+    expect((await post(url, '/cofre/testar', {}, 'jwt')).status).toBe(503);
+  });
+
+  it('com cofre ligado, a rota repassa o login ao banco (quem confere é o banco)', async () => {
+    let visto = '';
+    const buscar = (async (u: string, init: RequestInit) => {
+      visto = `${u}|${(init.headers as Record<string, string>).Authorization}`;
+      return new Response('{}', { status: 403 });
+    }) as unknown as typeof fetch;
+    const url = await subirComCofre(SEGREDO, { baseBanco: 'http://banco', chaveAnon: 'anon', chaveServico: 's', chave: Buffer.alloc(32, 1), buscar,
+      cofre: { ler: async () => [], marcarUso: async () => {}, invalidar: () => {} } });
+    const r = await post(url, '/cofre/guardar', { provedor: 'apify', rotulo: 'x', segredo: 'abcdefgh1234' }, 'meu-jwt');
+    expect(r.status).toBe(403);
+    expect(visto).toBe('http://banco/rpc/cofre_conferir_superadmin|Bearer meu-jwt');
+  });
+
+  it('GET na rota do cofre: 405', async () => {
+    const url = await subirComCofre();
+    expect((await fetch(url + '/cofre/guardar')).status).toBe(405);
+  });
+
+  it('segredo do webhook vindo do cofre é relido a cada aviso (trocar na tela vale na hora)', async () => {
+    let atual = 'primeiro-segredo';
+    const url = await subirComCofre(async () => atual);
+    const corpo = JSON.stringify(msg);
+    const com = (seg: string) => fetch(url + '/webhooks/unipile', { method: 'POST', headers: { 'Content-Type': 'application/json', ...assinado(corpo, seg) }, body: corpo });
+    expect((await com('primeiro-segredo')).status).toBe(200);
+    expect((await com('segundo-segredo')).status).toBe(401);
+    atual = 'segundo-segredo';
+    expect((await com('segundo-segredo')).status).toBe(200);
+    expect((await com('primeiro-segredo')).status).toBe(401);
+  });
+
+  it('segredo vazio (nem cofre nem .env): recusa tudo', async () => {
+    const url = await subirComCofre(async () => '');
+    const corpo = JSON.stringify(msg);
+    const r = await fetch(url + '/webhooks/unipile', { method: 'POST', headers: { 'Content-Type': 'application/json', ...assinado(corpo, 'qualquer') }, body: corpo });
+    expect(r.status).toBe(401);
+  });
+});

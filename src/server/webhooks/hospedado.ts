@@ -24,7 +24,7 @@ export interface PedidoLink {
 }
 
 export async function criarLinkHospedado(obterConfig: ObterConfig, p: PedidoLink, buscar: typeof fetch = fetch): Promise<string> {
-  const cfg = obterConfig();
+  const cfg = await obterConfig();
   if (!cfg.apiKey) throw new Error('sem chave do canal de mensagens');
   const corpo: Record<string, unknown> = { expires_on: p.expiraEm.toISOString(), redirect_uri: p.retornoUrl, state: p.pedidoId };
   if (p.tipo === 'reconnect' && p.reconnectAccount) corpo.account_id = p.reconnectAccount;

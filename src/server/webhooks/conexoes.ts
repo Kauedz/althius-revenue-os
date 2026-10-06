@@ -26,7 +26,7 @@ export async function iniciarConexao(d: DepsConexoes, jwt: string, corpo: unknow
     return resposta(400, { erro: 'pedido_invalido' });
   }
   // Sem chave do provedor não há como conectar: avisa claro, sem simular.
-  if (!d.obterConfig().apiKey) return resposta(503, { erro: 'conexao_indisponivel' });
+  if (!(await d.obterConfig()).apiKey) return resposta(503, { erro: 'conexao_indisponivel' });
 
   const r = await buscar(`${d.baseBanco.replace(/\/$/, '')}/rpc/messaging_connect_start`, {
     method: 'POST',

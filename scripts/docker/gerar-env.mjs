@@ -47,6 +47,8 @@ const linhas = [
   `ANON_KEY=${anon}`,
   `SERVICE_ROLE_KEY=${service}`,
   `REDIS_PASSWORD=${aleatorio(24)}`,
+  '# Chave que cifra as chaves cadastradas na tela do superadmin (Fornecedores). FAÇA CÓPIA: sem ela, as chaves guardadas não abrem.',
+  `COFRE_CHAVE_MESTRA=${crypto.randomBytes(32).toString('hex')}`,
   '# Segredo de assinatura do webhook da Unipile v2: a PRÓPRIA Unipile gera ao cadastrar o webhook (campo "secret"). Cole aqui.',
   'UNIPILE_WEBHOOK_SECRET=',
   '# Chave de API da Unipile. Para trocar depois: npm run docker:chave-unipile. Sem ela, "Conectar" avisa que está indisponível.',

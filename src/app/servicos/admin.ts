@@ -89,10 +89,10 @@ export async function usoGlobal(cliente: SupabaseClient) {
 }
 
 export async function fornecedores(cliente: SupabaseClient) {
-  const lista = await ler<{ nome: string; tipo: string; status: string; uso: number | null; detalhe: string; ultimo_uso: string | null }>(cliente, 'admin_providers');
+  const lista = await ler<{ id?: string; ativo?: boolean; nome: string; tipo: string; status: string; uso: number | null; detalhe: string; ultimo_uso: string | null }>(cliente, 'admin_providers');
   return {
     kpis: [['Fornecedores', String(lista.length), ''], ['Ativos', String(lista.filter(f => f.status === 'Ativo' || f.status === 'Configurado').length), '']] as Kpi[],
-    linhas: lista.map((f, i) => ({ id: 'f' + i, nome: f.nome, tipo: f.tipo, status: f.status, detalhe: f.detalhe,
+    linhas: lista.map((f, i) => ({ id: f.id ?? 'f' + i, cofre: !!f.id, ativo: f.ativo !== false, nome: f.nome, tipo: f.tipo, status: f.status, detalhe: f.detalhe,
       uso: f.uso == null ? '—' : 'US$ ' + Number(f.uso).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) })) // custo real: só superadmin
   };
 }

@@ -1,11 +1,12 @@
 // Servidor HTTP do webhook da Unipile. Só recebe, confere a assinatura do corpo, responde 200 e processa em seguida.
 import { createServer, type Server } from 'node:http';
 import { iniciarConexao, type DepsConexoes } from './conexoes.ts';
+import { guardarSegredo, testarSegredo, type DepsCofre } from '../cofre/rotas.ts';
 import { assinaturaValida, CABECALHO_ASSINATURA, interpretar, processar, type Banco, type EventoUnipile } from './unipile.ts';
 
 export interface OpcoesServidor {
   /** segredo do endpoint de webhook (a própria Unipile o gera); assina cada aviso */
-  segredo: string;
+  segredo: string | (() => string | Promise<string>);
   banco: Banco;
   /** Linha de log (JSON). Nunca recebe remetente nem texto de mensagem. */
   log?: (linha: Record<string, unknown>) => void;
@@ -14,6 +15,8 @@ export interface OpcoesServidor {
   esperaMs?: number;
   /** Liga a rota de conexão de contas (PR 05). Sem isto, /conexoes/link responde 503. */
   conexoes?: DepsConexoes;
+  /** Liga as rotas do cofre de chaves (ADR 0049). Sem isto, /cofre/* responde 503. */
+  cofre?: DepsCofre;
 }
 
 export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: () => Promise<void> } {
@@ -47,13 +50,14 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
     if (url === '/saude') return responder(200, { ok: true });
     const ehWebhook = url === '/webhooks/unipile';
     const ehLink = url === '/conexoes/link';
-    if (!ehWebhook && !ehLink) return responder(404, { erro: 'nao_encontrado' });
+    const ehCofre = url === '/cofre/guardar' || url === '/cofre/testar';
+    if (!ehWebhook && !ehLink && !ehCofre) return responder(404, { erro: 'nao_encontrado' });
     if (req.method !== 'POST') return responder(405, { erro: 'metodo_nao_permitido' });
 
     // A prova do link de conexão é o login da pessoa, conferido ANTES de ler o corpo. A do webhook é a assinatura do
     // corpo bruto: só dá para conferir depois de ler (o limite de tamanho protege a memória).
     let jwt = '';
-    if (ehLink) {
+    if (ehLink || ehCofre) {
       const m = /^Bearer (.+)$/.exec(req.headers.authorization ?? '');
       jwt = m?.[1] ?? '';
       if (!jwt) { req.resume(); return responder(401, { erro: 'nao_autorizado' }); }
@@ -71,18 +75,31 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
     req.on('end', () => {
       if (estourou) return;
       const bruto = Buffer.concat(partes).toString('utf8');
-      if (ehWebhook && !assinaturaValida(bruto, req.headers[CABECALHO_ASSINATURA], o.segredo)) return responder(401, { erro: 'nao_autorizado' });
-      let payload: unknown;
-      try { payload = JSON.parse(bruto); } catch { return responder(400, { erro: 'json_invalido' }); }
-      if (ehLink) {
-        if (!o.conexoes) return responder(503, { erro: 'conexao_indisponivel' });
-        iniciarConexao(o.conexoes, jwt, payload).then(r => responder(r.status, r.corpo), () => responder(502, { erro: 'falha_ao_gerar_link' }));
-        return;
-      }
-      // 200 já: a Unipile não espera o banco (e não reenvia por lentidão nossa).
-      responder(200, { ok: true });
-      const trabalho = tratar(interpretar(payload)).finally(() => pendentes.delete(trabalho));
-      pendentes.add(trabalho);
+      const seguir = () => {
+        let payload: unknown;
+        try { payload = JSON.parse(bruto); } catch { return responder(400, { erro: 'json_invalido' }); }
+        if (ehCofre) {
+          if (!o.cofre) return responder(503, { erro: 'cofre_indisponivel' });
+          const rota = url === '/cofre/guardar' ? guardarSegredo : testarSegredo;
+          rota(o.cofre, jwt, payload).then(r => responder(r.status, r.corpo), () => responder(502, { erro: 'falha_no_cofre' }));
+          return;
+        }
+        if (ehLink) {
+          if (!o.conexoes) return responder(503, { erro: 'conexao_indisponivel' });
+          iniciarConexao(o.conexoes, jwt, payload).then(r => responder(r.status, r.corpo), () => responder(502, { erro: 'falha_ao_gerar_link' }));
+          return;
+        }
+        // 200 já: a Unipile não espera o banco (e não reenvia por lentidão nossa).
+        responder(200, { ok: true });
+        const trabalho = tratar(interpretar(payload)).finally(() => pendentes.delete(trabalho));
+        pendentes.add(trabalho);
+      };
+      if (!ehWebhook) return seguir();
+      // O segredo do webhook pode vir do cofre: relido a cada aviso (trocar na tela vale na hora).
+      Promise.resolve(typeof o.segredo === 'function' ? o.segredo() : o.segredo).then(
+        segredo => { if (!assinaturaValida(bruto, req.headers[CABECALHO_ASSINATURA], segredo)) return responder(401, { erro: 'nao_autorizado' }); seguir(); },
+        () => responder(401, { erro: 'nao_autorizado' })
+      );
     });
   });
 

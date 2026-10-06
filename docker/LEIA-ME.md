@@ -43,6 +43,12 @@ A Unipile é só um canal: toda a ligação com ela (chave, endereço, assinatur
 - Só entra mensagem de contato do CRM, em conversa individual e recebida (não a que a própria pessoa enviou). O resto é descartado sem gravar nada, e o log nunca mostra remetente nem texto.
 - **O que já foi visto funcionando** (protótipo do dono): conectar e-mail, assinatura do webhook, avisos de conta, e-mail recebido e envio de e-mail. **Ainda sem teste real:** WhatsApp, LinkedIn e Instagram (envio e recebimento). Os campos incertos estão marcados "NÃO CONFIRMADO" no código e cada um é uma linha para corrigir.
 
+## Chaves dos fornecedores (tela do superadmin)
+- Entre como superadmin → **Fornecedores** → **Nova chave**. Dá para cadastrar a Apify (quantas chaves quiser: o sistema divide o trabalho entre elas), a Unipile (chave e segredo do webhook) e a chave do modelo de IA.
+- As chaves ficam **cifradas** no banco. A chave que cifra (`COFRE_CHAVE_MESTRA`) mora no `.env`; `npm run docker:subir` cria sozinha se faltar e **nunca troca** uma que já existe. **Faça cópia do `.env`**: sem essa chave, as chaves guardadas não abrem (daria para cadastrar de novo).
+- O que está no cofre vale mais que o `.env`. Sem chave no cofre, continua valendo `UNIPILE_API_KEY` etc. do `.env`.
+- Em cada linha: **Testar chave** (Apify e modelo de IA), **Ativar ou desativar** e **Remover chave**.
+
 ## Motor de cadência
 O contêiner `cadencia` roda a cada 60 segundos (`CADENCIA_INTERVALO_SEGUNDOS`). Para cada inscrição ativa cujo passo venceu:
 - **Passo manual** (LinkedIn, Instagram, ligação), ou **automático com o envio automático desligado**: vira uma tarefa do responsável, no dia, com o texto/roteiro pronto.
