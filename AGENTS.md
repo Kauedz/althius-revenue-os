@@ -48,3 +48,17 @@ Decisões já tomadas estão em `docs/adr/` (0001 a 0024). Não desfaça uma ADR
 - Não instalar dependências novas sem justificar no commit.
 - Não mexer em `src/v18/*.generated.*`, `supabase/migrations/` antigas, `.githooks/` nem `scripts/guardas.mjs`.
 - Não criar tela, tabela ou agente que o documento de regras não prevê (são 4 agentes fixos: comercial, marketing, copy, revops).
+
+## Agent skills
+
+### Issue tracker
+
+Specs e tickets ficam em arquivos locais: `.scratch/<assunto>/spec.md` e `.scratch/<assunto>/issues/NN-nome.md` (mesmo modelo do protótipo AppAlthius). Veja `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Rótulos padrão: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. Veja `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Contexto único: `GLOSSARY.md` (e `CONTEXT.md`) na raiz e `docs/adr/`. Veja `docs/agents/domain.md`.
