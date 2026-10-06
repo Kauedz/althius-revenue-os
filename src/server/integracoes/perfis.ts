@@ -54,8 +54,6 @@ export interface PerfilDeIntegracao {
   identificacao?: Identificacao;
 }
 
-const CONFIRMAR = 'O servidor oficial existe e aceita conexão automática, mas falta conferir com uma conexão real antes de liberar.';
-const PROVAVEL = 'O servidor oficial é provável, mas ainda falta confirmar como ele aceita a conexão.';
 const APP_DO_FORNECEDOR = 'Exige um app da Althius registrado no fornecedor (e, no Google, a verificação do app). Em preparação.';
 const POR_CLIENTE = 'Cada cliente precisa criar um app ou uma URL na própria conta. Exige um guia próprio, ainda em desenho.';
 const SEM_SERVIDOR = 'O fornecedor não oferece um servidor oficial para terceiros conectarem.';
@@ -85,14 +83,16 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = Object.fromEntries([
       porFerramentaMcp: { ferramenta: 'get_user_details', portal: ['hub_id', 'hubId', 'portalId', 'portal_id', 'portal.id'], conta: ['email', 'user', 'userEmail', 'user.email'] }
     }
   } satisfies PerfilDeIntegracao,
-  emBreve('apollo', 'Apollo.io', CONFIRMAR),
-  emBreve('pipedrive', 'Pipedrive', CONFIRMAR),
-  emBreve('granola', 'Granola', CONFIRMAR),
-  emBreve('confluence', 'Confluence', CONFIRMAR),
-  emBreve('clay', 'Clay', PROVAVEL),
-  emBreve('calendly', 'Calendly', PROVAVEL),
-  emBreve('otter', 'Otter.ai', PROVAVEL),
-  emBreve('tldv', 'tl;dv', PROVAVEL),
+  // Registro automático (RFC 7591) verificado em 06/10/2026: a Althius conecta sem cadastrar app no fornecedor.
+  { id: 'apollo', nome: 'Apollo.io', situacao: 'disponivel', portalFixo: false, mcp: { url: 'https://mcp.apollo.io/mcp', registro: 'automatico', enviarRecurso: true } } satisfies PerfilDeIntegracao,
+  { id: 'pipedrive', nome: 'Pipedrive', situacao: 'disponivel', portalFixo: false, mcp: { url: 'https://mcp.pipedrive.ai/mcp', registro: 'automatico', enviarRecurso: true } } satisfies PerfilDeIntegracao,
+  { id: 'granola', nome: 'Granola', situacao: 'disponivel', portalFixo: false, mcp: { url: 'https://mcp.granola.ai/mcp', registro: 'automatico', enviarRecurso: true } } satisfies PerfilDeIntegracao,
+  { id: 'confluence', nome: 'Confluence', situacao: 'disponivel', portalFixo: false, mcp: { url: 'https://mcp.atlassian.com/v1/mcp', registro: 'automatico', enviarRecurso: true } } satisfies PerfilDeIntegracao,
+  emBreve('clay', 'Clay', 'O servidor da Clay roda como programa na máquina de quem usa (sem login para terceiros conectarem), então ainda não serve como conector da Althius.'),
+  // Registro automático (RFC 7591) lido no metadado público em 06/10/2026 (Calendly e Otter: S256).
+  { id: 'calendly', nome: 'Calendly', situacao: 'disponivel', portalFixo: false, mcp: { url: 'https://mcp.calendly.com/mcp', registro: 'automatico', enviarRecurso: true } } satisfies PerfilDeIntegracao,
+  { id: 'otter', nome: 'Otter.ai', situacao: 'disponivel', portalFixo: false, mcp: { url: 'https://mcp.otter.ai/mcp', registro: 'automatico', enviarRecurso: true } } satisfies PerfilDeIntegracao,
+  emBreve('tldv', 'tl;dv', 'O servidor do tl;dv só aceita registrar apps de domínios que ele autoriza antes (testado em 06/10/2026: recusou o registro). Precisa de uma parceria ou liberação do tl;dv.'),
   emBreve('gong', 'Gong', 'O servidor da Gong está em preview fechado, só para alguns clientes.'),
   emBreve('fireflies', 'Fireflies.ai', 'Só conecta por chave da própria conta, sem login oficial para terceiros.'),
   emBreve('fathom', 'Fathom', 'Não há servidor oficial confirmado.'),

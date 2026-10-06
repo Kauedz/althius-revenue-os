@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 e 02.
 
-**Status:** ready-for-agent
+**Status:** feito no código (06/10/2026): Apollo, Pipedrive, Granola e Confluence liberados; o servidor real de cada um devolveu o link de autorização. Falta cada pessoa autorizar a própria conta para a conferência final.
 
 ## Critérios
 - [ ] Perfil com endereço, escopos (só os mínimos) e ferramentas de leitura e escrita marcadas.

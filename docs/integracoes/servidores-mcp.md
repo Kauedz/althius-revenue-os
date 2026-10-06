@@ -69,3 +69,9 @@ WhatsApp Business, Gmail, Outlook, Instagram e LinkedIn **não precisam de outro
 
 ## Atualização (06/10/2026, segunda leitura)
 Passo a passo de cada app, em linguagem simples, em [`guia-do-dono.md`](./guia-do-dono.md). Novidades: o Google (Gmail e Agenda) vai pela Unipile com credenciais dela (sem o dono registrar app no Google); a RD Station tem MCP oficial, mas cada cliente gera URL e token no Catálogo MCP deles (página: rdstation.com/mcp-rd-station); o Zoho CRM só serve por login via API com app da Althius (o MCP dele é por cliente); Salesforce, Dynamics e Teams ficam "Em breve" por decisão do dono.
+
+
+## Atualização de 06/10/2026 (tickets 03 e 08)
+- Liberados por registro automático, com o link de autorização gerado pelo servidor real de cada um: Apollo, Pipedrive, Granola, Confluence (Atlassian), Calendly e Otter.ai.
+- **tl;dv:** o servidor de login (Keycloak) responde 403 "Trusted Hosts" ao registro de qualquer endereço novo. Só conecta com liberação do tl;dv.
+- **Clay:** a documentação oficial (developers.clay.com) descreve só o servidor local `clay mcp`, que roda na máquina de quem usa. Não há endereço remoto com login.
