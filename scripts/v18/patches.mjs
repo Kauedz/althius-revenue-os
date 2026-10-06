@@ -605,6 +605,32 @@ export const PATCHES = [
     }
   },
 
+  // ---- Conectores (Claude): nenhum conector do catálogo conecta de verdade ainda; no modo real ficam "Em breve"
+  {
+    regra: 'conectores: no modo real todo conector do catálogo aparece como "Em breve" (sem autorização simulada)',
+    arquivo: 'logic.generated.js',
+    trocar: "const k = cons[c.id], ok = !!k && !k.erro, erro = !!k && !!k.erro;\n        return { nome: c.nome, desc: c.desc, auth: c.auth, logo: LG[c.id], conectado: ok, erro, estado: ok ? 'ok' : erro ? 'erro' : 'off', usoTexto: k ? 'usado por ' + usoTexto(k) : '',\n          btnCls: ok ? 'con-btn-sec' : 'con-btn', acaoLabel: ok ? 'Gerenciar' : erro ? 'Reconectar' : 'Conectar', acaoRotulo: (ok ? 'Gerenciar ' : 'Conectar ') + c.nome, acao: () => this.abrirOauth(c.id) };",
+    por: "const k = cons[c.id], ok = !!k && !k.erro, erro = !!k && !!k.erro, em = this.modoDemo === false;\n        return { nome: c.nome, desc: c.desc, auth: c.auth, logo: LG[c.id], conectado: ok, erro, estado: ok ? 'ok' : erro ? 'erro' : 'off', usoTexto: k ? 'usado por ' + usoTexto(k) : '', emBreve: em,\n          btnCls: em || ok ? 'con-btn-sec' : 'con-btn', acaoLabel: em ? 'Em breve' : ok ? 'Gerenciar' : erro ? 'Reconectar' : 'Conectar', acaoRotulo: em ? c.nome + ' (em breve)' : (ok ? 'Gerenciar ' : 'Conectar ') + c.nome, acao: () => { if (!em) this.abrirOauth(c.id); } };"
+  },
+  {
+    regra: 'conectores: o resumo do modo real explica onde conectar as contas de mensagem',
+    arquivo: 'logic.generated.js',
+    trocar: "v.cat.resumo = nCon + ' conectados de ' + KC.lista.length + ' disponíveis · cada conexão é autorizada na página oficial da ferramenta';",
+    por: "v.cat.resumo = this.modoDemo === false ? 'Em breve: estes conectores ainda não estão disponíveis. Suas contas de e-mail, WhatsApp, LinkedIn e Instagram você conecta na Caixa de entrada.' : nCon + ' conectados de ' + KC.lista.length + ' disponíveis · cada conexão é autorizada na página oficial da ferramenta';"
+  },
+  {
+    regra: 'conectores: a autorização simulada não abre no modo real',
+    arquivo: 'logic.generated.js',
+    trocar: "abrirOauth(id) { const ag",
+    por: "abrirOauth(id) { if (this.modoDemo === false) return; const ag"
+  },
+  {
+    regra: 'conectores: botão "Em breve" fica desabilitado',
+    arquivo: 'template.generated.tsx',
+    trocar: '<button className={c?.btnCls} onClick={c?.acao} aria-label={c?.acaoRotulo}>',
+    por: '<button className={c?.btnCls} onClick={c?.acao} aria-label={c?.acaoRotulo} disabled={c?.emBreve}>'
+  },
+
   // ---- Relatórios, Sinais e Prospecção (Grok)
   // Relatórios, no modo real, troca os números na própria tela (AlthiusApp).
   // Sem patch no arquivo gerado. Sinais e Prospecção entram nesta seção depois.

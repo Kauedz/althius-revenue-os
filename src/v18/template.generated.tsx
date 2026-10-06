@@ -4508,7 +4508,7 @@ export function renderTemplate($v: Record<string, any>) {
                                 {"\n                          "}
                               </span>
                               {"\n                          "}
-                              <button className={c?.btnCls} onClick={c?.acao} aria-label={c?.acaoRotulo}>
+                              <button className={c?.btnCls} onClick={c?.acao} aria-label={c?.acaoRotulo} disabled={c?.emBreve}>
                                 {__t(c?.acaoLabel)}
                               </button>
                               {"\n                        "}
