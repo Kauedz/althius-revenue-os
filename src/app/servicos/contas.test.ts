@@ -3,6 +3,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   listarContas,
+  textoUltimoContato,
+  SEM_CONTATO,
   criarConta,
   editarConta,
   importarContas
@@ -15,7 +17,57 @@ const GRAO_NORTE = 'b0000000-0000-0000-0000-000000000001';
 const MEMBRO_ALINE = 'd0000000-0000-0000-0000-000000000003';
 const MEMBRO_LUCAS = 'd0000000-0000-0000-0000-000000000004';
 
+describe('textoUltimoContato', () => {
+  const agora = new Date('2026-10-06T12:00:00Z');
+  const em = (ms: number) => new Date(agora.getTime() - ms).toISOString();
+  const MIN = 60_000, H = 60 * MIN, D = 24 * H;
+
+  it('sem mensagem, é "Sem contato ainda" (nunca uma data inventada)', () => {
+    expect(textoUltimoContato(null, agora)).toBe(SEM_CONTATO);
+    expect(textoUltimoContato(undefined, agora)).toBe(SEM_CONTATO);
+    expect(textoUltimoContato({ quando: 'lixo', direcao: 'in', canal: 'email' }, agora)).toBe(SEM_CONTATO);
+  });
+  it('mostra o tempo em minutos, horas e dias, no singular e no plural', () => {
+    expect(textoUltimoContato({ quando: em(10 * 1000), direcao: null, canal: null }, agora)).toBe('agora');
+    expect(textoUltimoContato({ quando: em(5 * MIN), direcao: null, canal: null }, agora)).toBe('há 5 min');
+    expect(textoUltimoContato({ quando: em(3 * H), direcao: null, canal: null }, agora)).toBe('há 3 h');
+    expect(textoUltimoContato({ quando: em(1 * D + H), direcao: null, canal: null }, agora)).toBe('há 1 dia');
+    expect(textoUltimoContato({ quando: em(3 * D), direcao: null, canal: null }, agora)).toBe('há 3 dias');
+  });
+  it('depois de 30 dias mostra a data', () => {
+    expect(textoUltimoContato({ quando: '2026-08-01T12:00:00Z', direcao: null, canal: null }, agora)).toBe('01/08/2026');
+  });
+  it('diz o canal e quem falou por último', () => {
+    expect(textoUltimoContato({ quando: em(3 * D), direcao: 'in', canal: 'linkedin' }, agora)).toBe('há 3 dias · LinkedIn · resposta do contato');
+    expect(textoUltimoContato({ quando: em(3 * D), direcao: 'out', canal: 'email' }, agora)).toBe('há 3 dias · E-mail · mensagem nossa');
+    expect(textoUltimoContato({ quando: em(2 * H), direcao: 'out', canal: 'whatsapp' }, agora)).toBe('há 2 h · WhatsApp · mensagem nossa');
+  });
+  it('relógio do contato à frente do nosso não gera tempo negativo', () => {
+    expect(textoUltimoContato({ quando: new Date(agora.getTime() + 5 * MIN).toISOString(), direcao: 'in', canal: 'email' }, agora)).toBe('agora · E-mail · resposta do contato');
+  });
+});
+
 describe('listarContas (unitário / mapeamento)', () => {
+  it('traz o último contato da visão e "Sem contato ainda" para quem não tem', async () => {
+    const f = (tabelas: Record<string, { data?: any; error?: any }>) => ({
+      from: (t: string) => { const r = tabelas[t] || { data: [], error: null }; const c: any = { select: () => c, eq: () => c, in: () => c, order: () => c, then: (ok: any) => Promise.resolve(r).then(ok) }; return c; }
+    }) as any;
+    const cliente = f({
+      accounts: { data: [{ id: 'c1', name: 'Com contato' }, { id: 'c2', name: 'Sem contato' }], error: null },
+      account_last_contact: { data: [{ account_id: 'c1', last_contact_at: new Date(Date.now() - 2 * 3_600_000).toISOString(), last_direction: 'in', last_channel: 'whatsapp' }], error: null }
+    });
+    const contas = await listarContas(cliente, 'ws-1');
+    expect(contas.find(c => c.id === 'c1')?.ultimoContato).toBe('há 2 h · WhatsApp · resposta do contato');
+    expect(contas.find(c => c.id === 'c2')?.ultimoContato).toBe(SEM_CONTATO);
+  });
+  it('falha ao consultar o último contato vira erro claro (não cai para dado fictício)', async () => {
+    const cliente = {
+      from: (t: string) => { const r = t === 'account_last_contact' ? { data: null, error: { message: 'falhou' } } : t === 'accounts' ? { data: [{ id: 'c1' }], error: null } : { data: [], error: null };
+        const c: any = { select: () => c, eq: () => c, in: () => c, order: () => c, then: (ok: any) => Promise.resolve(r).then(ok) }; return c; }
+    } as any;
+    await expect(listarContas(cliente, 'ws-1')).rejects.toThrow('Não foi possível carregar o último contato das contas.');
+  });
+
   function mockSupabase(tabelas: Record<string, { data?: any; error?: any }>) {
     return {
       from: (tabela: string) => {
@@ -98,6 +150,7 @@ describe('listarContas (unitário / mapeamento)', () => {
       decisor: 'Mariana Lima',
       dominio: 'acme.com',
       logoUrl: 'https://acme.com/logo.png',
+      ultimoContato: 'Sem contato ainda',
       comite: [
         {
           id: 'ct1',
@@ -244,6 +297,18 @@ describe.skipIf(!bancoLocalNoAr)('Contas e leads (banco local)', () => {
       emails: ['aline.xavier@serraazul.com.br'],
       fones: ['(11) 90000-0001']
     });
+  });
+
+  it('Último contato vem das mensagens: C-level vê a conta com conversa; conta sem conversa mostra "Sem contato ainda"', async () => {
+    const contas = await listarContas(await entrarComoLocal('aline@evolut.com.br'), EVOLUT);
+    expect(contas.find(c => c.nome === 'Serra Azul Têxtil')?.ultimoContato).toMatch(/^há \d+ (h|dias?) · LinkedIn · resposta do contato$/);
+    expect(contas.find(c => c.nome === 'Rio Claro Cosméticos')?.ultimoContato).toBe(SEM_CONTATO);
+  });
+
+  it('BDR enxerga o último contato só das próprias conversas (Lucas não vê a conversa de e-mail da Bruna)', async () => {
+    const contas = await listarContas(await entrarComoLocal('lucas@evolut.com.br'), EVOLUT);
+    // A conversa da Bruna é com a conta 4 (Delta Saúde): para o Lucas, sem contato.
+    expect(contas.find(c => c.nome === 'Delta Saúde')?.ultimoContato).toBe(SEM_CONTATO);
   });
 
   it('conta sem decisor no comitê mostra "A mapear"', async () => {

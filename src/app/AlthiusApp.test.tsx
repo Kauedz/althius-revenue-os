@@ -139,6 +139,7 @@ describe('contas no AlthiusApp', () => {
       dono: 'Pessoa Teste',
       cidade: 'São Paulo, SP',
       decisor: 'Roberto Santos',
+      ultimoContato: 'há 2 dias · E-mail · mensagem nossa',
       comite: [
         {
           id: 'ct-1',
@@ -160,7 +161,7 @@ describe('contas no AlthiusApp', () => {
   });
 
   const contaDe = (ws: string): contasServico.ContaTela => ({
-    id: 'c-' + ws, nome: 'Conta ' + ws, segmento: 'Varejo', fit: 80, temperatura: 2, sinal: '—', dono: 'Pessoa Teste', cidade: '—', decisor: 'Contato ' + ws,
+    id: 'c-' + ws, nome: 'Conta ' + ws, segmento: 'Varejo', fit: 80, temperatura: 2, sinal: '—', dono: 'Pessoa Teste', cidade: '—', decisor: 'Contato ' + ws, ultimoContato: 'Sem contato ainda',
     comite: [{ id: 'p-' + ws, nome: 'Contato ' + ws, cargo: 'Diretor', papel: 'decisor', foto: '', linkedin: '', emails: [ws + '@cliente.com.br'], fones: [] }]
   });
 
@@ -172,6 +173,16 @@ describe('contas no AlthiusApp', () => {
     await waitFor(() => expect((window as any).ALTHIUS_COMITES['c-beta']).toBeDefined());
     expect(Object.keys((window as any).ALTHIUS_COMITES)).toEqual(['c-beta']);
     expect((window as any).ALTHIUS_MOD.accounts.linhas.map((c: { id: string }) => c.id)).toEqual(['c-beta']);
+  });
+
+  it('a tela de contas ganha a coluna "Último contato" depois do último sinal, uma vez só', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue([contaDe('alfa')]);
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/accounts');
+    await waitFor(() => expect((window as any).ALTHIUS_COMITES['c-alfa']).toBeDefined());
+    const chaves = (window as any).ALTHIUS_MOD.accounts.colunas.map((c: string[]) => c[0]);
+    expect(chaves.indexOf('ultimoContato')).toBe(chaves.indexOf('sinal') + 1);
+    expect(chaves.filter((k: string) => k === 'ultimoContato')).toHaveLength(1);
+    expect((window as any).ALTHIUS_MOD.accounts.linhas[0].ultimoContato).toBe('Sem contato ainda');
   });
 
   it('ao sair, as contas e os contatos do cliente somem da memória do navegador', async () => {
