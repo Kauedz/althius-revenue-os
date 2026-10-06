@@ -18,8 +18,8 @@ O catálogo de 20 sinais, a tela e o registro de um evento já existiam, mas nad
 8. **Aviso "em breve" por sinal.** A tela troca o aviso só para os sinais com receita ligada.
 
 ## Limites conhecidos (honestos)
-- O filtro por empresa usa o nome **como o LinkedIn escreve** ("Magalu" acha vagas; "Magazine Luiza" não achou nenhuma). Conta com nome diferente volta "sem novidade". Caminho: guardar a página da empresa no LinkedIn na conta (hoje a conta só tem nome e domínio).
-- Quando o sinal está ligado (padrão do catálogo `default_on` ou ajuste do cliente) e a receita está ligada, **toda conta ativa do cliente é coletada** e cobra créditos. Hoje o estrategista pode ligar um sinal (política de `workspace_signal_settings`). **Isto precisa de decisão do dono:** pela regra "quem paga decide o gasto", ligar um sinal que gasta créditos automaticamente deveria passar pelo C-level (ou por um teto aprovado). Não mudei essa política sozinho.
+- O filtro por empresa usa o nome **como o LinkedIn escreve** ("Magalu" acha vagas; "Magazine Luiza" não achou nenhuma). **Solução (ticket 02):** a conta ganhou `linkedin_company_name` e `linkedin_company_url`; as vagas usam o nome do LinkedIn quando existe. Enquanto o campo estiver vazio (nada o preenche ainda), conta com nome diferente volta "sem novidade". Falta uma tela, importação ou agente que preencha esses campos.
+- Quando o sinal está ligado (padrão do catálogo `default_on` ou ajuste do cliente) e a receita está ligada, **toda conta ativa do cliente é coletada** e cobra créditos. **Decidido pelo dono (06/10/2026):** o C-level **ou** o estrategista podem ligar um sinal por conta própria; a política atual de `workspace_signal_settings` já é essa e não muda. O gasto continua limitado pelo saldo de créditos (reserva antes de cada coleta; sem saldo, não coleta).
 - Plano grátis da Apify: 5 execuções ao mesmo tempo (`SINAIS_CONCORRENCIA`, padrão 3).
 - Raspar o LinkedIn tem risco de termos de uso; o ator pode sumir ou mudar.
 
@@ -28,3 +28,11 @@ Para comparar o custo do fornecedor (US$) com o preço de venda (R$ por crédito
 
 ## Execução
 Serviço `sinais` no Docker, a cada `SINAIS_INTERVALO_MINUTOS` (padrão 30), até `SINAIS_PEDIDOS_POR_RODADA` (padrão 20) contas por rodada, nunca duas rodadas juntas. O log só mostra números.
+
+## Sinais de pessoas (ticket 02)
+- **Troca de cargo** (`harvestapi/linkedin-profile-scraper`) e **posts do decisor** (`harvestapi/linkedin-profile-posts`) olham até 5 contatos com LinkedIn por conta (decisor, depois campeão e influenciador). Conta sem contato com LinkedIn nem é pedida: não reserva crédito.
+- **Retrato anterior** em `internal.signal_snapshots` (cargo e empresa atuais). A **primeira leitura só guarda o retrato**: nunca inventa mudança. Mudou de empresa ou de cargo = acontecimento. Perfil sem cargo atual não prova que a pessoa saiu: nada é concluído e o retrato anterior fica. O retrato só é gravado depois de o resultado ser entregue, e só de contatos da própria conta.
+- **Endereço do perfil como foi cadastrado:** o identificador do LinkedIn diferencia maiúsculas e minúsculas; o banco normaliza para minúsculas só para busca, então o pedido usa o valor original.
+- **Casamento do perfil com o contato** pelo identificador público. Endereço do tipo "código" (`/in/ACw...`) não casa com nada que o ator devolve; só no caso de **um único contato** na conta o perfil devolvido é atribuído a ele. Com vários contatos, perfil sem casamento não é atribuído a ninguém.
+- Fonte que devolve **só itens de erro** é falha (crédito devolvido), não "sem novidade".
+- Dado de pessoa: só dado profissional público, com origem e data, dentro do workspace do cliente (LGPD).

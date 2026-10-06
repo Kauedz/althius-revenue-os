@@ -3,7 +3,8 @@
 // (docs/sinais/atores-por-sinal.md). A chave do acontecimento vem do protótipo: empresa + cargo + ano.
 //
 // Limite conhecido: o filtro por empresa usa o nome como o LinkedIn escreve ("Magalu" acha vagas; "Magazine Luiza"
-// não achou nenhuma). Conta com nome diferente do LinkedIn volta sem vagas; isso aparece como "sem novidade".
+// não achou nenhuma). Por isso a conta pode guardar `linkedin_company_name`; sem ele, usa o nome da conta e uma conta
+// com nome diferente volta sem vagas (aparece como "sem novidade").
 import type { AdaptadorApify, ContaDoPedido, ContextoDaColeta, EventoDeSinal, Frequencia } from './tipos.ts';
 import { dataCurta, dataIso, dentroDaJanela, evento, mesmaEmpresa, nomeDaEmpresa, normalizar, objeto, primeiroTexto, recortar, semRepetidos } from './comum.ts';
 
@@ -36,10 +37,13 @@ function leitura(ator: string, bruto: Record<string, unknown>) {
   };
 }
 
+/** O nome para buscar e reconhecer a empresa: o do LinkedIn, se a conta o guarda; senão o da conta. */
+const nomeNoLinkedin = (conta: ContaDoPedido) => (conta.linkedinNome ?? '').trim() || conta.nome;
+
 export const adaptadorDeVagas: AdaptadorApify = {
   entrada(ator: string, conta: ContaDoPedido, ctx: ContextoDaColeta) {
-    if (ator === VALIG) return { companyName: [conta.nome], location: 'Brazil', datePosted: JANELA_VALIG[ctx.frequencia], limit: MAX_VAGAS };
-    if (ator === CURIOUS) return { keywords: conta.nome, location: 'Brazil', datePosted: JANELA_CURIOUS[ctx.frequencia], limitPerSource: MAX_VAGAS, scrapeCompany: false };
+    if (ator === VALIG) return { companyName: [nomeNoLinkedin(conta)], location: 'Brazil', datePosted: JANELA_VALIG[ctx.frequencia], limit: MAX_VAGAS };
+    if (ator === CURIOUS) return { keywords: nomeNoLinkedin(conta), location: 'Brazil', datePosted: JANELA_CURIOUS[ctx.frequencia], limitPerSource: MAX_VAGAS, scrapeCompany: false };
     throw new Error(`O ator ${ator} não faz parte do sinal de vagas.`);
   },
 
@@ -48,7 +52,7 @@ export const adaptadorDeVagas: AdaptadorApify = {
     for (const item of itens) {
       const bruto = objeto(item);
       const v = leitura(ator, bruto);
-      if (!v.titulo || !mesmaEmpresa(conta.nome, v.empresa)) continue;
+      if (!v.titulo || !mesmaEmpresa(nomeNoLinkedin(conta), v.empresa)) continue;
       // Sem data de publicação, vale a da coleta (a busca já filtrou pelo período).
       const quando = v.publicadaEm ?? new Date(ctx.agora).toISOString();
       if (v.publicadaEm && !dentroDaJanela(v.publicadaEm, ctx.agora, ctx.frequencia)) continue;

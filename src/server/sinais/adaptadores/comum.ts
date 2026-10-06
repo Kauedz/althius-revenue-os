@@ -101,3 +101,31 @@ export function semRepetidos(eventos: EventoDeSinal[]): EventoDeSinal[] {
   }
   return [...porChave.values()];
 }
+
+/** O identificador do perfil de uma pessoa no LinkedIn (`/in/<id>`), em minúsculas, ou vazio. */
+export function perfilDoLinkedin(url: unknown): string {
+  const achado = texto(url).match(/linkedin\.com\/in\/([^/?#\s]+)/i);
+  if (!achado) return '';
+  try { return decodeURIComponent(achado[1]).toLowerCase(); } catch { return achado[1].toLowerCase(); }
+}
+
+/** O mesmo perfil pelo identificador público ou, na falta dele, pelo endereço. */
+export function identificadorDoItem(item: Record<string, unknown>): string {
+  return texto(item.publicIdentifier).toLowerCase() || perfilDoLinkedin(item.linkedinUrl);
+}
+
+/** Endereço do LinkedIn do tipo "código" (/in/ACo... ou /in/ACw...): o ator devolve o perfil com outro identificador. */
+export function enderecoComCodigo(url: unknown): boolean {
+  const m = texto(url).match(/linkedin\.com\/in\/([^/?#\s]+)/i);
+  return !!m && /^AC[oOwW][A-Za-z0-9_-]{8,}$/.test(m[1]);
+}
+
+/**
+ * O contato dono do perfil/post devolvido. Casa pelo identificador público. Só quando a conta tem UM contato e o endereço
+ * dele é do tipo código (não há como casar) o único perfil pedido é dele; nos demais casos, sem casamento = ninguém.
+ */
+export function acharContato<T extends { linkedinUrl: string }>(contatos: T[], identificador: string): T | undefined {
+  const achado = identificador ? contatos.find(c => perfilDoLinkedin(c.linkedinUrl) === identificador) : undefined;
+  if (achado) return achado;
+  return contatos.length === 1 && enderecoComCodigo(contatos[0].linkedinUrl) ? contatos[0] : undefined;
+}

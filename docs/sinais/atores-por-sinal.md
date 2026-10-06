@@ -144,3 +144,9 @@ Dos 16 sinais externos, **5 não precisam de Apify** (notícias, rodada, Receita
 
 ## Não verificado hoje
 Filtro `companyName` do `valig`; Indeed e Gupy; `linkedin-post-search`; Crunchbase; PageSpeed Insights; `instagram-profile-scraper`; `skython/*` para feiras; ChatGPT/Perplexity no GEO; base mensal da Receita; Comex Stat em lote; aprovação de permissão de atores novos no console da Apify (alguns pedem na primeira vez).
+
+## Descobertas na construção (06/10/2026)
+- **Vagas:** o filtro `companyName` do `valig` funciona, mas só com o nome como o LinkedIn escreve ("Magalu" achou vagas, "Magazine Luiza" nenhuma). Testado com Nubank (8 vagas) e Magalu.
+- **Troca de cargo e posts:** testados de ponta a ponta. O ator devolve `currentPosition` (cargo e empresa atuais) e não guarda a leitura anterior, então o retrato fica no banco. O identificador do perfil diferencia maiúsculas e minúsculas, e endereços "com código" (`/in/ACw...`) voltam como outro identificador.
+- **Custo:** a Apify fecha a conta alguns segundos depois; o coletor relê até estabilizar (ex.: vagas, 11 itens = US$ 0,0054).
+- **Ator com entrada recusada** devolve um item de erro com HTTP 200 no corpo; o coletor trata como falha.

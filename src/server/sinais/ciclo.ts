@@ -3,13 +3,21 @@
 // (signal_collect_fail, que devolve o crédito). Falha de coleta nunca vira acontecimento. O resultado só tem números.
 import type { OpcoesColeta, ResultadoColeta } from '../providers/apify-pool.ts';
 import type { AdaptadorApify, Frequencia } from './adaptadores/tipos.ts';
+import { adaptadorDePosts } from './adaptadores/posts.ts';
+import { adaptadorDeTrocaDeCargo } from './adaptadores/troca-cargo.ts';
 import { adaptadorDeVagas } from './adaptadores/vagas.ts';
 
-export const ADAPTADORES: Record<string, AdaptadorApify> = { vagas_cargo: adaptadorDeVagas };
+export const ADAPTADORES: Record<string, AdaptadorApify> = {
+  vagas_cargo: adaptadorDeVagas,
+  troca_cargo: adaptadorDeTrocaDeCargo,
+  posts_decisor: adaptadorDePosts
+};
 
 interface FonteDaReceita { fonte: string; ator?: string; teto_usd?: number; max_itens?: number; build?: string; memoria_mb?: number; reserva?: boolean }
+interface ContatoBruto { id: string; nome: string; papel?: string | null; linkedin_url: string; snapshot?: Record<string, unknown> | null }
 interface Pedido {
   run_id: string; account_name: string; account_domain: string; signal_code: string;
+  linkedin_company_name?: string | null; linkedin_company_url?: string | null; contatos?: ContatoBruto[];
   frequencia?: Frequencia; fontes: FonteDaReceita[];
 }
 
@@ -66,11 +74,15 @@ export async function rodarSinais(o: OpcoesRodada): Promise<ResultadoRodada> {
     if (!adaptador) return falhar(p, `Sinal ${p.signal_code} sem adaptador de coleta.`);
     const fontes = Array.isArray(p.fontes) ? p.fontes : [];
     if (!fontes.length || fontes.some(f => f.fonte !== 'apify' || !f.ator)) return falhar(p, 'Fonte ainda não suportada pelo coletor.');
-    const conta = { nome: p.account_name, dominio: p.account_domain };
+    const conta = {
+      nome: p.account_name, dominio: p.account_domain, linkedinNome: p.linkedin_company_name ?? null, linkedinUrl: p.linkedin_company_url ?? null,
+      contatos: (p.contatos ?? []).map(c => ({ id: c.id, nome: c.nome, papel: c.papel ?? null, linkedinUrl: c.linkedin_url, snapshot: c.snapshot ?? null }))
+    };
     const ctx = { agora: agora(), frequencia: p.frequencia ?? 'semanal' };
 
     const itensTotal: unknown[] = [];
     const eventos: ReturnType<AdaptadorApify['eventos']> = [];
+    const retratos: NonNullable<ReturnType<NonNullable<AdaptadorApify['retratos']>>> = [];
     let custo: number | null = null;
     let custoConhecido = true;
     let algumaOk = false;
@@ -81,8 +93,12 @@ export async function rodarSinais(o: OpcoesRodada): Promise<ResultadoRodada> {
         const entrada = adaptador.entrada(f.ator!, conta, ctx);
         const r = await o.pool.coletar(f.ator!, entrada, { maxItens: f.max_itens ?? 25, tetoUsd: f.teto_usd ?? 0, build: f.build, memoriaMb: f.memoria_mb, esperaCustoMs: o.esperaCustoMs });
         if (r.custoUsd === null) custoConhecido = false; else custo = (custo ?? 0) + r.custoUsd;
+        // Só itens de erro (ex.: o ator recusou a entrada) não é "sem novidade": é falha.
+        const erros = r.itens.map(i => (i && typeof i === 'object' && !Array.isArray(i) ? (i as Record<string, unknown>).error : undefined));
+        if (r.itens.length > 0 && erros.every(Boolean)) throw new Error(`A fonte devolveu só erros: ${String(erros[0]).slice(0, 120)}`);
         itensTotal.push(...r.itens);
         eventos.push(...adaptador.eventos(f.ator!, r.itens, conta, ctx));
+        if (adaptador.retratos) retratos.push(...adaptador.retratos(f.ator!, r.itens, conta));
         algumaOk = true;
       } catch (e) { ultimoErro = e instanceof Error ? e.message : String(e); }
     };
@@ -99,7 +115,10 @@ export async function rodarSinais(o: OpcoesRodada): Promise<ResultadoRodada> {
       const j = (await r.json().catch(() => ({}))) as { eventos_novos?: number };
       concluidos++;
       eventosNovos += Number(j.eventos_novos) || 0;
-    } catch { await falhar(p, 'banco indisponível ao entregar o resultado'); }
+    } catch { return falhar(p, 'banco indisponível ao entregar o resultado'); }
+    // O retrato só vale depois de o resultado entregue. Se falhar, a próxima rodada compara com o retrato antigo e o
+    // banco não repete o acontecimento (mesma chave), então nada se perde nem se duplica.
+    if (retratos.length) await rpc('signal_snapshot_save', { p_run_id: p.run_id, p_snapshots: retratos }).catch(() => undefined);
   }
 
   // Poucas execuções ao mesmo tempo: cada trabalhador pega o próximo pedido da fila.

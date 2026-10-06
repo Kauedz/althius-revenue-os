@@ -90,6 +90,23 @@ describe('uma rodada da coleta de sinais', () => {
     expect(r).toMatchObject({ falhas: 2 });
   });
 
+  it('fonte que devolve SÓ itens de erro é falha (crédito devolvido), nunca "sem novidade"', async () => {
+    const { buscar, rpc } = bancoFalso([pedido(1, { fontes: [{ fonte: 'apify', ator: 'principal/ator', teto_usd: 0.05, max_itens: 5 }] })]);
+    const pool = { coletar: async () => ({ itens: [{ error: 'You need to provide at least one valid argument', status: 400 }], runId: 'r', conta: 'c', custoUsd: 0.001 }) };
+    const r = await rodarSinais({ ...base, buscar, pool, adaptadores: { vagas_cargo: adaptadorFalso({}) } });
+    expect(rpc.some(x => x.nome === 'signal_collect_finish')).toBe(false);
+    expect(String(rpc.find(x => x.nome === 'signal_collect_fail')!.corpo.p_mensagem)).toMatch(/só erros.*valid argument/i);
+    expect(r).toMatchObject({ concluidos: 0, falhas: 1 });
+  });
+
+  it('itens bons misturados com um item de erro seguem como resultado válido', async () => {
+    const { buscar, rpc } = bancoFalso([pedido(1)]);
+    const pool = { coletar: async () => ({ itens: ['vaga A', { error: 'um perfil falhou' }], runId: 'r', conta: 'c', custoUsd: 0.001 }) };
+    const r = await rodarSinais({ ...base, buscar, pool, adaptadores: { vagas_cargo: adaptadorFalso({}) } });
+    expect(rpc.some(x => x.nome === 'signal_collect_finish')).toBe(true);
+    expect(r).toMatchObject({ concluidos: 1, falhas: 0 });
+  });
+
   it('o custo desconhecido segue como nulo (nunca inventa um número)', async () => {
     const { buscar, rpc } = bancoFalso([pedido(1)]);
     const pool = { coletar: async () => ({ itens: ['v'], runId: null, conta: 'c', custoUsd: null }) };
@@ -121,5 +138,62 @@ describe('uma rodada da coleta de sinais', () => {
     const pool = { coletar: async () => ({ itens: ['v'], runId: 'r', conta: 'c', custoUsd: 0.5 }) };
     const r = await rodarSinais({ ...base, buscar, pool, adaptadores: { vagas_cargo: adaptadorFalso({}) } });
     expect(Object.values(r).every(v => typeof v === 'number' || typeof v === 'boolean')).toBe(true);
+  });
+});
+
+describe('sinais de pessoas (ticket 02): contatos e retrato', () => {
+  const pedidoComContatos = () => pedido(1, {
+    signal_code: 'troca_cargo', linkedin_company_name: 'Nome LinkedIn', linkedin_company_url: 'https://www.linkedin.com/company/x',
+    contatos: [{ id: 'ct-1', nome: 'Fulano', papel: 'decisor', linkedin_url: 'https://www.linkedin.com/in/fulano', snapshot: { cargo: 'Gerente' } }],
+    fontes: [{ fonte: 'apify', ator: 'principal/ator', teto_usd: 0.05, max_itens: 5 }]
+  });
+  const comRetrato = (visto?: { conta?: unknown }): AdaptadorApify => ({
+    entrada: (_a, conta) => { if (visto) visto.conta = conta; return {}; },
+    eventos: () => [],
+    retratos: () => [{ chave: 'ct-1', dados: { cargo: 'Diretor' } }]
+  });
+
+  it('entrega ao adaptador o nome e o endereço da empresa no LinkedIn e os contatos com o retrato anterior', async () => {
+    const { buscar } = bancoFalso([pedidoComContatos()]);
+    const visto: { conta?: unknown } = {};
+    const pool = { coletar: async () => ({ itens: [{}], runId: 'r', conta: 'c', custoUsd: 0.01 }) };
+    await rodarSinais({ ...base, buscar, pool, adaptadores: { troca_cargo: comRetrato(visto) } });
+    expect(visto.conta).toEqual({
+      nome: 'Empresa 1', dominio: 'e1.test', linkedinNome: 'Nome LinkedIn', linkedinUrl: 'https://www.linkedin.com/company/x',
+      contatos: [{ id: 'ct-1', nome: 'Fulano', papel: 'decisor', linkedinUrl: 'https://www.linkedin.com/in/fulano', snapshot: { cargo: 'Gerente' } }]
+    });
+  });
+
+  it('depois de entregar o resultado, guarda o retrato novo dos contatos', async () => {
+    const { buscar, rpc } = bancoFalso([pedidoComContatos()]);
+    const pool = { coletar: async () => ({ itens: [{}], runId: 'r', conta: 'c', custoUsd: 0.01 }) };
+    await rodarSinais({ ...base, buscar, pool, adaptadores: { troca_cargo: comRetrato() } });
+    const nomes = rpc.map(x => x.nome);
+    expect(nomes.indexOf('signal_collect_finish')).toBeGreaterThan(-1);
+    expect(nomes.indexOf('signal_snapshot_save')).toBeGreaterThan(nomes.indexOf('signal_collect_finish'));
+    expect(rpc.find(x => x.nome === 'signal_snapshot_save')!.corpo).toEqual({ p_run_id: 'run-1', p_snapshots: [{ chave: 'ct-1', dados: { cargo: 'Diretor' } }] });
+  });
+
+  it('coleta que falhou NÃO mexe no retrato', async () => {
+    const { buscar, rpc } = bancoFalso([pedidoComContatos()]);
+    const pool = { coletar: async () => { throw new Error('Apify fora do ar'); } };
+    await rodarSinais({ ...base, buscar, pool, adaptadores: { troca_cargo: comRetrato() } });
+    expect(rpc.some(x => x.nome === 'signal_snapshot_save')).toBe(false);
+  });
+
+  it('adaptador sem retrato (vagas) nunca chama a gravação de retrato', async () => {
+    const { buscar, rpc } = bancoFalso([pedido(1)]);
+    const pool = { coletar: async () => ({ itens: [], runId: 'r', conta: 'c', custoUsd: 0 }) };
+    await rodarSinais({ ...base, buscar, pool, adaptadores: { vagas_cargo: adaptadorFalso({}) } });
+    expect(rpc.some(x => x.nome === 'signal_snapshot_save')).toBe(false);
+  });
+
+  it('falha ao guardar o retrato não derruba a rodada nem desfaz o resultado já entregue', async () => {
+    const { rpc, buscar: base2 } = bancoFalso([pedidoComContatos()]);
+    const buscar = (async (url: string, init: RequestInit) => url.endsWith('signal_snapshot_save') ? new Response('{}', { status: 500 }) : base2(url, init)) as unknown as typeof fetch;
+    const pool = { coletar: async () => ({ itens: [{}], runId: 'r', conta: 'c', custoUsd: 0.01 }) };
+    const r = await rodarSinais({ ...base, buscar, pool, adaptadores: { troca_cargo: comRetrato() } });
+    expect(r).toMatchObject({ ok: true, concluidos: 1, falhas: 0 });
+    expect(rpc.some(x => x.nome === 'signal_collect_fail')).toBe(false);
   });
 });

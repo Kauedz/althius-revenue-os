@@ -85,4 +85,17 @@ describe('vagas abertas (vagas_cargo)', () => {
     expect(e.evidencia.length).toBeLessThanOrEqual(2000);
     expect(e.chave.length).toBeLessThanOrEqual(300);
   });
+
+  it('usa o nome da empresa no LinkedIn quando a conta o guarda (Magazine Luiza no CRM, Magalu no LinkedIn)', () => {
+    const c = { nome: 'Magazine Luiza', dominio: 'magazineluiza.com.br', linkedinNome: 'Magalu' };
+    expect(adaptadorDeVagas.entrada('valig/linkedin-jobs-scraper', c, ctx)).toMatchObject({ companyName: ['Magalu'] });
+    expect(adaptadorDeVagas.entrada('curious_coder/linkedin-jobs-scraper', c, ctx)).toMatchObject({ keywords: 'Magalu' });
+    const [e] = adaptadorDeVagas.eventos('valig/linkedin-jobs-scraper', [doValig()], c, ctx);
+    expect(e.evidencia).toContain('Magazine Luiza');
+    expect(e.chave).toBe('vaga|magazine luiza|analista de comercio exterior|2026');
+  });
+
+  it('o nome do LinkedIn vazio ou só com espaços volta para o nome da conta', () => {
+    expect(adaptadorDeVagas.entrada('valig/linkedin-jobs-scraper', { ...conta, linkedinNome: '   ' }, ctx)).toMatchObject({ companyName: ['Magalu'] });
+  });
 });

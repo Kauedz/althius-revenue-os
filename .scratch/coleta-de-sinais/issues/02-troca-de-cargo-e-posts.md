@@ -4,7 +4,7 @@
 
 **Blocked by:** 01.
 
-**Status:** ready-for-agent
+**Status:** in-progress
 
 ## Pode mexer
 
@@ -17,11 +17,18 @@
 
 ## Critérios
 
-- [ ] Mudança de empresa e promoção são distinguidas; perfil sem mudança não gera evento.
-- [ ] Guardar só dado profissional público, com origem e data (LGPD).
-- [ ] Custo por conta dentro do que os créditos pagam (relatório: a busca de nova liderança passa de 5 créditos; fica opcional).
+- [x] Mudança de empresa e promoção são distinguidas; perfil sem mudança não gera evento.
+- [x] Guardar só dado profissional público, com origem e data (LGPD).
+- [x] Custo por conta dentro do que os créditos pagam (relatório: a busca de nova liderança passa de 5 créditos; fica opcional).
 - [ ] `npm run verificar` verde.
+
+## Comments
+
+- Validado em execução real em 06/10/2026 (um contato, rodada 1 e 2): baseline sem evento; com cargo antigo simulado, 1 evento "mudou de empresa", conta esquentou, retrato atualizado. Custo por conta: US$ 0,004 por perfil e US$ 0,002 por post.
+- Decidido pelo dono: C-level ou estrategista ligam o sinal. A busca de nova liderança por empresa (`linkedin-profile-search`) fica fora: US$ 0,10 por página passa do que 5 créditos pagam.
+- As colunas `linkedin_company_name` e `linkedin_company_url` da conta existem, mas nada as preenche ainda (falta tela, importação ou agente).
 
 ## Passos do Nan
 
-1. Se o console da Apify pedir aprovação de permissão do ator na primeira execução, aprovar.
+1. Ligar as receitas (superadmin): `admin_signal_recipe_set('troca_cargo', true)` e `admin_signal_recipe_set('posts_decisor', true)`.
+2. Se o console da Apify pedir aprovação de permissão do ator na primeira execução, aprovar.
