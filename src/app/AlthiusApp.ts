@@ -28,7 +28,7 @@ import { decidirAprendizado, lerPlaybooks, listarSugestoes, publicarPlaybook } f
 import { desconectarConta, iniciarConexaoConta, provedorDoCanal } from './servicos/conexoes';
 import { carregarIntegracoes, desconectarIntegracao, iniciarConexaoIntegracao, montarConexoes, resultadoDaConexao } from './servicos/integracoes';
 import { PERFIS } from '../server/integracoes/perfis';
-import { excluirContatoDoCrm, listarCaixa, marcarLida, minhasConexoes, pedirSugestaoDeResposta, type CaixaTela, type ConexoesTela } from './servicos/caixa';
+import { excluirContatoDoCrm, listarCaixaPorEmpresa, marcarLida, minhasConexoes, pedirSugestaoDeResposta, responderNaCaixa, type CaixaTela, type ConexoesTela, type EmpresaDaCaixa } from './servicos/caixa';
 import * as admin from './servicos/admin';
 import { decidirConsentimento, lerConsentimento, marcarAvisoVisto, type EstadoAprendizado } from './servicos/aprendizado';
 import { alternarChave, guardarChave, removerChave, ROTULO_PROVEDOR, testarChave, type ProvedorCofre } from './servicos/cofre';
@@ -284,6 +284,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.formularioDoModulo(v);
     this.acoesDeLeads(v);
     this.copilotoNaTela(v);
+    this.caixaNaTela(v);
     return v;
   }
 
@@ -1709,13 +1710,90 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarCaixa(null);
     if (!ws) return;
     try {
-      const caixa = await listarCaixa(this.props.supabase, ws.uuid);
+      const caixa = await listarCaixaPorEmpresa(this.props.supabase, ws.uuid);
       if (!this.vivo || carga !== this.cargaCaixa) return;
       this.publicarCaixa(caixa);
-      this.setState({ caixaVersao: carga });
+      this.setState({ caixaVersao: carga, caixaEmpresas: caixa.empresas });
     } catch (falha) {
       if (this.vivo && carga === this.cargaCaixa) this.avisarFalha('Não foi possível carregar a caixa de entrada', falha);
     }
+  }
+
+  // ---- Caixa de entrada em conversa (ADR 0068): uma conversa por empresa; responder escolhe a pessoa e o canal.
+
+  private caixaPedido: { chave: string; destino: string; texto: string } | null = null;
+
+  private caixaAbrirEmpresa(e: EmpresaDaCaixa) {
+    const destino = (e.destinos.find(d => d.podeEnviar) || e.destinos[0])?.conversaId || '';
+    this.setState({ caixaSel: e.id, caixaDestino: destino, caixaTexto: '', caixaAssunto: '' });
+    for (const id of e.conversasNaoLidas) void this.abrirConversa(id);
+  }
+
+  private async caixaEnviar() {
+    const ws = this.workspaceAtual();
+    const destino = this.state.caixaDestino as string;
+    const texto = String(this.state.caixaTexto || '').trim();
+    if (!ws?.membroId || !destino) return;
+    if (!texto) return this.confirmar('Resposta não enviada', 'Escreva a resposta antes de enviar.', 'Entendi', () => {});
+    if (this.caixaPedido?.destino !== destino || this.caixaPedido.texto !== texto) this.caixaPedido = { chave: crypto.randomUUID(), destino, texto };
+    const r = await responderNaCaixa(this.props.supabase, ws.uuid, ws.membroId, destino, texto, String(this.state.caixaAssunto || ''), this.caixaPedido.chave);
+    if (!this.vivo) return;
+    if (!r.ok) return this.confirmar('Resposta não enviada', r.mensagem, 'Entendi', () => {});
+    this.caixaPedido = null;
+    this.setState({ caixaTexto: '', caixaAssunto: '' });
+    this.avisar('mod', 'Resposta na fila de envio: sai pela sua conta em instantes e aparece na conversa.');
+  }
+
+  /** A conversa por empresa no lugar da tabela (modo real). */
+  private caixaNaTela(v: Record<string, any>) {
+    if (this.modoDemo !== false || (this.state.rota || {}).page !== 'inbox' || !v.md) return;
+    const empresas = (this.state.caixaEmpresas || []) as EmpresaDaCaixa[];
+    const mobile = !!v.lay?.mobile;
+    const sel = empresas.find(e => e.id === this.state.caixaSel) || null;
+    const destino = sel?.destinos.find(d => d.conversaId === this.state.caixaDestino) || sel?.destinos[0] || null;
+    const canalDestino = sel && destino ? sel.mensagens.find(m => m.conversaId === destino.conversaId)?.canal : null;
+    v.md.tabela = false;
+    v.md.vazio = false;
+    v.md.filtros = [];
+    v.md.temBusca = false;
+    v.md.detalheAberto = false;
+    v.md.chat = {
+      colunas: mobile ? 'minmax(0, 1fr)' : 'minmax(220px, 320px) minmax(0, 1fr)',
+      mostraLista: !mobile || !sel,
+      mostraConversa: !mobile || !!sel,
+      vazio: empresas.length ? '' : 'Nenhuma conversa ainda. Quando um contato do CRM responder, a conversa aparece aqui.',
+      empresas: empresas.map(e => ({
+        id: e.id, nome: e.nome, quando: e.quando, ultima: e.ultima, pessoas: e.pessoas.join(', '),
+        naoLidas: e.naoLidas ? String(e.naoLidas) : '', naoLidasRotulo: e.naoLidas + (e.naoLidas === 1 ? ' não lida' : ' não lidas'),
+        atual: sel?.id === e.id ? 'true' : undefined, bg: sel?.id === e.id ? 'var(--mist)' : 'var(--paper)',
+        abrir: () => this.caixaAbrirEmpresa(e)
+      })),
+      temSelecao: !!sel,
+      voltar: mobile ? () => this.setState({ caixaSel: null }) : null,
+      titulo: sel?.nome || '',
+      subtitulo: sel ? sel.pessoas.join(', ') : '',
+      mensagens: (sel?.mensagens || []).map(m => ({
+        id: m.id, texto: m.texto, quando: m.quando, intencao: m.intencao,
+        alinhar: m.direcao === 'out' ? 'end' : 'start', bolha: m.direcao === 'out' ? 'bubble bubble-ink' : 'bubble',
+        avClasse: m.direcao === 'out' ? 'msg-av msg-av-pessoa' : 'msg-av', sigla: m.autor.split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase(),
+        cabecalho: `${m.autor} · ${m.canal}`
+      })),
+      destinos: (sel?.destinos || []).map(d => ({ valor: d.conversaId, rotulo: d.rotulo })),
+      destino: destino?.conversaId || '',
+      motivo: destino && !destino.podeEnviar ? destino.motivo : '',
+      podeEnviar: !!destino?.podeEnviar,
+      temAssunto: canalDestino === 'E-mail',
+      assunto: this.state.caixaAssunto || '',
+      texto: this.state.caixaTexto || '',
+      mudarDestino: (ev: { target: { value: string } }) => this.setState({ caixaDestino: ev.target.value }),
+      mudarTexto: (ev: { target: { value: string } }) => this.setState({ caixaTexto: ev.target.value }),
+      mudarAssunto: (ev: { target: { value: string } }) => this.setState({ caixaAssunto: ev.target.value }),
+      enviar: () => void this.caixaEnviar(),
+      sugerir: () => destino && void this.acaoNaConversa('Sugerir resposta', destino.conversaId),
+      excluir: () => destino && this.confirmar('Excluir contato do CRM?',
+        (destino.rotulo.split(' · ')[0] || 'O contato') + ' sai do CRM. As mensagens dele param de entrar na Caixa de entrada na hora, e as conversas que já tinham entrado saem junto.',
+        'Excluir contato do CRM', () => void this.acaoNaConversa('Excluir contato do CRM', destino.conversaId))
+    };
   }
 
   private async abrirConversa(id: string) {

@@ -138,3 +138,125 @@ export async function minhasConexoes(cliente: SupabaseClient, workspaceId: strin
   }
   return conexoes;
 }
+
+// ---- Caixa de entrada em conversa (ADR 0068): uma conversa por EMPRESA, como um grupo (não é grupo de verdade).
+
+export interface MensagemDaEmpresa {
+  id: string;
+  conversaId: string;
+  autor: string;
+  canal: string;
+  direcao: 'in' | 'out';
+  texto: string;
+  quandoIso: string;
+  quando: string;
+  /** intenção da conversa, na última mensagem recebida dela (positiva, objeção, adiar, neutra...) */
+  intencao: string | null;
+}
+export interface DestinoDeResposta { conversaId: string; rotulo: string; podeEnviar: boolean; motivo: string | null }
+export interface EmpresaDaCaixa {
+  id: string;
+  nome: string;
+  pessoas: string[];
+  naoLidas: number;
+  ultimaIso: string;
+  quando: string;
+  ultima: string;
+  conversas: string[];
+  conversasNaoLidas: string[];
+  mensagens: MensagemDaEmpresa[];
+  destinos: DestinoDeResposta[];
+}
+
+interface ConversaBruta {
+  id: string; channel: string; intent: string | null; unread: boolean; last_message_at: string;
+  contact: unknown; account: unknown; messaging_account: unknown;
+}
+interface MensagemBruta { id: string; conversation_id: string; direction: string; text: string; sent_by: string; created_at: string }
+
+const umObjeto = <T>(x: unknown): T | null => (Array.isArray(x) ? (x[0] ?? null) : (x as T | null));
+
+/** Agrupa as conversas (já filtradas pela visibilidade do banco) por empresa. `membroId`: quem está vendo. */
+export function agruparPorEmpresa(conversas: ConversaBruta[], mensagens: MensagemBruta[], membroId: string | null, agora = new Date()): EmpresaDaCaixa[] {
+  const grupos = new Map<string, EmpresaDaCaixa>();
+  const porConversa = new Map<string, { pessoa: string; canal: string; intencao: string; minha: boolean; empresa: EmpresaDaCaixa }>();
+  for (const c of conversas) {
+    const conta = umObjeto<{ id?: string; name?: string }>(c.account);
+    const contato = umObjeto<{ id?: string; name?: string }>(c.contact);
+    const dono = umObjeto<{ member_id?: string }>(c.messaging_account)?.member_id ?? null;
+    const chave = conta?.id || 'contato:' + (contato?.id || c.id);
+    let g = grupos.get(chave);
+    if (!g) {
+      g = { id: chave, nome: conta?.name || contato?.name || '—', pessoas: [], naoLidas: 0, ultimaIso: c.last_message_at, quando: '', ultima: '—',
+            conversas: [], conversasNaoLidas: [], mensagens: [], destinos: [] };
+      grupos.set(chave, g);
+    }
+    const pessoa = contato?.name || '—';
+    const canal = CANAL[c.channel] || c.channel;
+    if (!g.pessoas.includes(pessoa)) g.pessoas.push(pessoa);
+    if (c.unread) { g.naoLidas++; g.conversasNaoLidas.push(c.id); }
+    if (c.last_message_at > g.ultimaIso) g.ultimaIso = c.last_message_at;
+    g.conversas.push(c.id);
+    const minha = !!membroId && dono === membroId;
+    const suporta = c.channel === 'email' || c.channel === 'whatsapp';
+    g.destinos.push({
+      conversaId: c.id, rotulo: `${pessoa} · ${canal}`, podeEnviar: suporta && minha,
+      motivo: !suporta ? `Responder pelo ${canal} ainda não é possível por aqui: responda pelo app e a mensagem aparece nesta conversa.`
+        : !minha ? 'Só quem conectou esta conta responde por ela.' : null
+    });
+    porConversa.set(c.id, { pessoa, canal, intencao: INTENCAO[c.intent || 'neutra'] || 'Neutra', minha, empresa: g });
+  }
+  const ultimaRecebida = new Map<string, string>();
+  for (const m of mensagens) if (m.direction === 'in') ultimaRecebida.set(m.conversation_id, m.id);
+  for (const m of [...mensagens].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+    const c = porConversa.get(m.conversation_id);
+    if (!c) continue;
+    const entrada = m.direction === 'in';
+    const autor = entrada ? c.pessoa : m.sent_by === 'automation' ? 'Automação' : m.sent_by === 'agent' ? 'Agente' : c.minha ? 'Você' : 'Equipe';
+    c.empresa.mensagens.push({
+      id: m.id, conversaId: m.conversation_id, autor, canal: c.canal, direcao: entrada ? 'in' : 'out', texto: m.text,
+      quandoIso: m.created_at, quando: formatarQuando(m.created_at, agora), intencao: entrada && ultimaRecebida.get(m.conversation_id) === m.id ? c.intencao : null
+    });
+  }
+  const lista = [...grupos.values()];
+  for (const g of lista) {
+    g.quando = formatarQuando(g.ultimaIso, agora);
+    const u = g.mensagens[g.mensagens.length - 1];
+    if (u) g.ultima = (u.direcao === 'out' ? `${u.autor}: ` : '') + u.texto;
+  }
+  return lista.sort((a, b) => b.ultimaIso.localeCompare(a.ultimaIso));
+}
+
+/** As conversas visíveis para quem está vendo (RLS), agrupadas por empresa, com os números da Caixa. */
+export async function listarCaixaPorEmpresa(cliente: SupabaseClient, workspaceId: string, agora = new Date()): Promise<CaixaTela & { empresas: EmpresaDaCaixa[] }> {
+  const [base, conversas, membro] = await Promise.all([
+    listarCaixa(cliente, workspaceId, agora),
+    cliente.from('conversations')
+      .select('id, channel, intent, unread, last_message_at, contact:contacts(id, name), account:accounts(id, name), messaging_account:messaging_accounts(member_id)')
+      .eq('workspace_id', workspaceId).order('last_message_at', { ascending: false }),
+    cliente.auth.getUser().then(async u => u.data.user
+      ? (await cliente.from('workspace_members').select('id').eq('workspace_id', workspaceId).eq('user_id', u.data.user.id).maybeSingle()).data?.id ?? null
+      : null)
+  ]);
+  if (conversas.error) throw new Error('Não foi possível carregar a caixa de entrada.', { cause: conversas.error });
+  const ids = (conversas.data || []).map(c => c.id);
+  const msgs = ids.length
+    ? await cliente.from('messages').select('id, conversation_id, direction, text, sent_by, created_at').in('conversation_id', ids).order('created_at')
+    : { data: [] as MensagemBruta[], error: null };
+  if (msgs.error) throw new Error('Não foi possível carregar as mensagens.', { cause: msgs.error });
+  return { ...base, empresas: agruparPorEmpresa((conversas.data || []) as ConversaBruta[], (msgs.data || []) as MensagemBruta[], membro as string | null, agora) };
+}
+
+/** Responde numa conversa (pessoa e canal dela) pelo caminho de envio que já existe (ADR 0068). */
+export async function responderNaCaixa(cliente: SupabaseClient, workspaceId: string, membroId: string, conversaId: string, texto: string, assunto: string, chave: string)
+  : Promise<{ ok: true; id: string } | { ok: false; mensagem: string }> {
+  const { data, error } = await cliente.rpc('inbox_reply', {
+    p_workspace_id: workspaceId, p_member_id: membroId, p_conversation_id: conversaId, p_texto: texto, p_assunto: assunto || null, p_chave: chave
+  });
+  if (error) {
+    if (error.code === '22023' && error.message) return { ok: false, mensagem: error.message };
+    return { ok: false, mensagem: error.code === '42501' ? 'Você não tem permissão para esta ação.' : 'Não foi possível enviar a resposta. Tente de novo.' };
+  }
+  if (!data?.ok) return { ok: false, mensagem: data?.erro || 'Não foi possível enviar a resposta. Tente de novo.' };
+  return { ok: true, id: data.id };
+}

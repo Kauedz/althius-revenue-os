@@ -17,10 +17,21 @@ O Copiloto criava uma "execução" (`copilot_request`, migrations 0089/0090) que
 7. **Tela**: o painel do Copiloto mostra a conversa (pergunta, "O Copiloto está respondendo…", resposta), sem o plano encenado nem os exemplos do protótipo. A resposta chega sozinha (a tela confere a cada 2 s enquanto há pergunta sem resposta, por até 3 minutos).
 8. `copilot_request` (0089/0090) continua no banco, mas a tela não o usa mais.
 
+## Decisão (fatia 7: Caixa de entrada em conversa — migration 136)
+1. **Uma conversa por empresa**, como um grupo: a lista à esquerda (empresa, última mensagem, pessoas, não lidas) e a conversa à direita, com as mensagens de **todas as pessoas** daquela empresa em ordem de tempo; cada mensagem mostra **quem enviou e o canal** (WhatsApp, LinkedIn, Instagram, e-mail) e a **intenção** (positiva, objeção, adiar, neutra) como etiqueta na última recebida de cada pessoa. No celular, uma tela por vez ("Voltar para a lista").
+2. A leitura usa as tabelas e a visibilidade de sempre (RLS): BDR vê só as próprias conexões; C-level, estrategista e superadmin leem. Continuam o aviso "Só entra quem está no CRM" e as conexões pessoais.
+3. **Responder**: a pessoa escolhe **a pessoa e o canal** (não é grupo de verdade). A resposta passa pelo **caminho de envio que já existe**: a mesma política (`hermes_evaluate_action`: papel, dono do dado, aprovação, créditos), o mesmo preço e reserva do envio da cadência (4 créditos) e o **mesmo serviço `cadencia`** que envia pelo canal de mensagens (no máximo um envio por resposta; resultado incerto fica para conferência). A mensagem enviada entra na conversa. Falha devolve o crédito e avisa quem respondeu.
+4. **Só quem conectou a conta responde por ela** (gestores leem, mas não falam pela conta do BDR). **LinkedIn e Instagram ainda não enviam pelo nosso canal**: a tela explica e manda responder pelo app (a mensagem aparece na conversa).
+5. **A resposta automática da IA continua como está** (cadência/harness); "Sugerir resposta" (Lia) e "Excluir contato do CRM" seguem na conversa.
+6. Não foi instalado nenhum pacote: o visual de chat (inspirado no `chat-2` do ReactBits Pro) foi feito com as classes que o protótipo já tem (`msg`, `bubble`), por regra no `patches.mjs`.
+
 ## Consequências
-- Testes: pgTAP `00087_copiloto_assistente.sql` (35), serviço (`src/server/copiloto/`), serviço da tela e tela (`copiloto.tela.test.tsx`, reescrito: o antigo testava a execução que ninguém processava).
+- Testes: pgTAP `00087_copiloto_assistente.sql` (35) e `00088_caixa_em_conversa.sql` (35), serviço (`src/server/copiloto/`), serviço da tela e tela (`copiloto.tela.test.tsx`, reescrito: o antigo testava a execução que ninguém processava).
+- Caixa: serviço `caixa.ts` (agrupamento por empresa, testado com isolamento), `src/server/cadencia/respostas.ts` (envio), `caixa.tela.test.tsx` reescrito para a conversa.
 - `docker-compose.yml` ganhou o contêiner `copiloto` (`docker/Dockerfile.copiloto`); o gateway exporta `conversar` para o Copiloto reaproveitar a mesma lógica (sem abrir rota nova).
 
 ## Limites conhecidos
+- Caixa: resposta que passa do teto de créditos cai em Aprovações pela política geral, mas a aprovação não reenvia sozinha (a pessoa envia de novo depois). Na prática não acontece com 4 créditos e o teto padrão de 500.
+- Caixa: envio por WhatsApp ainda não foi confirmado contra a Unipile real (mesma ressalva do motor de cadência).
 - O Copiloto não navega sozinho para uma tela: ele diz onde fica (a lista de telas vai no texto do sistema).
 - Não foi testado contra um modelo real neste ambiente (sem chave); a cadeia foi testada com modelo falso.

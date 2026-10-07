@@ -143,6 +143,9 @@ O contêiner `enriquecimento` completa sozinho cada conta nova: site, logo, CNPJ
 - **Contas que já existiam** não entram sozinhas na fila; um gestor pede o enriquecimento pela função `account_enrichment_request`.
 - **Pessoa pediu para sair (LGPD):** `contact_suppress` apaga o contato e guarda os dados dele numa lista de supressão, para o enriquecimento nunca recriá-lo.
 
+## Respostas da Caixa de entrada (ADR 0068)
+O contêiner `cadencia` também envia as respostas escritas na Caixa de entrada (e-mail e WhatsApp, pela conta de quem respondeu), com a mesma chave da Unipile. Sem chave, as respostas esperam reservadas. Log: `docker compose logs -f cadencia` (linhas `caixa_respostas`). Resposta com resultado incerto fica "enviando" e aparece no log como `resposta_incerta_conferir`: confira no app antes de reenviar.
+
 ## Copiloto (ADR 0068)
 O contêiner `copiloto` responde às perguntas que cada pessoa faz no painel do Copiloto. Ele lê do banco os números do cliente (contas, negócios, aprovações, créditos para quem pode ver), chama o modelo de IA com as mesmas chaves do cofre do gateway e grava a resposta. Quando o pedido é trabalho, a resposta indica o agente e mostra o botão para abrir a conversa com ele. **Não gasta crédito** (limite de 60 perguntas por pessoa por dia). Sem cofre ou sem modelo cadastrado em Fornecedores, a pessoa vê "Não consegui responder agora: ..." com o motivo.
 - **Ver o que está acontecendo:** `docker compose logs -f copiloto` (só números).
