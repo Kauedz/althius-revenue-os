@@ -26,7 +26,7 @@ describe('interpretar: avisos da v1', () => {
   });
   it('WhatsApp e Instagram usam o id do provedor; canal desconhecido é ignorado', () => {
     expect(interpretar(msgLinkedin({ account_type: 'WHATSAPP', sender: { attendee_provider_id: '5511900000001@s.whatsapp.net' } }))).toMatchObject({ canal: 'whatsapp', remetentes: ['5511900000001@s.whatsapp.net'] });
-    expect(interpretar(msgLinkedin({ account_type: 'INSTAGRAM' }))).toMatchObject({ canal: 'instagram' });
+    expect(interpretar(msgLinkedin({ account_type: 'INSTAGRAM', sender: { attendee_provider_id: '178414', attendee_profile_url: 'https://www.instagram.com/maria.teste' } }))).toMatchObject({ canal: 'instagram', remetentes: ['https://www.instagram.com/maria.teste', '178414'] });
     expect(interpretar(msgLinkedin({ account_type: 'TELEGRAM' }))).toEqual({ tipo: 'ignorar', motivo: 'canal_nao_suportado' });
   });
   it('mensagem da própria conta, grupo, evento e outros eventos de mensagem não entram', () => {

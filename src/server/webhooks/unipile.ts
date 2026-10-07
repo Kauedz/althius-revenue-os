@@ -221,7 +221,10 @@ export function interpretarV1(e: Record<string, unknown>): EventoUnipile {
     // No LinkedIn o CRM guarda o identificador público (ou o endereço do perfil); nos demais, o id do provedor.
     const remetentes = canal === 'linkedin'
       ? lista(remetente?.attendee_public_identifier, remetente?.attendee_profile_url, remetente?.attendee_provider_id, remetente?.attendee_id)
-      : lista(remetente?.attendee_provider_id, remetente?.attendee_id);
+      : canal === 'instagram'
+        // Instagram: o CRM guarda o @usuário; o aviso traz o endereço do perfil e o id numérico (o banco reduz o endereço ao usuário).
+        ? lista(remetente?.attendee_public_identifier, remetente?.attendee_profile_url, remetente?.attendee_provider_id, remetente?.attendee_id)
+        : lista(remetente?.attendee_provider_id, remetente?.attendee_id);
     const mensagemId = texto(e.message_id);
     const chat = texto(e.chat_id);
     if (!remetentes.length || !mensagemId || !chat) return { tipo: 'ignorar', motivo: 'payload_incompleto' };

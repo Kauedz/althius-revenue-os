@@ -1,9 +1,10 @@
 # Motor de cadência (worker). Só Node: sem dependências, sem build. Roda o TypeScript direto (Node 22.18+).
-# Copia as pastas inteiras (o principal importa de ../unipile e ../cofre).
+# Copia as pastas inteiras (o principal importa de ../unipile, ../cofre e ../conexoes).
 FROM node:22-alpine
 WORKDIR /app
 COPY src/server/cadencia ./src/server/cadencia
 COPY src/server/unipile ./src/server/unipile
 COPY src/server/cofre ./src/server/cofre
+COPY src/server/conexoes ./src/server/conexoes
 USER node
 CMD ["node", "src/server/cadencia/principal.ts"]

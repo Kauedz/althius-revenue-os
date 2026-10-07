@@ -6,12 +6,14 @@
 //   $env:UNIPILE_API_URL = "https://api68.unipile.com:19840"      (o endereço do seu painel; a v1 é deduzida dele)
 //   npm run unipile:conferir
 //   npm run unipile:conferir -- --link linkedin
-//   npm run unipile:conferir -- --enviar --canal linkedin --conta <id da conta> --chat <id do chat> --texto "teste"
+//   npm run unipile:conferir -- --enviar --canal linkedin --conta <id da conta> --chat <id do chat> --texto "teste"      (também instagram)
+//   npm run unipile:conferir -- --enviar --canal whatsapp --conta <id> --destino "+55 11 90000-0000" --texto "teste"
+//   npm run unipile:conferir -- --enviar --canal email --conta <id> --destino pessoa@exemplo.com --assunto "Teste" --texto "teste"
 import { parseArgs } from 'node:util';
 import { baseDaApi, lerConfig, versaoDaApi } from '../../src/server/unipile/config.ts';
 import { mensageiroViaApi } from '../../src/server/cadencia/envio.ts';
 
-const { values: a } = parseArgs({ options: { enviar: { type: 'boolean' }, link: { type: 'string' }, conta: { type: 'string' }, chat: { type: 'string' }, texto: { type: 'string' }, canal: { type: 'string' } } });
+const { values: a } = parseArgs({ options: { enviar: { type: 'boolean' }, link: { type: 'string' }, conta: { type: 'string' }, chat: { type: 'string' }, destino: { type: 'string' }, assunto: { type: 'string' }, texto: { type: 'string' }, canal: { type: 'string' } } });
 const cfg = lerConfig();
 if (!cfg.apiKey) { console.error('Falta a chave: defina UNIPILE_API_KEY no ambiente (ela não é impressa).'); process.exit(1); }
 const v1 = versaoDaApi(cfg) === 'v1';
@@ -37,9 +39,10 @@ if (a.link) {
 }
 
 if (a.enviar) {
-  if (!a.conta || !a.chat || !a.texto) { console.error('Para enviar: --conta, --chat e --texto.'); process.exit(1); }
-  const canal = a.canal === 'instagram' ? 'instagram' : 'linkedin';
-  const r = await mensageiroViaApi(() => cfg).enviar({ contaExterna: a.conta, canal, destinatario: a.chat, assunto: null, texto: a.texto, chaveIdempotencia: 'conferir-' + Date.now(), chatId: a.chat });
+  const canal = ['instagram', 'whatsapp', 'email'].includes(a.canal) ? a.canal : 'linkedin';
+  const dentroDoChat = canal === 'linkedin' || canal === 'instagram';
+  if (!a.conta || !a.texto || (dentroDoChat ? !a.chat : !a.destino)) { console.error(dentroDoChat ? 'Para enviar: --conta, --chat e --texto.' : 'Para enviar: --conta, --destino e --texto.'); process.exit(1); }
+  const r = await mensageiroViaApi(() => cfg).enviar({ contaExterna: a.conta, canal, destinatario: dentroDoChat ? a.chat : a.destino, assunto: canal === 'email' ? (a.assunto ?? '') : null, texto: a.texto, chaveIdempotencia: 'conferir-' + Date.now(), chatId: dentroDoChat ? a.chat : null });
   console.log(r.ok ? `Enviado (mensagem ${r.mensagemId ?? 'sem id'}).` : `Não enviou: ${r.erro} (${r.definitivo ? 'recusado, nada saiu' : 'incerto, confira no app'}).`);
   process.exit(r.ok ? 0 : 2);
 }
