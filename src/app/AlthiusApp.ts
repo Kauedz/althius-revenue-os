@@ -37,7 +37,7 @@ import { pedirAoCopiloto } from './servicos/copiloto';
 import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla } from './servicos/notificacoes';
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 import { avisoDeColeta, listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
-import { listarProspeccao, prospeccaoSemDados, type ProspeccaoTela } from './servicos/prospeccao';
+import { decidirCandidatas, listarProspeccao, prospeccaoVazia, type LinhaCandidata, type ProspeccaoTela } from './servicos/prospeccao';
 import { arquivarNegocio, atualizarNegocio, criarNegocio, criarQuadro, excluirQuadro, levarContasAoQuadro, listarPipeline, moverNegocio, MOTIONS, pipelineVazio, reordenarEtapas, renomearQuadro, type Motion, type PipelineTela, type Resultado } from './servicos/pipeline';
 import { adiarTarefa, criarTarefa, listarTarefas, mudarStatusTarefa, tarefasVazias, type TarefasTela } from './servicos/tarefas';
 import { CANAIS_CAMPANHA, campanhasVazias, criarCampanha, listarCampanhas, mudarStatusCampanha, mudarVerba, type CampanhasTela } from './servicos/campanhas';
@@ -61,7 +61,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     super(props);
     const relatoriosReais = relatorioSemDados();
     const sinaisReais = sinaisSemDados();
-    const prospeccaoReais = prospeccaoSemDados();
+    const prospeccaoReais = prospeccaoVazia();
     this.state = { ...this.state, relatoriosReais, sinaisReais, prospeccaoReais };
     this.publicarRelatorios(relatoriosReais);
     this.publicarSinais(sinaisReais);
@@ -149,7 +149,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarContas([]);
     this.publicarRelatorios(relatorioSemDados());
     this.publicarSinais(sinaisSemDados());
-    this.publicarProspeccao(prospeccaoSemDados());
+    this.publicarProspeccao(prospeccaoVazia());
     this.publicarAprendizados({}, {});
     this.publicarCaixa(null);
     this.publicarTarefas(null);
@@ -190,7 +190,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const carga = ++this.cargaWorkspace;
     const relatoriosVazios = relatorioSemDados();
     const sinaisVazios = sinaisSemDados();
-    const prospeccaoVazios = prospeccaoSemDados();
+    const prospeccaoVazios = prospeccaoVazia();
     this.publicarContas([]);
     this.publicarRelatorios(relatoriosVazios);
     this.publicarSinais(sinaisVazios);
@@ -787,18 +787,77 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   carregarProspeccao(): Promise<ProspeccaoTela> {
     const ws = this.workspaceAtual();
-    return ws ? listarProspeccao(this.props.supabase, ws.uuid) : Promise.resolve(prospeccaoSemDados());
+    return ws ? listarProspeccao(this.props.supabase, ws.uuid) : Promise.resolve(prospeccaoVazia());
   }
 
-  /** Substitui as listas fictícias da página de Prospecção pelas do banco. Somente leitura. */
+  /**
+   * Página de Prospecção (ADR 0067): as candidatas que as buscas da Zoe trouxeram, no lugar das listas do protótipo.
+   * Novas buscas se pedem à Zoe (ela diz o custo antes). Incluir e excluir só para quem decide prospecção.
+   */
   private publicarProspeccao(tela: ProspeccaoTela) {
     if (typeof window === 'undefined') return;
     const mod = (window as any).ALTHIUS_MOD;
     if (!mod?.prospecting) return;
-    mod.prospecting.kpis = tela.kpis.map(k => [k.label, k.valor, k.delta]);
-    mod.prospecting.linhas = tela.listas;
-    mod.prospecting.acoesLinha = [];
-    mod.prospecting.acao = null;
+    const decide = this.podeNoWorkspace('prospecting.approve');
+    mod.prospecting.sub = tela.buscas.length
+      ? 'Buscas recentes: ' + tela.buscas.slice(0, 3).join(' · ') + '.'
+      : 'Peça à Zoe uma busca de empresas novas: ela diz quanto custa antes de rodar. O que ela trouxer aparece aqui para incluir ou excluir.';
+    mod.prospecting.colunas = [['nome', 'Empresa', '2fr'], ['site', 'Site', '1.4fr'], ['local', 'Cidade', '1fr'], ['categoria', 'Ramo', '1fr'], ['busca', 'Busca', '1.6fr'], ['status', 'Situação', '1fr']];
+    mod.prospecting.filtro = 'status';
+    mod.prospecting.busca = true;
+    mod.prospecting.kpis = tela.kpis;
+    mod.prospecting.linhas = tela.linhas;
+    mod.prospecting.acoesLinha = decide ? [['Incluir', ''], ['Excluir', '', null, true, '{x} sai das candidatas. O crédito da busca já foi gasto e não volta.']] : [];
+    mod.prospecting.acao = { label: 'Pedir à Zoe' };
+  }
+
+  private async recarregarProspeccao() {
+    try {
+      const tela = await this.carregarProspeccao();
+      if (!this.vivo) return;
+      this.publicarProspeccao(tela);
+      this.setState({ prospeccaoReais: tela });
+    } catch (falha) {
+      if (this.vivo) this.avisarFalha('Não foi possível carregar a prospecção', falha);
+    }
+  }
+
+  private async decidirProspeccao(ids: string[], acao: 'incluir' | 'excluir', dominios: Record<string, string> = {}) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return { ok: false as const, mensagem: 'Você não participa deste workspace como membro.' };
+    const r = await decidirCandidatas(this.props.supabase, ws.uuid, ws.membroId, ids, acao, dominios);
+    if (r.ok) {
+      await this.recarregarProspeccao();
+      if (r.incluidas + r.ligadas > 0) {
+        const contas = await this.carregarContas().catch(() => null);
+        if (contas && this.vivo) { this.publicarContas(contas); this.setState({ contas }); }
+      }
+    }
+    return r;
+  }
+
+  private async acaoNaCandidata(acao: string, linha: LinhaCandidata) {
+    if (acao === 'Incluir' && linha.semSite) {
+      return this.abrirFormulario({ tipo: 'site_candidata', id: linha.id, titulo: 'Site de ' + linha.nome, salvarLabel: 'Incluir como conta',
+        campos: [{ k: 'site', label: 'Site da empresa', valor: '', placeholder: 'empresa.com.br (a fonte não trouxe o site)' }] });
+    }
+    if (acao !== 'Incluir' && acao !== 'Excluir') return;
+    const r = await this.decidirProspeccao([linha.id], acao === 'Incluir' ? 'incluir' : 'excluir');
+    if (!r.ok) return this.confirmar('Candidata não atualizada', r.mensagem, 'Entendi', () => {});
+    if (acao === 'Excluir') return this.avisar('mod', r.excluidas ? 'Candidata excluída.' : 'Essa candidata já tinha sido decidida.');
+    if (!r.incluidas && !r.ligadas) return this.avisar('mod', r.semSite ? 'A fonte não trouxe o site: informe o site para incluir.' : 'Essa candidata já tinha sido decidida.');
+    this.avisar('mod', r.ligadas ? 'Esse site já era uma conta: a candidata foi ligada a ela.' : 'Conta criada. O enriquecimento completa CNPJ, endereço e pessoas sozinho.');
+  }
+
+  private async incluirTodasComSite() {
+    const linhas = (((window as any).ALTHIUS_MOD || {}).prospecting?.linhas || []) as LinhaCandidata[];
+    const ids = linhas.filter(l => l.status === 'Candidata' && !l.semSite).map(l => l.id);
+    if (!ids.length) return this.confirmar('Nada para incluir', 'Nenhuma candidata com site esperando decisão.', 'Entendi', () => {});
+    const r = await this.decidirProspeccao(ids, 'incluir');
+    if (!r.ok) return this.confirmar('Candidatas não incluídas', r.mensagem, 'Entendi', () => {});
+    const partes = [r.incluidas + (r.incluidas === 1 ? ' conta criada' : ' contas criadas')];
+    if (r.ligadas) partes.push(r.ligadas + ' já eram contas');
+    this.avisar('mod', partes.join('; ') + '. O enriquecimento completa o resto sozinho.');
   }
 
   // ---- Agentes (Claude)
@@ -1008,6 +1067,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (rota.page === 'inbox') void this.carregarCaixa();
     if (rota.page === 'pipeline') void this.carregarPipeline();
     if (rota.page === 'tasks') void this.carregarTarefas();
+    if (rota.page === 'prospecting' && !(this.state.pronto && !prev.pronto)) void this.recarregarProspeccao();
     if (rota.page === 'campaigns') void this.carregarCampanhas();
     if (rota.page === 'strategy') void this.carregarEstrategia();
     if (rota.page === 'cadences') void this.carregarCadencias();
@@ -1412,7 +1472,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   private formularioDoModulo(v: Record<string, any>) {
     const f = this.state.formModulo as { tipo: string; titulo: string; salvarLabel: string; erro: string; campos: Array<Record<string, any>> } | undefined;
     const pagina = (this.state.rota || {}).page;
-    if (!f || !v.md || !['campaigns', 'cadences', 'admin/providers', 'accounts', 'pipeline'].includes(pagina)) return;
+    if (!f || !v.md || !['campaigns', 'cadences', 'admin/providers', 'accounts', 'pipeline', 'prospecting'].includes(pagina)) return;
     v.md.form = {
       titulo: f.titulo,
       campos: f.campos.map(c => ({
@@ -1444,6 +1504,14 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const falhou = (erro: string) => this.setState({ formModulo: Object.assign({}, this.state.formModulo, { erro }) });
     const sb = this.props.supabase;
     if (f.tipo === 'nova_conta' || f.tipo === 'importar_contas' || f.tipo === 'levar_contas') return this.enviarFormularioDeLeads(f, val, falhou);
+    if (f.tipo === 'site_candidata') {
+      if (!normalizarDominio(val('site'))) return falhou('Informe só o site da empresa, como empresa.com.br.');
+      const r = await this.decidirProspeccao([f.id!], 'incluir', { [f.id!]: val('site') });
+      if (!r.ok) return falhou(r.mensagem);
+      if (!this.vivo) return;
+      this.setState({ formModulo: undefined });
+      return this.avisar('mod', r.ligadas ? 'Esse site já era uma conta: a candidata foi ligada a ela.' : 'Conta criada. O enriquecimento completa CNPJ, endereço e pessoas sozinho.');
+    }
     const verba = AlthiusApp.numeroBR(val('verba'));
     if (Number.isNaN(verba)) return falhou('Informe a verba só com números.');
 
@@ -1568,6 +1636,10 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     }
     if (page === 'cadences') {
       void this.acaoNaCadencia(acao, linha as any);
+      return true;
+    }
+    if (page === 'prospecting') {
+      void this.acaoNaCandidata(acao, linha as LinhaCandidata);
       return true;
     }
     return false;
@@ -1814,6 +1886,11 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       v.md.acao2Label = 'Importar lista';
       v.md.acao2 = () => this.abrirImportarContas();
     }
+    if (v.md && pagina === 'prospecting') {
+      v.md.temAcao2 = this.podeNoWorkspace('prospecting.approve') && (v.md.linhas?.length ?? 0) > 0;
+      v.md.acao2Label = 'Incluir todas com site';
+      v.md.acao2 = () => void this.incluirTodasComSite();
+    }
     if (v.md && pagina === 'pipeline') {
       v.md.temAcao2 = this.podeNoWorkspace('pipeline.deals');
       v.md.acao2Label = 'Adicionar contas da base';
@@ -1837,6 +1914,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   acaoDaPaginaReal(page: string): boolean {
     if (page === 'accounts') { this.abrirNovaConta(); return true; }
+    if (page === 'prospecting') { this.ir('app/' + this.wsId() + '/agents/comercial'); return true; }
     if (page === 'campaigns') {
       this.abrirFormulario({ tipo: 'nova_campanha', titulo: 'Nova campanha', salvarLabel: 'Criar campanha', campos: [
         { k: 'nome', label: 'Nome da campanha', valor: '', placeholder: 'Ex.: Importação sem risco · Q4' },

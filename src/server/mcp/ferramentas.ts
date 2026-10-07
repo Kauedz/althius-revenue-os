@@ -143,6 +143,9 @@ export interface FonteProposta {
   descricao?: string;
 }
 export interface PedidoReceitaSinal { sinal: string; fontes: FonteProposta[]; motivo: string }
+/** Prospecção (ADR 0067): estimativa de uma busca de empresas novas. O banco confere fonte, parâmetros e que é a Zoe. */
+export interface PedidoEstimativa { fonte: string; parametros: Record<string, string>; max_empresas: number }
+export interface ResultadoEstimativa { ok: boolean; erro?: string; estimativa_id?: string; creditos?: number; aviso?: string; [campo: string]: unknown }
 export interface PedidoTesteFonte { sinal: string; conta_id: string; ator: string; entrada: Record<string, unknown>; mapeamento?: Record<string, unknown>; max_itens?: number }
 
 /** Onde fica o serviço de integrações (a ponte com os apps conectados, ADR 0058). Sem isto, as ferramentas de app avisam que não estão ligadas. */
@@ -164,6 +167,11 @@ export interface FerramentasAgente {
   testarFonte(pedido: PedidoTesteFonte): Promise<RespostaPonte>;
   proporReceitaDeSinal(pedido: PedidoReceitaSinal): Promise<ResultadoProposta>;
   listarSinais(filtro?: FiltroSinais): Promise<SinalAgente[]>;
+  /** Prospecção (ADR 0067): só a Zoe estima e roda (o banco confere); estimar não gasta, rodar exige estimativa e pedido de uma pessoa. */
+  fontesDeProspeccao(): Promise<unknown[]>;
+  buscasDeProspeccao(): Promise<unknown[]>;
+  estimarProspeccao(pedido: PedidoEstimativa): Promise<ResultadoEstimativa>;
+  rodarProspeccao(estimativaId: string): Promise<ResultadoEstimativa>;
   listarCampanhas(): Promise<CampanhaAgente[]>;
   proporCampanha(pedido: PedidoCampanha): Promise<ResultadoProposta>;
   proporVerba(pedido: PedidoVerba): Promise<ResultadoProposta>;
@@ -422,6 +430,32 @@ export function ferramentasDoAgente(cliente: SupabaseClient, token: string, pont
       });
       if (error) throw erroDoBanco(error, 'Não foi possível registrar a proposta de fonte.');
       return data as ResultadoProposta;
+    },
+
+    async fontesDeProspeccao() {
+      const { data, error } = await cliente.rpc('agent_prospect_sources', { p_token: token });
+      if (error) throw erroDoBanco(error, 'Não foi possível ler as fontes de prospecção.');
+      return (data || []) as unknown[];
+    },
+    async buscasDeProspeccao() {
+      const { data, error } = await cliente.rpc('agent_prospect_searches', { p_token: token });
+      if (error) throw erroDoBanco(error, 'Não foi possível ler as buscas de prospecção.');
+      return (data || []) as unknown[];
+    },
+    async estimarProspeccao(p) {
+      const { data, error } = await cliente.rpc('agent_prospect_estimate', {
+        p_token: token, p_source_code: p.fonte, p_parametros: p.parametros ?? {}, p_max_empresas: p.max_empresas
+      });
+      if (error) throw erroDoBanco(error, 'Não foi possível estimar a busca.');
+      return data as ResultadoEstimativa;
+    },
+    async rodarProspeccao(estimativaId) {
+      const { data, error } = await cliente.rpc('agent_prospect_run', { p_token: token, p_estimativa_id: estimativaId });
+      if (error) {
+        if (error.code === '22P02') return { ok: false, erro: 'Estimativa não encontrada: use o estimativa_id que prospeccao_estimar devolveu.' };
+        throw erroDoBanco(error, 'Não foi possível pedir a busca.');
+      }
+      return data as ResultadoEstimativa;
     },
 
     async listarSinais(filtro) {

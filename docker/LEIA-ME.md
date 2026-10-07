@@ -142,3 +142,19 @@ O contêiner `enriquecimento` completa sozinho cada conta nova: site, logo, CNPJ
   Regra (ADR 0062): se `custo_sobre_cobrado` passar de 0,5, subir o preço ou tirar a leitura de perfis; se ficar abaixo de 0,2, dá para baixar o preço.
 - **Contas que já existiam** não entram sozinhas na fila; um gestor pede o enriquecimento pela função `account_enrichment_request`.
 - **Pessoa pediu para sair (LGPD):** `contact_suppress` apaga o contato e guarda os dados dele numa lista de supressão, para o enriquecimento nunca recriá-lo.
+
+## Prospecção (ADR 0067)
+O contêiner `prospeccao` roda as buscas de empresas novas que a Zoe estimou e uma pessoa pediu (ou que o C-level aprovou, quando passam do teto). O banco reserva o crédito máximo antes; o contêiner roda a fonte na Apify (chaves do cofre, tela de Fornecedores) com o teto do pedido e entrega as empresas, que aparecem como **candidatas** na página Prospecção. Cobra-se só por empresa nova (repetida não cobra); o resto da reserva volta. Falha devolve tudo e tenta de novo depois de 30 minutos (até 3 vezes). Sem chave da Apify, a busca falha com aviso claro e o crédito volta.
+- **Fontes:** ficam na tabela `internal.prospect_sources` (Google Maps e Receita Federal por CNAE, para começar). Fonte nova é um registro novo (ator, entrada com `{{variáveis}}` e mapeamento dos campos), sem código. Fonte de pessoas (B2C) não roda (LGPD).
+- **Ver o que está acontecendo:** `docker compose logs -f prospeccao` (só números).
+- **Variáveis (todas opcionais, no `.env`):**
+  - `PROSP_INTERVALO_MINUTOS` (padrão 2): de quanto em quanto tempo olha a fila.
+  - `PROSP_BUSCAS_POR_RODADA` (padrão 5): quantas buscas pega por vez (roda uma de cada vez).
+  - `PROSP_PRAZO_SEGUNDOS` (padrão 300): prazo de cada execução do ator.
+- **Custo:** o preço (1 crédito por empresa nova) é provisório. O custo real de cada busca fica em `internal.prospect_search_costs` (só o superadmin vê). **Para medir**, depois de 5 a 10 buscas reais:
+  ```sql
+  select s.source_code, count(*) as buscas, sum(s.encontradas) as empresas, round(sum(c.custo_usd), 4) as custo_usd,
+         round(sum(internal.signal_teto_usd(s.creditos_cobrados)), 4) as cobrado_usd
+    from public.prospect_searches s join internal.prospect_search_costs c on c.search_id = s.id
+   where s.estado in ('concluida', 'sem_resultado') group by s.source_code;
+  ```

@@ -1,0 +1,10 @@
+# Prospecção (ADR 0067): roda na Apify as buscas que uma pessoa pediu à Zoe (Google Maps, Receita Federal...) e entrega
+# as empresas ao banco como candidatas. Só Node: sem dependências, sem build.
+# Copia as pastas inteiras (o principal importa de ../cofre e ../providers).
+FROM node:22-alpine
+WORKDIR /app
+COPY src/server/prospeccao ./src/server/prospeccao
+COPY src/server/providers ./src/server/providers
+COPY src/server/cofre ./src/server/cofre
+USER node
+CMD ["node", "src/server/prospeccao/principal.ts"]

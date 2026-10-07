@@ -71,7 +71,11 @@ export const POLITICA_DAS_FERRAMENTAS: Readonly<Record<string, Politica>> = {
   sinais_buscar_fontes: { tipo: 'leitura' },
   sinais_detalhar_fonte: { tipo: 'leitura' },
   sinais_testar_fonte: { tipo: 'acao_externa' },
-  sinais_propor_receita: { tipo: 'proposta' }
+  sinais_propor_receita: { tipo: 'proposta' },
+  prospeccao_fontes: { tipo: 'leitura' },
+  prospeccao_buscas: { tipo: 'leitura' },
+  prospeccao_estimar: { tipo: 'proposta' },
+  prospeccao_rodar: { tipo: 'acao_externa' }
 };
 
 /** O que fica registrado de cada chamada. Só números e nomes. */
