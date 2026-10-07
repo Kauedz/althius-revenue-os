@@ -28,6 +28,8 @@ INSERT INTO public.accounts (id, workspace_id, name, domain, status) VALUES
   ('c7700000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'CANARIO-SA-E1', 'canario-e1.test', 'ativa'),
   ('c7700000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'CANARIO-SA-E2', 'canario-e2.test', 'arquivada'),
   ('c7700000-0000-0000-0000-000000000003', 'b0000000-0000-0000-0000-000000000001', 'CANARIO-SA-G1', 'canario-g1.test', 'ativa');
+-- Spec prospeccao-revenue (ADR 0066): a coleta automática só roda nas contas monitoradas; as de teste são marcadas.
+UPDATE public.accounts SET monitorar_sinais = true WHERE name LIKE 'CANARIO-%';
 UPDATE public.accounts SET status = 'arquivada' WHERE name NOT LIKE 'CANARIO-SA-%';
 INSERT INTO public.credit_wallets (workspace_id, allowance_balance, topup_balance, reserved_balance, allowance_expires_at)
   VALUES ('a0000000-0000-0000-0000-000000000001', 1000, 0, 0, now() + interval '20 days'),

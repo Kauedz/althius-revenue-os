@@ -32,6 +32,8 @@ export interface ContaTela {
   uf?: string | null;
   /** Ponto no mapa (do enriquecimento ou digitado). `aprox`: só a cidade é conhecida. Nulo: sem coordenada. */
   geo?: { lat: number; lng: number; aprox: boolean } | null;
+  /** Marcada à mão para a coleta automática de sinais (ADR 0066). Conta com negócio ou cadência ativa é monitorada sem marca. */
+  monitorar?: boolean;
   /** Texto pronto da coluna "Último contato" (das nossas mensagens). Sem mensagem: "Sem contato ainda". */
   ultimoContato: string;
   comite?: ContatoComiteTela[];
@@ -72,7 +74,7 @@ export function textoUltimoContato(
 export async function listarContas(cliente: SupabaseClient, workspaceId: string): Promise<ContaTela[]> {
   const { data, error } = await cliente
     .from('accounts')
-    .select('id, name, domain, logo_url, segment, fit, temperature, last_signal_text, owner_member_id, city, state_uf, status, lat, lng, localizacao_precisao')
+    .select('id, name, domain, logo_url, segment, fit, temperature, last_signal_text, owner_member_id, city, state_uf, status, lat, lng, localizacao_precisao, monitorar_sinais')
     .eq('workspace_id', workspaceId)
     .eq('status', 'ativa')
     .order('fit', { ascending: false });
@@ -170,6 +172,7 @@ export async function listarContas(cliente: SupabaseClient, workspaceId: string)
       logoUrl: a.logo_url,
       uf: a.state_uf || null,
       geo: geoDaConta(a),
+      monitorar: Boolean(a.monitorar_sinais),
       ultimoContato: textoUltimoContato(ultimoPorConta.has(a.id)
         ? { quando: ultimoPorConta.get(a.id)!.last_contact_at, direcao: ultimoPorConta.get(a.id)!.last_direction, canal: ultimoPorConta.get(a.id)!.last_channel }
         : null),
@@ -382,4 +385,11 @@ export function contasDeCsv(texto: string): ResultadoLeituraContasCsv {
 
   if (registros.length === 0) problemas.push('nenhuma conta no arquivo');
   return { contas, problemas };
+}
+
+/** Marca (ou tira a marca de) uma conta para a coleta automática de sinais. Mesma regra de editar conta: BDR só as dele. */
+export async function definirMonitoramento(cliente: SupabaseClient, workspaceId: string, membroId: string, contaId: string, monitorar: boolean): Promise<{ ok: true } | { ok: false; mensagem: string }> {
+  const { error } = await cliente.rpc('account_set_monitoring', { p_workspace_id: workspaceId, p_member_id: membroId, p_account_id: contaId, p_monitorar: monitorar });
+  if (!error) return { ok: true };
+  return { ok: false, mensagem: error.code === '42501' && error.message ? error.message : 'Não foi possível mudar o monitoramento. Tente de novo.' };
 }

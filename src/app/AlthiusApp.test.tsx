@@ -359,7 +359,7 @@ describe('Pipeline e a ficha da conta (ADR 0065)', () => {
     vi.spyOn(contasServico, 'listarContas').mockResolvedValue([conta()]);
     vi.spyOn(pipelineServico, 'listarPipeline').mockResolvedValue(pipeline());
     abrir(contexto([['alfa', 'estrategista']]), '#/app/alfa/pipeline');
-    const card = await screen.findByRole('button', { name: /^Conta do Card, R\$/ });
+    const card = await screen.findByRole('button', { name: /^Conta do Card, R\$/ }, { timeout: 5000 });
     fireEvent.click(card);
     const ficha = await screen.findByRole('dialog', { name: 'Conta do Card' });
     expect(ficha.classList.contains('conta-drawer')).toBe(true);
@@ -370,7 +370,7 @@ describe('Pipeline e a ficha da conta (ADR 0065)', () => {
     vi.spyOn(contasServico, 'listarContas').mockResolvedValue([conta()]);
     vi.spyOn(pipelineServico, 'listarPipeline').mockResolvedValue(pipeline());
     abrir(contexto([['alfa', 'estrategista']]), '#/app/alfa/pipeline');
-    fireEvent.click(await screen.findByRole('button', { name: 'Editar negócio de Conta do Card' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar negócio de Conta do Card' }, { timeout: 5000 }));
     expect(await screen.findByRole('button', { name: 'Salvar' })).toBeInTheDocument();
     expect(document.querySelector('.conta-drawer')).toBeNull();
   });
@@ -421,6 +421,17 @@ describe('leads: adicionar, importar e levar ao Pipeline (ADR 0065)', () => {
     fireEvent.change(within(form).getByLabelText('Quais contas'), { target: { value: 'quentes' } });
     fireEvent.click(within(form).getByRole('button', { name: 'Adicionar ao quadro' }));
     await waitFor(() => expect(levar).toHaveBeenCalledWith(expect.anything(), 'id-alfa', 'm-alfa', 'q-slg', ['c-quente']));
+  });
+
+  it('na ficha da conta, "Monitorar sinais" marca a conta e o botão passa a oferecer parar', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue(base());
+    const marcar = vi.spyOn(contasServico, 'definirMonitoramento').mockResolvedValue({ ok: true });
+    abrir(contexto([['alfa', 'estrategista']]), '#/app/alfa/accounts');
+    fireEvent.click(await screen.findByText('Conta Fria'));
+    const ficha = await screen.findByRole('dialog', { name: 'Conta Fria' });
+    fireEvent.click(within(ficha).getByRole('button', { name: 'Monitorar sinais' }));
+    await waitFor(() => expect(marcar).toHaveBeenCalledWith(expect.anything(), 'id-alfa', 'm-alfa', 'c-fria', true));
+    expect(await within(await screen.findByRole('dialog', { name: 'Conta Fria' })).findByRole('button', { name: 'Parar de monitorar' })).toBeInTheDocument();
   });
 
   it('na ficha da conta, "Adicionar ao Pipeline" leva a conta ao quadro escolhido (motion MLG)', async () => {

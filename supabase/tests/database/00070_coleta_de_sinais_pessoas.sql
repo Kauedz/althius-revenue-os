@@ -27,6 +27,8 @@ INSERT INTO public.accounts (workspace_id, name, domain, status, linkedin_compan
   ('a0000000-0000-0000-0000-000000000001', 'CANARIO-COM', 'canario-com.test', 'ativa', 'Canario Nome Linkedin', 'https://www.linkedin.com/company/canario-com'),
   ('a0000000-0000-0000-0000-000000000001', 'CANARIO-SEM', 'canario-sem.test', 'ativa', NULL, NULL),
   ('b0000000-0000-0000-0000-000000000001', 'CANARIO-OUTRO', 'canario-outro.test', 'ativa', NULL, NULL);
+-- Spec prospeccao-revenue (ADR 0066): a coleta automática só roda nas contas monitoradas; as de teste são marcadas.
+UPDATE public.accounts SET monitorar_sinais = true WHERE name LIKE 'CANARIO-%';
 
 -- CANARIO-COM tem 7 contatos com LinkedIn (1 decisor, 2 campeões, 4 influenciadores) e 1 sem LinkedIn; CANARIO-SEM só e-mail.
 INSERT INTO public.contacts (workspace_id, account_id, name, buying_role)

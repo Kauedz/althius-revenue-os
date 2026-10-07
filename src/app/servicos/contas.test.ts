@@ -9,7 +9,8 @@ import {
   SEM_CONTATO,
   criarConta,
   editarConta,
-  importarContas
+  importarContas,
+  definirMonitoramento
 } from './contas';
 import { bancoLocalNoAr, entrarComoLocal } from '../../test/supabaseLocal';
 import { isolarContas } from '../../test/isolarContas';
@@ -154,6 +155,7 @@ describe('listarContas (unitário / mapeamento)', () => {
       logoUrl: 'https://acme.com/logo.png',
       uf: 'SP',
       geo: null,
+      monitorar: false,
       ultimoContato: 'Sem contato ainda',
       comite: [
         {
@@ -412,6 +414,18 @@ describe.skipIf(!bancoLocalNoAr)('Contas e leads (banco local)', () => {
     expect(resultado.total).toBe(2);
     expect(resultado.duplicadas).toBeGreaterThanOrEqual(1);
     expect(resultado.criadas).toBeGreaterThanOrEqual(1);
+  });
+
+  it('ADR 0066: marcar a conta para monitorar sinais (a tela lê a marca; o BDR só mexe nas dele)', async () => {
+    const aline = await entrarComoLocal('aline@evolut.com.br');
+    const antes = (await listarContas(aline, EVOLUT)).find(c => c.nome === 'Campo Belo Agro')!;
+    expect(antes.monitorar).toBe(false);
+    expect(await definirMonitoramento(aline, EVOLUT, MEMBRO_ALINE, antes.id, true)).toEqual({ ok: true });
+    expect((await listarContas(aline, EVOLUT)).find(c => c.id === antes.id)!.monitorar).toBe(true);
+    expect(await definirMonitoramento(aline, EVOLUT, MEMBRO_ALINE, antes.id, false)).toEqual({ ok: true });
+    const lucas = await entrarComoLocal('lucas@evolut.com.br');
+    const deOutro = (await listarContas(aline, EVOLUT)).find(c => c.nome === 'Metalúrgica Ipê')!;
+    expect(await definirMonitoramento(lucas, EVOLUT, MEMBRO_LUCAS, deOutro.id, true)).toEqual({ ok: false, mensagem: 'BDR só mexe nas contas em que é o responsável.' });
   });
 });
 

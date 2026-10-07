@@ -14,6 +14,7 @@ import {
   editarConta,
   importarContas,
   contasDeCsv,
+  definirMonitoramento,
   type ContaTela,
   type NovaContaInput,
   type EditarContaInput,
@@ -1791,6 +1792,18 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     return this.avisar('mod', partes.join('; ') + '.');
   }
 
+  private async alternarMonitoramento(contaId: string, monitorar: boolean) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await definirMonitoramento(this.props.supabase, ws.uuid, ws.membroId, contaId, monitorar);
+    if (!r.ok) return this.confirmar('Monitoramento não alterado', r.mensagem, 'Entendi', () => {});
+    if (!this.vivo) return;
+    const linha = (((window as any).ALTHIUS_MOD || {}).accounts?.linhas || []).find((c: ContaTela) => c.id === contaId);
+    if (linha) linha.monitorar = monitorar;
+    this.setState({ monitoramentoVersao: (this.state.monitoramentoVersao || 0) + 1 });
+    this.avisar('mod', monitorar ? 'Conta monitorada: os sinais dela passam a rodar sozinhos.' : 'Conta sem monitoramento manual.');
+  }
+
   /** Botões: "Adicionar conta" + "Importar lista" (Contas e leads), "Adicionar contas da base" (Pipeline), "Adicionar ao Pipeline" (ficha). */
   private acoesDeLeads(v: Record<string, any>) {
     if (this.modoDemo !== false) return;
@@ -1809,6 +1822,11 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (v.cta?.aberta) {
       const id = this.state.conta as string;
       v.cta.podePipeline = this.podeNoWorkspace('pipeline.deals');
+      const marcada = (((window as any).ALTHIUS_MOD || {}).accounts?.linhas || []).find((c: ContaTela) => c.id === id)?.monitorar === true;
+      v.cta.podeMonitorar = true;
+      v.cta.monitorarLabel = marcada ? 'Parar de monitorar' : 'Monitorar sinais';
+      v.cta.monitorarDica = marcada ? 'Os sinais desta conta rodam sozinhos. Clique para parar.' : 'Faz os sinais desta conta rodarem sozinhos (gasta créditos). Contas com negócio ativo ou em cadência já são monitoradas.';
+      v.cta.alternarMonitorar = () => void this.alternarMonitoramento(id, !marcada);
       v.cta.adicionarPipeline = () => {
         this.setState({ conta: null });
         if (pagina !== 'pipeline') this.ir('app/' + this.wsId() + '/pipeline');

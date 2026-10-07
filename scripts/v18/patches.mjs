@@ -955,5 +955,11 @@ export const PATCHES = [
     arquivo: 'template.generated.tsx',
     trocar: "<button className={\"b-sec\"} onClick={$v.cta?.fechar} aria-label=\"Fechar\"",
     por: "{$v.cta?.podePipeline ? (<button className={\"b-sec mini-btn\"} onClick={$v.cta?.adicionarPipeline} style={{\"flex\":\"none\",\"height\":\"40px\"}}>{\"Adicionar ao Pipeline\"}</button>) : null}<button className={\"b-sec\"} onClick={$v.cta?.fechar} aria-label=\"Fechar\""
+  },
+  {
+    regra: 'ficha da conta: botão "Monitorar sinais" (ADR 0066)',
+    arquivo: 'template.generated.tsx',
+    trocar: "{$v.cta?.podePipeline ? (<button className={\"b-sec mini-btn\"} onClick={$v.cta?.adicionarPipeline}",
+    por: "{$v.cta?.podeMonitorar ? (<button className={\"b-sec mini-btn\"} onClick={$v.cta?.alternarMonitorar} title={$v.cta?.monitorarDica} style={{\"flex\":\"none\",\"height\":\"40px\"}}>{__t($v.cta?.monitorarLabel)}</button>) : null}{$v.cta?.podePipeline ? (<button className={\"b-sec mini-btn\"} onClick={$v.cta?.adicionarPipeline}"
   }
 ];

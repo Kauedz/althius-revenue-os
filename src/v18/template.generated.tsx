@@ -6028,7 +6028,7 @@ export function renderTemplate($v: Record<string, any>) {
                   {"\n            "}
                 </span>
                 {"\n            "}
-                {$v.cta?.podePipeline ? (<button className={"b-sec mini-btn"} onClick={$v.cta?.adicionarPipeline} style={{"flex":"none","height":"40px"}}>{"Adicionar ao Pipeline"}</button>) : null}<button className={"b-sec"} onClick={$v.cta?.fechar} aria-label="Fechar" style={{"flex":"none","width":"40px","height":"40px","border":"1px solid var(--rule)","borderRadius":"10px","background":"var(--paper)","color":"var(--ink)","cursor":"pointer","display":"grid","placeItems":"center"}}>
+                {$v.cta?.podeMonitorar ? (<button className={"b-sec mini-btn"} onClick={$v.cta?.alternarMonitorar} title={$v.cta?.monitorarDica} style={{"flex":"none","height":"40px"}}>{__t($v.cta?.monitorarLabel)}</button>) : null}{$v.cta?.podePipeline ? (<button className={"b-sec mini-btn"} onClick={$v.cta?.adicionarPipeline} style={{"flex":"none","height":"40px"}}>{"Adicionar ao Pipeline"}</button>) : null}<button className={"b-sec"} onClick={$v.cta?.fechar} aria-label="Fechar" style={{"flex":"none","width":"40px","height":"40px","border":"1px solid var(--rule)","borderRadius":"10px","background":"var(--paper)","color":"var(--ink)","cursor":"pointer","display":"grid","placeItems":"center"}}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M6 6l12 12M18 6L6 18"></path>
                   </svg>
