@@ -2,7 +2,7 @@
 // Não recebe workspace em nenhuma ferramenta; o token do agente decide tudo no banco.
 import { McpServer, fromJsonSchema, type CallToolResult } from '@modelcontextprotocol/server';
 import { criarExecutor, falhaDe, type OpcoesExecucao } from './execucao.ts';
-import type { FerramentasAgente, PedidoReceitaSinal, PedidoTesteFonte, PedidoCampanha, PedidoStatusCampanha, PedidoVerba, NegocioAgente, PedidoInscricao, PedidoMoverNegocio, PedidoNegocio, PedidoProposta, PedidoTarefa, TarefaAgente } from './ferramentas';
+import type { FerramentasAgente, PedidoReceitaSinal, PedidoTesteFonte, PedidoCampanha, PedidoStatusCampanha, PedidoVerba, NegocioAgente, PedidoInscricao, PedidoMoverNegocio, PedidoNegocio, PedidoContas, PedidoEnriquecimento, PedidoLevarAoPipeline, PedidoPlano, PedidoProposta, PedidoTarefa, TarefaAgente } from './ferramentas';
 
 const nada = fromJsonSchema<Record<string, never>>({ type: 'object', properties: {}, additionalProperties: false });
 
@@ -94,6 +94,58 @@ const pedidoAcaoApp = fromJsonSchema<{ app: string; ferramenta: string; argument
 const filtroNegocios = fromJsonSchema<{ status?: NegocioAgente['status'] }>({
   type: 'object',
   properties: { status: { type: 'string', enum: ['ativa', 'ganho', 'perdido', 'arquivada'], description: 'só os negócios neste status (padrão: ativa)' } },
+  additionalProperties: false
+});
+
+const idsDeConta = { type: 'array', minItems: 1, items: { type: 'string' }, description: 'ids das contas, como vieram em listar_contas' };
+const pedidoContas = fromJsonSchema<PedidoContas>({
+  type: 'object',
+  properties: {
+    contas: {
+      type: 'array', minItems: 1, maxItems: 50, description: 'contas novas (a que já existe na base fica de fora sozinha)',
+      items: { type: 'object', properties: {
+        nome: { type: 'string', description: 'nome da empresa' },
+        site: { type: 'string', description: 'site da empresa, como empresa.com.br' },
+        uf: { type: 'string', description: 'sigla do estado, como SP (opcional)' },
+        cidade: { type: 'string', description: 'cidade (opcional)' }
+      }, required: ['nome', 'site'], additionalProperties: false }
+    },
+    motivo: { type: 'string', description: 'por que estas contas, em uma frase' }
+  },
+  required: ['contas', 'motivo'],
+  additionalProperties: false
+});
+const pedidoEnriquecimento = fromJsonSchema<PedidoEnriquecimento>({
+  type: 'object',
+  properties: { conta_ids: { ...idsDeConta, maxItems: 50 }, motivo: { type: 'string', description: 'por que enriquecer de novo, em uma frase' } },
+  required: ['conta_ids', 'motivo'],
+  additionalProperties: false
+});
+const pedidoLevarAoPipeline = fromJsonSchema<PedidoLevarAoPipeline>({
+  type: 'object',
+  properties: {
+    quadro_id: { type: 'string', description: 'id do quadro (a motion é a do quadro: SLG, MLG ou PLG), como veio em listar_quadros' },
+    conta_ids: { ...idsDeConta, maxItems: 500 },
+    motivo: { type: 'string', description: 'por que levar estas contas ao Pipeline, em uma frase' }
+  },
+  required: ['quadro_id', 'conta_ids', 'motivo'],
+  additionalProperties: false
+});
+const pedidoPlano = fromJsonSchema<PedidoPlano>({
+  type: 'object',
+  properties: {
+    titulo: { type: 'string', description: 'nome curto do plano, como "Ativar as contas quentes do Sul"' },
+    motivo: { type: 'string', description: 'o objetivo do plano, em uma frase' },
+    passos: {
+      type: 'array', minItems: 2, maxItems: 20,
+      description: 'os passos, na ordem. Cada um é { tipo, ...campos da proposta direta }. Tipos: criar_contas { contas }, enriquecer { conta_ids }, ' +
+        'levar_contas { quadro_id, conta_ids }, criar_negocio { quadro_id, conta_id, responsavel_id, valor_reais, etapa?, fecha_em? }, ' +
+        'mover_negocio { negocio_id, etapa }, criar_tarefa { titulo, responsavel_id, prazo_dias, contato_id?, observacao? }, ' +
+        'inscrever_cadencia { cadencia_id, contato_id }. Um passo só pode usar contas que JÁ existem (crie as contas num plano anterior).',
+      items: { type: 'object', properties: { tipo: { type: 'string', enum: ['criar_contas', 'enriquecer', 'levar_contas', 'criar_negocio', 'mover_negocio', 'criar_tarefa', 'inscrever_cadencia'] } }, required: ['tipo'] }
+    }
+  },
+  required: ['titulo', 'motivo', 'passos'],
   additionalProperties: false
 });
 
@@ -351,6 +403,14 @@ export function criarServidorAlthius(ferramentas: FerramentasAgente, execucao: O
 
   proposta('propor_negocio', 'Propõe criar um negócio no pipeline. NÃO cria nada: vira uma aprovação para uma pessoa decidir.', pedidoNegocio,
     a => ferramentas.proporNegocio(a), 'Proposta de negócio registrada e aguardando aprovação de uma pessoa. Nenhum negócio foi criado ainda.');
+  proposta('propor_contas', 'Propõe criar contas novas (nome e site). NÃO cria nada: vira uma aprovação. Aprovada, cada conta entra sozinha no enriquecimento (site, CNPJ, endereço, pessoas).', pedidoContas,
+    a => ferramentas.proporContas(a), 'Proposta de contas registrada e aguardando aprovação de uma pessoa. Nenhuma conta foi criada ainda.');
+  proposta('propor_enriquecimento', 'Propõe enriquecer de novo contas que já existem (empresa e pessoas). NÃO roda nada: vira uma aprovação. Gasta créditos depois de aprovado.', pedidoEnriquecimento,
+    a => ferramentas.proporEnriquecimento(a), 'Pedido de enriquecimento registrado e aguardando aprovação de uma pessoa. Nada foi enriquecido ainda.');
+  proposta('propor_levar_ao_pipeline', 'Propõe levar contas da base a um quadro do Pipeline (a motion é a do quadro). NÃO cria nada: vira uma aprovação. Aprovada, cada conta vira um negócio na primeira etapa, com valor 0; quem já está no quadro não duplica.', pedidoLevarAoPipeline,
+    a => ferramentas.proporLevarAoPipeline(a), 'Proposta registrada e aguardando aprovação de uma pessoa. Nenhum negócio foi criado ainda.');
+  proposta('propor_plano', 'Propõe um PLANO: de 2 a 20 passos (propostas que já existem) numa aprovação só. Use quando a tarefa pede várias ações encadeadas. NÃO roda nada: a pessoa aprova o plano inteiro e os passos são aplicados na ordem; se algum passo for inválido, o plano todo é recusado e a resposta diz qual.', pedidoPlano,
+    a => ferramentas.proporPlano(a), 'Plano registrado e aguardando aprovação de uma pessoa. Nenhum passo foi aplicado ainda.');
   proposta('propor_mover_negocio', 'Propõe mudar um negócio de etapa. NÃO move nada: vira uma aprovação para uma pessoa decidir.', pedidoMoverNegocio,
     a => ferramentas.proporMoverNegocio(a), 'Proposta de mudança de etapa registrada e aguardando aprovação de uma pessoa. O negócio não mudou ainda.');
 

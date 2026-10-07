@@ -101,7 +101,7 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
     const { tools } = await cliente.listTools();
     expect(tools.map(t => t.name).sort()).toEqual([
       'buscar_contatos', 'integracao_ferramentas', 'integracao_ler', 'integracao_propor', 'listar_cadencias', 'listar_campanhas', 'listar_contas', 'listar_habilidades', 'listar_membros', 'listar_negocios', 'listar_quadros', 'listar_sinais', 'listar_tarefas',
-      'propor_atualizacao', 'propor_campanha', 'propor_inscricao_cadencia', 'propor_mover_negocio', 'propor_negocio', 'propor_status_campanha', 'propor_tarefa',
+      'propor_atualizacao', 'propor_campanha', 'propor_contas', 'propor_enriquecimento', 'propor_inscricao_cadencia', 'propor_levar_ao_pipeline', 'propor_mover_negocio', 'propor_negocio', 'propor_plano', 'propor_status_campanha', 'propor_tarefa',
       'propor_verba_campanha', 'sinais_buscar_fontes', 'sinais_catalogo', 'sinais_detalhar_fonte', 'sinais_propor_receita', 'sinais_testar_fonte'
     ]);
     for (const t of tools) expect(JSON.stringify(t.inputSchema)).not.toMatch(/workspace/i);
@@ -280,6 +280,50 @@ describe.skipIf(!bancoLocalNoAr)('MCP da Althius (banco local)', () => {
     expect(await decidirAprovacao(aline, { aprovacao: item!, membroId: ALINE_MEMBRO, decisao: 'Aprovada' })).toEqual({ ok: true });
     const { data } = await admin.from('opportunities').select('stage_key, status, owner_member_id').eq('amount', 88888).eq('workspace_id', EVOLUT);
     expect(data).toEqual([{ stage_key: 'entrada', status: 'ativa', owner_member_id: LUCAS_MEMBRO }]);
+  });
+
+  it('ADR 0065: propor_contas só cria a conta depois da aprovação, e ela entra no enriquecimento', async () => {
+    const evolut = await conectar(tokenEvolut);
+    const r = await evolut.callTool({ name: 'propor_contas', arguments: { contas: [{ nome: 'Conta do Agente MCP-0065', site: 'contaagente0065.com.br', uf: 'SP' }], motivo: 'Vista na feira' } });
+    expect(r.isError).toBeFalsy();
+    const id = (r.structuredContent as { approval_id: string }).approval_id;
+    aprovacoesCriadas.push(id);
+    expect((await admin.from('accounts').select('id').eq('domain', 'contaagente0065.com.br')).data).toEqual([]);
+    const aline = await entrarComoLocal('aline@evolut.com.br');
+    const item = (await listarAprovacoes(aline, EVOLUT)).find(a => a.id === id);
+    expect(await decidirAprovacao(aline, { aprovacao: item!, membroId: ALINE_MEMBRO, decisao: 'Aprovada' })).toEqual({ ok: true });
+    const { data: criada } = await admin.from('accounts').select('id, state_uf').eq('domain', 'contaagente0065.com.br').eq('workspace_id', EVOLUT).single();
+    expect(criada?.state_uf).toBe('SP');
+    await admin.from('accounts').delete().eq('id', criada!.id);
+  });
+
+  it('ADR 0065: propor_plano vira UM pedido na fila; aprovado, aplica todos os passos', async () => {
+    const evolut = await conectar(tokenEvolut);
+    const r = await evolut.callTool({ name: 'propor_plano', arguments: { titulo: 'Ativar a Campo Belo MCP-0065', motivo: 'Conta quente sem negócio', passos: [
+      { tipo: 'levar_contas', quadro_id: quadroEvolut, conta_ids: ['c0000000-0000-0000-0000-000000000002'] },
+      { tipo: 'criar_tarefa', titulo: 'Ligar para a Campo Belo MCP-0065', responsavel_id: LUCAS_MEMBRO, prazo_dias: 1 }
+    ] } });
+    expect(r.isError).toBeFalsy();
+    const id = (r.structuredContent as { approval_id: string }).approval_id;
+    aprovacoesCriadas.push(id);
+    const aline = await entrarComoLocal('aline@evolut.com.br');
+    const fila = await listarAprovacoes(aline, EVOLUT);
+    expect(fila.filter(a => a.titulo.includes('MCP-0065')).map(a => a.titulo)).toEqual(['Plano: Ativar a Campo Belo MCP-0065']);
+    expect(await decidirAprovacao(aline, { aprovacao: fila.find(a => a.id === id)!, membroId: ALINE_MEMBRO, decisao: 'Aprovada' })).toEqual({ ok: true });
+    expect((await admin.from('opportunities').select('id').eq('pipeline_id', quadroEvolut).eq('account_id', 'c0000000-0000-0000-0000-000000000002').eq('status', 'ativa')).data).toHaveLength(1);
+    expect((await admin.from('tasks').select('id').eq('title', 'Ligar para a Campo Belo MCP-0065')).data).toHaveLength(1);
+    await admin.from('opportunities').delete().eq('pipeline_id', quadroEvolut).eq('account_id', 'c0000000-0000-0000-0000-000000000002');
+    await admin.from('tasks').delete().eq('title', 'Ligar para a Campo Belo MCP-0065');
+  });
+
+  it('ADR 0065: plano com passo inválido é recusado e diz qual passo', async () => {
+    const evolut = await conectar(tokenEvolut);
+    const r = await evolut.callTool({ name: 'propor_plano', arguments: { titulo: 'Plano ruim', motivo: 'x', passos: [
+      { tipo: 'criar_tarefa', titulo: 'Tarefa MCP-0065b', responsavel_id: LUCAS_MEMBRO, prazo_dias: 1 },
+      { tipo: 'levar_contas', quadro_id: '00000000-0000-0000-0000-000000000000', conta_ids: ['c0000000-0000-0000-0000-000000000002'] }
+    ] } });
+    expect(r.isError).toBe(true);
+    expect(texto(r)).toContain('Passo 2');
   });
 
   it('o agente lê as habilidades dele e os sinais recentes das contas; nada vaza para outro cliente', async () => {

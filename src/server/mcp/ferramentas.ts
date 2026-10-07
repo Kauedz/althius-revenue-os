@@ -93,6 +93,14 @@ export interface PedidoNegocio {
   motivo: string;
 }
 
+/** ADR 0065: contas novas (nome e site; UF e cidade opcionais). Até 50 por proposta. */
+export interface PedidoContas { contas: Array<{ nome: string; site: string; uf?: string; cidade?: string }>; motivo: string }
+export interface PedidoEnriquecimento { conta_ids: string[]; motivo: string }
+export interface PedidoLevarAoPipeline { quadro_id: string; conta_ids: string[]; motivo: string }
+/** Um passo do plano: o tipo e os campos da proposta direta correspondente. */
+export interface PassoDoPlano { tipo: string; [campo: string]: unknown }
+export interface PedidoPlano { titulo: string; passos: PassoDoPlano[]; motivo: string }
+
 export interface PedidoMoverNegocio {
   negocio_id: string;
   etapa: string;
@@ -164,6 +172,10 @@ export interface FerramentasAgente {
   listarQuadros(): Promise<QuadroAgente[]>;
   listarNegocios(status?: NegocioAgente['status']): Promise<NegocioAgente[]>;
   proporNegocio(pedido: PedidoNegocio): Promise<ResultadoProposta>;
+  proporContas(pedido: PedidoContas): Promise<ResultadoProposta>;
+  proporEnriquecimento(pedido: PedidoEnriquecimento): Promise<ResultadoProposta>;
+  proporLevarAoPipeline(pedido: PedidoLevarAoPipeline): Promise<ResultadoProposta>;
+  proporPlano(pedido: PedidoPlano): Promise<ResultadoProposta>;
   proporMoverNegocio(pedido: PedidoMoverNegocio): Promise<ResultadoProposta>;
   buscarContatos(): Promise<ContatoAgente[]>;
   proporAtualizacao(pedido: PedidoProposta): Promise<ResultadoProposta>;
@@ -323,6 +335,51 @@ export function ferramentasDoAgente(cliente: SupabaseClient, token: string, pont
       if (error) {
         if (error.code === '22P02' || error.code === '22007') return { ok: false, erro: 'Quadro, conta, responsável ou data inválidos para este workspace.' };
         throw erroDoBanco(error, 'Não foi possível registrar a proposta de negócio.');
+      }
+      return data as ResultadoProposta;
+    },
+
+    async proporContas(p) {
+      const { data, error } = await cliente.rpc('agent_propose_accounts', {
+        p_token: token, p_contas: p.contas, p_reason: p.motivo,
+        p_idempotency_key: chaveDe('contas', estavel(p.contas))
+      });
+      if (error) throw erroDoBanco(error, 'Não foi possível registrar a proposta de contas.');
+      return data as ResultadoProposta;
+    },
+
+    async proporEnriquecimento(p) {
+      const ids = [...new Set(p.conta_ids)].sort();
+      const { data, error } = await cliente.rpc('agent_propose_enrichment', {
+        p_token: token, p_account_ids: ids, p_reason: p.motivo, p_idempotency_key: chaveDe('enriquecer', ...ids)
+      });
+      if (error) {
+        if (error.code === '22P02') return { ok: false, erro: 'Algum id de conta é inválido (use os ids de listar_contas).' };
+        throw erroDoBanco(error, 'Não foi possível registrar o pedido de enriquecimento.');
+      }
+      return data as ResultadoProposta;
+    },
+
+    async proporLevarAoPipeline(p) {
+      const ids = [...new Set(p.conta_ids)].sort();
+      const { data, error } = await cliente.rpc('agent_propose_add_to_pipeline', {
+        p_token: token, p_pipeline_id: p.quadro_id, p_account_ids: ids, p_reason: p.motivo, p_idempotency_key: chaveDe('levar', p.quadro_id, ...ids)
+      });
+      if (error) {
+        if (error.code === '22P02') return { ok: false, erro: 'Quadro ou conta inválidos (use os ids de listar_quadros e listar_contas).' };
+        throw erroDoBanco(error, 'Não foi possível registrar a proposta de levar ao Pipeline.');
+      }
+      return data as ResultadoProposta;
+    },
+
+    async proporPlano(p) {
+      const { data, error } = await cliente.rpc('agent_propose_plan', {
+        p_token: token, p_titulo: p.titulo, p_passos: p.passos, p_reason: p.motivo,
+        p_idempotency_key: chaveDe('plano', p.titulo, estavel(p.passos))
+      });
+      if (error) {
+        if (error.code === '22P02' || error.code === '22007') return { ok: false, erro: 'Algum passo tem id ou data inválidos (use os ids das ferramentas de leitura).' };
+        throw erroDoBanco(error, 'Não foi possível registrar o plano.');
       }
       return data as ResultadoProposta;
     },

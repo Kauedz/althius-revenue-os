@@ -245,4 +245,18 @@ describe.skipIf(!bancoLocalNoAr)('Aprovações (banco local)', () => {
     expect(r).toEqual({ ok: false, mensagem: GENERICA });
     expect((await adminLocal().from('approvals').select('status').eq('id', COPY_SERRA_AZUL).single()).data?.status).toBe('pendente');
   });
+
+  it('ADR 0065: o plano do agente aparece uma vez; os passos dele não aparecem soltos', async () => {
+    const adm = adminLocal();
+    const comum = { workspace_id: EVOLUT, category: 'operacao', approval_type: 'execucao', agent_code: 'comercial', requested_by_member_id: CAMILA_EVOLUT, status: 'pendente', payload_hash: 'x' };
+    const { data: plano } = await adm.from('approvals').insert({ ...comum, title: 'Plano: teste ADR 0065', payload_json: { acao: 'plano' } }).select('id').single();
+    await adm.from('approvals').insert({ ...comum, title: 'Passo escondido ADR 0065', payload_json: { acao: 'x' }, parent_approval_id: plano!.id });
+    try {
+      const lista = await listarAprovacoes(await entrarComoLocal('aline@evolut.com.br'), EVOLUT);
+      expect(lista.map(a => a.titulo)).toContain('Plano: teste ADR 0065');
+      expect(lista.map(a => a.titulo)).not.toContain('Passo escondido ADR 0065');
+    } finally {
+      await adm.from('approvals').delete().eq('id', plano!.id);
+    }
+  });
 });
