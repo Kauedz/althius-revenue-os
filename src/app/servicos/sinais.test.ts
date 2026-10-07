@@ -106,7 +106,7 @@ describe('listarSinais (unitário / mapeamento)', () => {
     const texto = JSON.stringify(sinais);
     expect(texto).not.toMatch(/US\$|dólar|dolar/);
     expect(sinais.kpis.map(k => k.valor)).toEqual(['1', '1', '0', '0']);
-    expect(sinais.kpis.every(k => k.delta === SEM_DADOS)).toBe(true);
+    expect(sinais.kpis.every(k => k.delta === '')).toBe(true); // ADR 0064: sem repetir "Sem dados ainda" embaixo do número
     expect(sinais.eventos[0]).toMatchObject({
       id: 'e1',
       conta: 'Conta do banco',
@@ -166,7 +166,7 @@ describe.skipIf(!bancoLocalNoAr)('Sinais (banco local)', () => {
     expect(sinais.grupos.find(g => g.codigo === 'marketing')?.itens.find(s => s.nome === 'Seguidores de concorrente')).toMatchObject({ custo: '20', ativo: false });
     expect(sinais.grupos.find(g => g.codigo === 'comercial')?.itens.find(s => s.nome === 'Rodada de investimento ou M&A')?.ativo).toBe(true);
     expect(sinais.eventos).toEqual([{ id: 'sem-dados', conta: SEM_DADOS, tipo: SEM_DADOS, detalhe: SEM_DADOS, fit: SEM_DADOS, quando: SEM_DADOS }]);
-    expect(sinais.kpis.every(k => k.valor === '0' && k.delta === SEM_DADOS)).toBe(true);
+    expect(sinais.kpis.every(k => k.valor === '0' && k.delta === '')).toBe(true);
   });
 
   it('membro da Grão Norte não vê sinais da Evolut', async () => {

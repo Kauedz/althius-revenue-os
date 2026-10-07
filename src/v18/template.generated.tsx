@@ -4918,7 +4918,7 @@ export function renderTemplate($v: Record<string, any>) {
                         {"\n                    "}
                         <span style={{"flex":"1 1 auto"}}></span>
                         {"\n                    "}
-                        <span style={{"display":"flex","alignItems":"center","gap":"12px","flex":"1 1 300px"}}>
+                        {$v.cr?.mostraRecarga ? (<span style={{"display":"flex","alignItems":"center","gap":"12px","flex":"1 1 300px"}}>
                           <button className={"switch"} role="switch" aria-checked={$v.cr?.recarga} aria-label="Recarga automática" onClick={$v.cr?.alternarRecarga} disabled={$v.cr?.leitura}></button>
                           <span style={{"display":"flex","flexDirection":"column","gap":"2px"}}>
                             <span style={{"fontSize":"14px","fontWeight":"500"}}>
@@ -4928,7 +4928,7 @@ export function renderTemplate($v: Record<string, any>) {
                               {"Abaixo de 1.000, compra 10.000 créditos."}
                             </span>
                           </span>
-                        </span>
+                        </span>) : null}
                         {"\n                  "}
                       </div>
                       {"\n                "}
@@ -5274,9 +5274,9 @@ export function renderTemplate($v: Record<string, any>) {
                     {"\n              "}
                   </section>
                   {"\n              "}
-                  <h2 style={{"fontFamily":"var(--f-display)","margin":"4px 0 0","fontWeight":"400","fontSize":"18px"}}>
+                  {$v.md?.mostraAutomaticos ? (<h2 style={{"fontFamily":"var(--f-display)","margin":"4px 0 0","fontWeight":"400","fontSize":"18px"}}>
                     {"Relatórios automáticos"}
-                  </h2>
+                  </h2>) : null}
                   {"\n            "}
                 </>) : null}
                 {"\n            "}

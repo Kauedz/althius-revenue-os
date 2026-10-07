@@ -6,7 +6,6 @@ import { AlthiusLogic } from '../v18/logic.generated.js';
 import { PAPEL_FRONT, sigla, type DadosAlthius, type PapelBanco, type PapelFront } from './dados';
 import { controlarExecucao, listarExecucoes } from './servicos/execucoes';
 import { comprarCreditos, lerCreditos, salvarPoliticaCreditos as gravarPoliticaCreditos } from './servicos/creditos';
-import { precoEmReais } from './precos';
 import { decidirAprovacao, listarAprovacoes, type AprovacaoTela, type DecisaoTela } from './servicos/aprovacoes';
 import { listarEquipe, convidarEquipe, mudarPapelEquipe, suspenderMembroEquipe, cancelarConviteEquipe, type Equipe } from './servicos/equipe';
 import {
@@ -40,6 +39,7 @@ import { listarProspeccao, prospeccaoSemDados, type ProspeccaoTela } from './ser
 import { arquivarNegocio, atualizarNegocio, criarNegocio, criarQuadro, excluirQuadro, listarPipeline, moverNegocio, MOTIONS, pipelineVazio, reordenarEtapas, renomearQuadro, type Motion, type PipelineTela, type Resultado } from './servicos/pipeline';
 import { adiarTarefa, criarTarefa, listarTarefas, mudarStatusTarefa, tarefasVazias, type TarefasTela } from './servicos/tarefas';
 import { CANAIS_CAMPANHA, campanhasVazias, criarCampanha, listarCampanhas, mudarStatusCampanha, mudarVerba, type CampanhasTela } from './servicos/campanhas';
+import { estrategiaVazia, listarEstrategia, type EstrategiaTela } from './servicos/estrategia';
 import { adicionarPasso, cadenciasVazias, CANAL_PASSO, DICA_VARIAVEIS, inscreverContato, listarCadencias, removerUltimoPasso, salvarCadencia, type CadenciasTela } from './servicos/cadencias';
 import { nomeDoAgente } from './agentes-exibicao';
 import { abrirConversa, arquivarConversa, listarConversas, tituloDaPrimeiraMensagem, type ConversaDireta } from './servicos/conversaDireta';
@@ -114,6 +114,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarTarefas(null);
     this.publicarCampanhas(null);
     this.publicarCadencias(null);
+    this.publicarEstrategia(null);
     this.registrarTelasAdmin();
     this.limparIntegracoesDeExemplo();
   }
@@ -147,6 +148,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarTarefas(null);
     this.publicarCampanhas(null);
     this.publicarCadencias(null);
+    this.publicarEstrategia(null);
     super.componentWillUnmount?.();
   }
 
@@ -280,32 +282,29 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     return lerCreditos(this.props.supabase, ws.uuid).then(c => ({ extrato: c.extrato, saldoCreditos: c.disponivel, credCfg: c.politica }));
   }
 
+  /** ADR 0064: créditos não se compram em 1 clique. O pedido vai para a Althius, que libera no saldo (cobrança pelo contrato). */
   comprarOuPedirCreditos(quantidade: number) {
-    const pode = (this.props.dados.PERMS[this.papel()] || []).includes('credits.buy');
-    const preco = precoEmReais(quantidade);
     const nf = (n: number) => Math.round(n).toLocaleString('pt-BR');
-    const pessoas = this.membros(this.wsId()) as Array<{ papel: string; dono?: boolean; nome: string }>;
-    const decisor = (pessoas.find(m => m.papel === 'cliente' && m.dono) || pessoas.find(m => m.papel === 'cliente') || { nome: 'o C-level' }).nome;
     this.confirmar(
-      pode ? 'Comprar ' + nf(quantidade) + ' créditos por ' + preco + '?' : 'Pedir ' + nf(quantidade) + ' créditos?',
-      pode ? 'A cobrança vai no método de pagamento do workspace e os créditos entram na hora.' : decisor + ' recebe o pedido em Aprovações e decide a compra de ' + preco + '.',
-      pode ? 'Comprar' : 'Enviar pedido',
-      () => { void this.registrarCompra(quantidade, pode, nf, decisor); }
+      'Pedir ' + nf(quantidade) + ' créditos à Althius?',
+      'A Althius confere o pedido e libera os créditos no saldo. A cobrança segue o seu contrato; nada é cobrado por aqui.',
+      'Enviar pedido',
+      () => { void this.registrarCompra(quantidade); }
     );
   }
 
-  async registrarCompra(quantidade: number, pode: boolean, nf: (n: number) => string, decisor: string) {
+  async registrarCompra(quantidade: number) {
     const ws = this.workspaceAtual();
     const slug = this.wsId();
     try {
       if (!ws?.membroId) throw new Error('Você não participa deste workspace como membro.');
-      const r = await comprarCreditos(this.props.supabase, ws.uuid, ws.membroId, quantidade);
+      await comprarCreditos(this.props.supabase, ws.uuid, ws.membroId, quantidade);
       if (!this.vivo || this.wsId() !== slug) return;
       await this.recarregarWorkspace();
       if (!this.vivo || this.wsId() !== slug) return;
-      this.avisar('mod', r.status === 'requires_approval' ? 'Pedido enviado para ' + decisor + '.' : nf(quantidade) + ' créditos adicionados.');
+      this.avisar('mod', 'Pedido enviado à Althius. Você recebe um aviso quando os créditos forem liberados.');
     } catch (falha) {
-      this.avisarFalha(pode ? 'Compra não registrada' : 'Pedido não registrado', falha);
+      this.avisarFalha('Pedido não registrado', falha);
     }
   }
 
@@ -733,19 +732,11 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     v.md.temKpis = relatorios.kpis.length > 0;
     v.md.temFunil = false;
     v.md.temAcao = false;
-    const cols = ['nome', 'fonte', 'frequencia', 'ultimo', 'dest'] as const;
-    v.md.linhas = relatorios.linhas.map(l => ({
-      abrir: () => {},
-      tecla: () => {},
-      bg: 'transparent',
-      celulas: cols.map((k, ci) => ({
-        temCo: false, temFogo: false, chamas: [], fogoRotulo: '', temTexto: true, temFoto: false, foto: '',
-        v: l[k] || 'Sem dados ainda', temPonto: false, ponto: 'transparent',
-        fs: ci === 0 ? '15px' : '14px', cor: ci === 0 ? 'var(--ink)' : 'var(--text-2)', ws: ci === 0 ? 'normal' : 'nowrap'
-      }))
-    }));
-    v.md.vazio = v.md.linhas.length === 0;
-    v.md.tabela = v.md.linhas.length > 0;
+    // "Relatórios automáticos" não tem banco por trás (ADR 0064): a tabela e os filtros dela não aparecem.
+    v.md.linhas = [];
+    v.md.filtros = [];
+    v.md.vazio = false;
+    v.md.tabela = false;
   }
 
   carregarSinais(): Promise<SinaisTela> {
@@ -1010,6 +1001,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (rota.page === 'pipeline') void this.carregarPipeline();
     if (rota.page === 'tasks') void this.carregarTarefas();
     if (rota.page === 'campaigns') void this.carregarCampanhas();
+    if (rota.page === 'strategy') void this.carregarEstrategia();
     if (rota.page === 'cadences') void this.carregarCadencias();
     if (String(rota.page || '').startsWith('admin/')) void this.carregarAdmin(rota.page);
     if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) { void this.carregarConexoes(); void this.carregarCanais(); void this.carregarAprendizado(); }
@@ -1328,9 +1320,40 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const tela = t ?? campanhasVazias();
     // Sem fonte de investimento real, a tabela mostra a verba aprovada (e não "Investido" nem CPL).
     mod.colunas = [['nome', 'Campanha', '2fr'], ['canal', 'Canal', '1fr'], ['verba', 'Verba aprovada', '1fr'], ['leads', 'Leads', '80px'], ['status', 'Status', '1fr']];
+    mod.sub = 'Meta Ads: em breve. Aqui ficam as campanhas e a verba aprovada.';
     mod.kpis = tela.kpis;
     mod.linhas = tela.linhas;
     mod.acoesLinha = t ? [['Ativar', ''], ['Pausar', ''], ['Concluir', ''], ['Mudar verba', '']] : [];
+  }
+
+  // ---- Estratégia ligada ao banco (ADR 0064): Playbooks publicados e personas alvo; nada do protótipo.
+  private cargaEstrategia = 0;
+
+  private publicarEstrategia(t: EstrategiaTela | null) {
+    if (typeof window === 'undefined' || this.modoDemo !== false) return;
+    const mod = (window as any).ALTHIUS_MOD?.strategy;
+    if (!mod) return;
+    const tela = t ?? estrategiaVazia();
+    mod.sub = 'O Playbook de cada agente (onde está o ICP) e as personas que o enriquecimento procura';
+    mod.kpis = tela.kpis;
+    mod.linhas = tela.linhas;
+    mod.acao = null;
+    mod.acoesLinha = [];
+  }
+
+  async carregarEstrategia() {
+    const ws = this.workspaceAtual();
+    const carga = ++this.cargaEstrategia;
+    this.publicarEstrategia(null);
+    if (!ws) return;
+    try {
+      const t = await listarEstrategia(this.props.supabase, ws.uuid);
+      if (!this.vivo || carga !== this.cargaEstrategia) return;
+      this.publicarEstrategia(t);
+      this.setState({ estrategiaVersao: carga });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaEstrategia) this.avisarFalha('Não foi possível carregar a estratégia', falha);
+    }
   }
 
   private publicarCadencias(t: CadenciasTela | null) {

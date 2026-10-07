@@ -195,6 +195,27 @@ describe('contas no AlthiusApp', () => {
   });
 });
 
+describe('plataforma enxuta (ADR 0064)', () => {
+  it('Execuções mostra só a lista: sem as visões Kanban e Timeline do protótipo', async () => {
+    vi.spyOn(execucoes, 'listarExecucoes').mockResolvedValue([execucaoAlfa]);
+    abrir(contexto([['alfa', 'estrategista']]), '#/app/alfa/executions');
+    expect(await screen.findByText('Execução exclusiva Alfa')).toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Kanban' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('tab', { name: 'Timeline' })).not.toBeInTheDocument();
+  });
+
+  // O menu sem as duas páginas é testado em dados.test.ts (montarDados); aqui, a rota direta.
+  it('abrir Conteúdos ou Equipe pela URL não mostra o dado inventado do protótipo', async () => {
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/contents');
+    expect(await screen.findByText('Esta área não faz parte do seu acesso')).toBeInTheDocument();
+    expect(screen.queryByText('Guia: conta e ordem sem risco cambial')).not.toBeInTheDocument();
+    cleanup();
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/team');
+    expect(await screen.findByText('Esta área não faz parte do seu acesso')).toBeInTheDocument();
+    expect(screen.queryByText('diego@evolut.com.br')).not.toBeInTheDocument();
+  });
+});
+
 describe('enriquecimento de contas na tela (ADR 0062)', () => {
   const FOTO = 'https://media.licdn.com/dms/image/ana-lima.jpg';
   const base = (id: string, nome: string, extra: Partial<contasServico.ContaTela> = {}): contasServico.ContaTela => ({
@@ -337,5 +358,14 @@ describe('relatórios no AlthiusApp', () => {
     expect(screen.queryByText(/4,8/)).not.toBeInTheDocument();
     expect(screen.queryByText(/US\$/)).not.toBeInTheDocument();
     expect(screen.queryByText('512')).not.toBeInTheDocument();
+  });
+
+  it('ADR 0064: sem a seção "Relatórios automáticos", que não tem banco por trás', async () => {
+    vi.spyOn(relatoriosServico, 'listarRelatorios').mockResolvedValue(relatoriosServico.relatorioSemDados());
+    abrir(contexto([['alfa', 'clevel']]), '#/app/alfa/analytics');
+    expect(await screen.findByRole('heading', { name: 'Relatórios' })).toBeInTheDocument();
+    expect(await screen.findByText('Pipeline por motion', { exact: false })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Relatórios automáticos' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Destinatários')).not.toBeInTheDocument();
   });
 });

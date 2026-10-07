@@ -27,19 +27,20 @@ SELECT is((public.hermes_evaluate_action('f1000000-0000-0000-0000-000000000001',
 SELECT ok((SELECT description LIKE '%Saldo%' FROM public.approvals WHERE title = 'Sem saldo'), 'Motivo cita o saldo');
 
 UPDATE public.workspace_settings SET auto_topup_enabled = true WHERE workspace_id = 'f1000000-0000-0000-0000-000000000001';
-SELECT is((public.hermes_evaluate_action('f1000000-0000-0000-0000-000000000001','f2000000-0000-0000-0000-000000000001','pipeline.boards',NULL,100,false,'Com recarga','{}'::jsonb))->>'status','authorized','Recarga automatica cobre o saldo curto');
+SELECT is((public.hermes_evaluate_action('f1000000-0000-0000-0000-000000000001','f2000000-0000-0000-0000-000000000001','pipeline.boards',NULL,100,false,'Com recarga','{}'::jsonb))->>'status','requires_approval','Recarga automatica desligada (ADR 0064): saldo curto pede aprovacao');
 
 SET LOCAL ROLE authenticated;
 SET LOCAL "request.jwt.claims" = '{"sub":"e0000000-0000-0000-0000-000000000002","role":"authenticated"}';
 SELECT throws_ok($$ SELECT public.credit_policy_save('a0000000-0000-0000-0000-000000000001','d0000000-0000-0000-0000-000000000002','approval',800,4000,true) $$, '42501', NULL, 'Estrategista nao muda a politica');
-SELECT is(public.credit_purchase('a0000000-0000-0000-0000-000000000001','d0000000-0000-0000-0000-000000000002',10000)->>'status','requires_approval','Estrategista pede compra');
-SELECT is((SELECT approval_type FROM public.approvals WHERE title = 'Compra de 10000 creditos' OR title LIKE 'Compra de 10000%' ORDER BY created_at DESC LIMIT 1),'creditos','Pedido e do tipo creditos');
+-- ADR 0064: todo pedido de créditos vai para a Althius (00079 testa a liberação).
+SELECT is(public.credit_purchase('a0000000-0000-0000-0000-000000000001','d0000000-0000-0000-0000-000000000002',10000)->>'status','requested','Estrategista pede compra');
+SELECT is((SELECT approval_type FROM public.approvals WHERE title LIKE 'Pedido de 10000%' ORDER BY created_at DESC LIMIT 1),'creditos','Pedido e do tipo creditos');
 SELECT is((SELECT category FROM public.approvals WHERE approval_type = 'creditos' AND requested_by_member_id = 'd0000000-0000-0000-0000-000000000002' LIMIT 1),'gasto','Pedido de creditos e gasto');
 SELECT is((SELECT topup_balance FROM public.credit_wallets WHERE workspace_id = 'a0000000-0000-0000-0000-000000000001'),0,'Pedido nao credita sozinho');
 
 SET LOCAL "request.jwt.claims" = '{"sub":"e0000000-0000-0000-0000-000000000003","role":"authenticated"}';
-SELECT is(public.credit_purchase('a0000000-0000-0000-0000-000000000001','d0000000-0000-0000-0000-000000000003',10000)->>'status','credited','C-level compra');
-SELECT is((SELECT topup_balance FROM public.credit_wallets WHERE workspace_id = 'a0000000-0000-0000-0000-000000000001'),10000,'Compra entra na carteira de recarga');
+SELECT is(public.credit_purchase('a0000000-0000-0000-0000-000000000001','d0000000-0000-0000-0000-000000000003',10000)->>'status','requested','C-level tambem pede a Althius (ADR 0064)');
+SELECT is((SELECT topup_balance FROM public.credit_wallets WHERE workspace_id = 'a0000000-0000-0000-0000-000000000001'),0,'Pedido do C-level nao credita sozinho');
 SELECT is(public.credit_policy_save('a0000000-0000-0000-0000-000000000001','d0000000-0000-0000-0000-000000000003','approval',800,4000,true)->>'success','true','C-level grava a politica');
 SELECT is((SELECT approval_threshold FROM public.workspace_settings WHERE workspace_id = 'a0000000-0000-0000-0000-000000000001'),800,'Teto gravado');
 

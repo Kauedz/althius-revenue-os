@@ -21,7 +21,7 @@ Feito em 06/10/2026, percorrendo o app no **modo real**, com o banco local, em d
 | Agentes | Sim | Os 4 agentes do banco. |
 | Execuções | Sim | Três visões (Lista, Kanban, Timeline). |
 | **Conteúdos** | **Não** | **Protótipo fixo**: no workspace vazio mostra 5 conteúdos inventados e o botão "Gerar conteúdo". Não existe tabela nem serviço. |
-| Sinais | Sim | Catálogo e eventos do banco. **O texto "Coleta automática em breve" está desatualizado**: a coleta já existe (ADR 0055). |
+| Sinais | Sim | Catálogo e eventos do banco. O aviso "Coleta automática em breve" é calculado: aparece enquanto nenhum sinal tem coleta ligada (correção: eu tinha anotado como desatualizado; não estava). |
 | Relatórios | Sim | Números do banco; boa parte da página fica "Sem dados ainda". |
 | Integrações | Sim | Agora com 16 conectores (ADR 0063). |
 | Créditos e uso | Sim, com ressalva | Saldo e extrato do banco. **"Comprar em 1 clique" soma o saldo na hora, sem nenhum meio de pagamento** (`credit_purchase` não cobra de ninguém). |
@@ -33,7 +33,9 @@ Feito em 06/10/2026, percorrendo o app no **modo real**, com o banco local, em d
 - Catálogo de Integrações: de 37 para 16 conectores. Meta Ads, RD Station e Google Agenda ficam "Em breve".
 - Cartões de canal de Campanhas e permissões dos agentes não citam mais conector que saiu.
 
-## 3. Proposta de remoção e conserto (precisa do "pode" do Nan)
+## 3. Proposta de remoção e conserto
+
+**Status (06/10/2026): o Nan disse "pode" e tudo abaixo foi feito (ADR 0064), menos o item 9, que foi descartado (a tabela de custos de Créditos ficou), e o item 6, que não precisava (ver Sinais acima).** Créditos foi decidido como "pedir à Althius".
 
 **A. Tirar do menu o que é dado inventado e não tem backend** (a plataforma precisa ser 100% verdade):
 1. **Conteúdos**: tirar do menu e da navegação. Volta quando houver tabela, serviço e agente (Lia) gerando de verdade.

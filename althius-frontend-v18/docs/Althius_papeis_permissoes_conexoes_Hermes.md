@@ -147,9 +147,9 @@ O Hermes precisa de 17 entidades e reage a 15 eventos. Toda entidade carrega `wo
 | `tarefa.criada` | Tela, cadência ou agente | Notifica o responsável no horário; se tem agente marcado, ele prepara o material (2 créditos) |
 | `aprovacao.decidida` | Aprovações | Aprovada: libera a execução. Ajuste: devolve ao agente com o pedido. Rejeitada: encerra e registra |
 | `campanha.verba_pedida` | Agente de Marketing | Cria aprovação do tipo gasto, que só C-level ou superadmin decide |
-| `credito.saldo_baixo` | Extrato | Recarga automática, se ligada; senão avisa o C-level |
+| `credito.saldo_baixo` | Extrato | Avisa o C-level, que pede créditos à Althius (ADR 0064) |
 | `agente.pausado` | Tela (C-level, estrategista ou superadmin) | Congela a fila do agente e avisa o estrategista |
-| `membro.papel_mudado` | Equipe e acessos | Recalcula o que a pessoa pode fazer e registra na Auditoria |
+| `membro.papel_mudado` | Configurações → Workspace e membros | Recalcula o que a pessoa pode fazer e registra na Auditoria |
 | `workspace.logo_mudado` | Configurações | Troca a marca na barra lateral e no seletor de workspaces |
 
 ## Agentes por dentro
@@ -296,7 +296,7 @@ Modos de consumo, que só o C-level e o superadmin mudam:
 
 - **Automático:** os agentes gastam sem pedir, até o limite do mês (padrão 5.000 créditos).
 - **Com aprovação:** ação acima do teto (padrão 500 créditos) vira pedido em Aprovações antes de rodar.
-- **Recarga automática** (opcional): quando o saldo fica abaixo de 1.000, compra 10.000.
+- **Recarga automática:** desligada (ADR 0064). A Althius opera junto com o cliente, então nada compra créditos sozinho.
 
 Custos que o front mostra hoje:
 
@@ -316,7 +316,7 @@ Custos que o front mostra hoje:
 
 O enriquecimento automático (toda conta nova entra sozinha na fila, ADR 0062) tem preço próprio e mais baixo, porque usa fontes públicas e uma busca barata. "Enriquecer um contato" (10) e "Mapear o comitê" (25) continuam valendo para o que alguém ou um agente pede à mão. Os valores do automático são provisórios: o custo real de cada trabalho é medido na fila (`custo_usd`, só o superadmin vê) e o preço é revisto com esses números.
 
-O extrato do front só mostra entradas e saídas. No banco, cada ação passa por reserva, consumo e liberação (`reserve`, `consume`, `release`), e o extrato junta as três numa linha só. Comprar ou pedir créditos segue a matriz: C-level e superadmin compram; o estrategista pede, e o pedido aparece em Aprovações.
+O extrato do front só mostra entradas e saídas. No banco, cada ação passa por reserva, consumo e liberação (`reserve`, `consume`, `release`), e o extrato junta as três numa linha só. **Créditos se pedem à Althius** (ADR 0064, decisão do Nan em 06/10/2026): o cliente assina por mês e a Althius opera a plataforma junto com ele, então não há compra em 1 clique. Quem tem `credits.buy` (C-level, estrategista, superadmin) pede; o pedido é uma aprovação de gasto que **só o superadmin decide**, e o crédito entra no saldo quando ele aprova. A cobrança segue o contrato do cliente.
 
 ## Conferência dos documentos do backend
 

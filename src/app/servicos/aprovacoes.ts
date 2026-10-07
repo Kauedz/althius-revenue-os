@@ -26,7 +26,7 @@ export const ROTULO_TIPO: Record<string, string> = {
   execucao: 'Execução',
   orcamento: 'Orçamento',
   execucao_limite: 'Execução acima de limite',
-  creditos: 'Orçamento · compra de créditos'
+  creditos: 'Créditos · pedido à Althius'
 };
 
 export type DecisaoTela = 'Aprovada' | 'Rejeitada' | 'Ajustes solicitados';

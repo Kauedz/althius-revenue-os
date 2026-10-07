@@ -845,5 +845,77 @@ export const PATCHES = [
     arquivo: 'data.js',
     trocar: "I('CRM','HubSpot','Leitura e escrita'), I('Planilhas','Google Sheets','Escrita')",
     por: "I('CRM','HubSpot','Leitura e escrita')"
+  },
+  {
+    // ADR 0064: a Althius opera junto com o cliente; nada compra créditos sozinho. Recarga automática some no modo real.
+    regra: 'créditos: recarga automática escondida no modo real (abre)',
+    arquivo: 'template.generated.tsx',
+    trocar: "<span style={{\"display\":\"flex\",\"alignItems\":\"center\",\"gap\":\"12px\",\"flex\":\"1 1 300px\"}}>",
+    por: "{$v.cr?.mostraRecarga ? (<span style={{\"display\":\"flex\",\"alignItems\":\"center\",\"gap\":\"12px\",\"flex\":\"1 1 300px\"}}>"
+  },
+  {
+    regra: 'créditos: recarga automática escondida no modo real (fecha)',
+    arquivo: 'template.generated.tsx',
+    trocar: "{\"Abaixo de 1.000, compra 10.000 créditos.\"}\n                            </span>\n                          </span>\n                        </span>",
+    por: "{\"Abaixo de 1.000, compra 10.000 créditos.\"}\n                            </span>\n                          </span>\n                        </span>) : null}"
+  },
+  {
+    regra: 'créditos: o cliente pede à Althius (ADR 0064)',
+    arquivo: 'logic.generated.js',
+    trocar: "leitura, compraTitulo: podeComprar ? 'Comprar em 1 clique' : 'Pedir créditos', compraSub: podeComprar ? 'cai na hora' : 'quem decide: ' + decisor,",
+    por: "leitura, mostraRecarga: this.modoDemo !== false, compraTitulo: this.modoDemo === false ? 'Pedir créditos à Althius' : podeComprar ? 'Comprar em 1 clique' : 'Pedir créditos', compraSub: this.modoDemo === false ? 'a Althius confere e libera' : podeComprar ? 'cai na hora' : 'quem decide: ' + decisor,"
+  },
+  {
+    regra: 'créditos: nota do pedido à Althius (ADR 0064)',
+    arquivo: 'logic.generated.js',
+    trocar: "compraNota: podeComprar ? 'Preço fixo por crédito,",
+    por: "compraNota: this.modoDemo === false ? 'O pedido vai para a Althius, que libera os créditos no saldo. A cobrança segue o seu contrato; os valores são de referência.' : podeComprar ? 'Preço fixo por crédito,"
+  },
+  {
+    // ADR 0064: pedido de créditos é para a Althius. Só o superadmin decide; o C-level vê "Decisão da Althius", sem botões.
+    regra: 'aprovações: pedido de créditos à Althius só o superadmin decide (botões)',
+    arquivo: 'logic.generated.js',
+    trocar: "podeDecidir: can('approvals.decide') && !dec && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')),",
+    por: "podeDecidir: can('approvals.decide') && !dec && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')) && (!/pedido à Althius/i.test(sel.tipo) || papel === 'superadmin'),"
+  },
+  {
+    regra: 'aprovações: pedido de créditos à Althius mostra quem decide',
+    arquivo: 'logic.generated.js',
+    trocar: "label: dec ? dec : (can('approvals.decide') && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')) ? 'Sua decisão' : 'Decisão do C-level'),",
+    por: "label: dec ? dec : (/pedido à Althius/i.test(sel.tipo) ? (papel === 'superadmin' ? 'Sua decisão' : 'Decisão da Althius') : can('approvals.decide') && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')) ? 'Sua decisão' : 'Decisão do C-level'),"
+  },
+  {
+    // ADR 0064: no modo real, Campanhas é só a lista. Os seis cartões de canal (texto longo e conectores) somem; o aviso
+    // de que subir no Meta Ads ainda não existe fica no subtítulo (AlthiusApp.publicarCampanhas).
+    regra: 'campanhas: sem os cartões de canal no modo real (ADR 0064)',
+    arquivo: 'logic.generated.js',
+    trocar: "v.cp = { ativo: page === 'campaigns' && vista === 'modulo', canais: [], conAgente: [] };",
+    por: "v.cp = { ativo: page === 'campaigns' && vista === 'modulo' && this.modoDemo !== false, canais: [], conAgente: [] };"
+  },
+  {
+    // ADR 0064: no modo real, Execuções fica só na Lista (Kanban e Timeline eram poluição sem uso).
+    regra: 'execuções: só a visão Lista no modo real (abas)',
+    arquivo: 'logic.generated.js',
+    trocar: "v.exViews = [['lista','Lista'],['kanban','Kanban'],['timeline','Timeline']].map(",
+    por: "v.exViews = (this.modoDemo === false ? [] : [['lista','Lista'],['kanban','Kanban'],['timeline','Timeline']]).map("
+  },
+  {
+    regra: 'execuções: só a visão Lista no modo real (conteúdo)',
+    arquivo: 'logic.generated.js',
+    trocar: "v.exLista = st.exView === 'lista' && !v.exVazio; v.exKanban = st.exView === 'kanban' && !v.exVazio; v.exTimeline = st.exView === 'timeline' && !v.exVazio;",
+    por: "const exVista = this.modoDemo === false ? 'lista' : st.exView; v.exLista = exVista === 'lista' && !v.exVazio; v.exKanban = exVista === 'kanban' && !v.exVazio; v.exTimeline = exVista === 'timeline' && !v.exVazio;"
+  },
+  {
+    // ADR 0064: "Relatórios automáticos" não tem banco por trás; no modo real a seção some (título e tabela genérica).
+    regra: 'relatórios: sem a seção "Relatórios automáticos" no modo real (título)',
+    arquivo: 'template.generated.tsx',
+    trocar: "<h2 style={{\"fontFamily\":\"var(--f-display)\",\"margin\":\"4px 0 0\",\"fontWeight\":\"400\",\"fontSize\":\"18px\"}}>\n                    {\"Relatórios automáticos\"}\n                  </h2>",
+    por: "{$v.md?.mostraAutomaticos ? (<h2 style={{\"fontFamily\":\"var(--f-display)\",\"margin\":\"4px 0 0\",\"fontWeight\":\"400\",\"fontSize\":\"18px\"}}>\n                    {\"Relatórios automáticos\"}\n                  </h2>) : null}"
+  },
+  {
+    regra: 'relatórios: sem a seção "Relatórios automáticos" no modo real (tabela)',
+    arquivo: 'logic.generated.js',
+    trocar: "if (page === 'pipeline' || page === 'credits') { md.tabela = false; md.kanban = false; md.vazio = false; }",
+    por: "md.mostraAutomaticos = !(page === 'analytics' && this.modoDemo === false); if (page === 'pipeline' || page === 'credits' || !md.mostraAutomaticos) { md.tabela = false; md.kanban = false; md.vazio = false; md.filtros = []; }"
   }
 ];

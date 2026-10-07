@@ -136,15 +136,15 @@ SELECT is(
     'Ação pesada de coleta',
     'idem-reserve-autotopup'
   )->>'auto_topup_triggered')::boolean,
-  true,
-  'Auto-Topup: Deve disparar recarga automatica quando saldo disponivel fica abaixo de 1.000'
+  false,
+  'Auto-Topup desligado (ADR 0064): saldo baixo nao compra creditos sozinho'
 );
 
 -- Verify topup wallet received 10,000 credits
 SELECT is(
   (SELECT topup_balance FROM public.credit_wallets WHERE workspace_id = '11111111-1111-1111-1111-111111111111'),
-  10200,
-  'Auto-Topup: Carteira de recarga deve ter recebido 10.000 creditos (200 + 10000 = 10200)'
+  200,
+  'Auto-Topup desligado (ADR 0064): a carteira de recarga nao ganha credito sem pedido a Althius'
 );
 
 SELECT * FROM finish();

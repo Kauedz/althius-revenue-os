@@ -481,7 +481,7 @@ export class AlthiusLogic extends React.Component {
       md.limpar = () => setMs({ busca: '', filtro: 'Todos', uf: null });
       md.temUf = page === 'accounts' && !!ms.uf; md.ufNome = ms.uf ? ((MAPA_UFS.find(u => u.uf === ms.uf) || {}).nome || ms.uf) : ''; md.limparUf = () => setMs({ uf: null });
       md.vazio = rows.length === 0;
-      md.tabela = M.layout !== 'kanban' && !md.vazio; md.kanban = M.layout === 'kanban' && !md.vazio; if (page === 'pipeline' || page === 'credits') { md.tabela = false; md.kanban = false; md.vazio = false; }
+      md.tabela = M.layout !== 'kanban' && !md.vazio; md.kanban = M.layout === 'kanban' && !md.vazio; md.mostraAutomaticos = !(page === 'analytics' && this.modoDemo === false); if (page === 'pipeline' || page === 'credits' || !md.mostraAutomaticos) { md.tabela = false; md.kanban = false; md.vazio = false; md.filtros = []; }
       md.cols = cols.map(c => 'minmax(0, ' + c[2] + ')').join(' ').replace(/minmax\(0, (\d+px)\)/g, '$1');
       md.colsLinha = lay.mobile ? 'minmax(0, 1fr)' : md.cols;
       md.cabecalho = cols.map(c => ({ label: c[1], seta: ms.ord && ms.ord[0] === c[0] ? (ms.ord[1] > 0 ? '↑' : '↓') : '', ordenar: () => setMs({ ord: ms.ord && ms.ord[0] === c[0] ? [c[0], -ms.ord[1]] : [c[0], 1] }) }));
@@ -588,7 +588,7 @@ export class AlthiusLogic extends React.Component {
       }
     }
     // CAMPANHAS
-    v.cp = { ativo: page === 'campaigns' && vista === 'modulo', canais: [], conAgente: [] };
+    v.cp = { ativo: page === 'campaigns' && vista === 'modulo' && this.modoDemo !== false, canais: [], conAgente: [] };
     if (v.cp.ativo) { const LG = window.ALTHIUS_LOGOS || {}, CX = this.conexoes(), KL = (window.ALTHIUS_CONECTORES || {}).lista || [];
       const ms = (st.modSt || {}).campaigns || {}, rowsC = MOD.campaigns.linhas.map(l => Object.assign({}, l, ((st.modOv || {}).campaigns || {})[l.id] || {}));
       const est = id => CX[id] ? (CX[id].erro ? 'erro' : 'on') : 'off';
@@ -651,8 +651,8 @@ export class AlthiusLogic extends React.Component {
           this.avisar('mod', nf(n) + ' créditos adicionados. Saldo: ' + nf(this.saldo() + n) + '.'); }); };
         Object.assign(v.cr, { saldo: nf(saldo), saldoUsd: usd(saldo), pctSaldo: Math.max(0, Math.min(100, saldo / entrou * 100)).toFixed(1) + '%', barraRotulo: nf(saldo) + ' de ' + nf(entrou) + ' créditos restantes',
           entrouTexto: nf(saiu) + ' usados de ' + nf(entrou) + ' que entraram', duracao: porDia ? 'No ritmo atual (' + nf(porDia) + ' por dia), dura cerca de ' + nf(saldo / porDia) + ' dias' : '',
-          leitura, compraTitulo: podeComprar ? 'Comprar em 1 clique' : 'Pedir créditos', compraSub: podeComprar ? 'cai na hora' : 'quem decide: ' + decisor,
-          compraNota: podeComprar ? 'Preço fixo por crédito, sem pacote mais caro ou mais barato. O recibo vai para o e-mail do C-level.' : 'Quem paga decide. O pedido vai para ' + decisor + ' (C-level) e aparece em Aprovações.',
+          leitura, mostraRecarga: this.modoDemo !== false, compraTitulo: this.modoDemo === false ? 'Pedir créditos à Althius' : podeComprar ? 'Comprar em 1 clique' : 'Pedir créditos', compraSub: this.modoDemo === false ? 'a Althius confere e libera' : podeComprar ? 'cai na hora' : 'quem decide: ' + decisor,
+          compraNota: this.modoDemo === false ? 'O pedido vai para a Althius, que libera os créditos no saldo. A cobrança segue o seu contrato; os valores são de referência.' : podeComprar ? 'Preço fixo por crédito, sem pacote mais caro ou mais barato. O recibo vai para o e-mail do C-level.' : 'Quem paga decide. O pedido vai para ' + decisor + ' (C-level) e aparece em Aprovações.',
           modoNota: leitura ? 'Só o C-level e o superadmin mudam estas regras.' : '',
           pacotes: [10000, 25000, 50000, 100000].map(n => ({ creditos: nf(n), preco: brl(n), bloqueado: false, comprar: () => comprar(n) })),
           modos: [['auto', 'Automático'], ['aprovacao', 'Com aprovação']].map(([k, label]) => ({ label, ativo: cfg.modo === k ? 'true' : 'false', escolher: () => setCfg({ modo: k }) })),
@@ -1274,14 +1274,14 @@ export class AlthiusLogic extends React.Component {
 
     // EXECUÇÕES
     const fStatus = ['Todas','Em execução','Aguardando aprovação','Na fila','Agendada','Pausada','Concluída','Concluída parcialmente','Falhou'];
-    v.exViews = [['lista','Lista'],['kanban','Kanban'],['timeline','Timeline']].map(([id, label]) => ({ label, ativo: st.exView === id ? 'true' : 'false', bg: st.exView === id ? 'var(--ink)' : 'var(--paper)', cor: st.exView === id ? 'var(--paper)' : 'var(--ink)', ir: () => this.setState({ exView: id }) }));
+    v.exViews = (this.modoDemo === false ? [] : [['lista','Lista'],['kanban','Kanban'],['timeline','Timeline']]).map(([id, label]) => ({ label, ativo: st.exView === id ? 'true' : 'false', bg: st.exView === id ? 'var(--ink)' : 'var(--paper)', cor: st.exView === id ? 'var(--paper)' : 'var(--ink)', ir: () => this.setState({ exView: id }) }));
     const execBase = vazio ? [] : st.execs;
     v.exFiltros = fStatus.map(s => { const ativo = st.exFiltro === s; return { label: s, n: s === 'Todas' ? execBase.length : execBase.filter(e => e.status === s).length, ativo: ativo ? 'true' : 'false', bg: ativo ? 'var(--ink)' : 'var(--paper)', cor: ativo ? 'var(--paper)' : 'var(--ink)', borda: ativo ? 'var(--ink)' : 'var(--rule)', ir: () => this.setState({ exFiltro: s }) }; });
     const exMap = e => ({ i_check: /Conclu/.test(e.status), i_x: e.status === 'Falhou' || e.status === 'Cancelada', i_run: e.status === 'Em execução', i_clock: !/Conclu|Falhou|Cancelada|Em execução/.test(e.status), tinta: 'color-mix(in srgb, ' + exCor(e.status) + ' 14%, transparent)', id: e.id, titulo: e.titulo, tipo: e.tipo, agenteNome: agNome(e.agente), horario: e.horario, status: e.status, cor: exCor(e.status), pct: e.progresso + '%', validos: e.validos, processados: e.processados, credCons: e.credCons, credEst: e.credEst, href: '#/' + appPath('executions/' + e.id) });
     const exF = execBase.filter(e => st.exFiltro === 'Todas' || e.status === st.exFiltro);
     v.execs = exF.map(exMap);
     v.exVazio = v.execs.length === 0;
-    v.exLista = st.exView === 'lista' && !v.exVazio; v.exKanban = st.exView === 'kanban' && !v.exVazio; v.exTimeline = st.exView === 'timeline' && !v.exVazio;
+    const exVista = this.modoDemo === false ? 'lista' : st.exView; v.exLista = exVista === 'lista' && !v.exVazio; v.exKanban = exVista === 'kanban' && !v.exVazio; v.exTimeline = exVista === 'timeline' && !v.exVazio;
     v.kanban = KANBAN.map(([titulo, sts]) => { const itens = exF.filter(e => sts.indexOf(e.status) >= 0).map(exMap); return { titulo, n: itens.length, itens }; });
 
     const e = page === 'executions' && r.id ? st.execs.find(x => x.id === r.id) : null;
@@ -1319,10 +1319,10 @@ export class AlthiusLogic extends React.Component {
     v.apVazio = apF.length === 0; v.apTem = !v.apVazio;
     if (sel) {
       const dec = st.decisoes[sel.id];
-      v.apSel = Object.assign({}, sel, { agenteNome: agNome(sel.agente), creditos: sel.creditos ? sel.creditos.toLocaleString('pt-BR') : 'Sem consumo', decidida: !!dec, decisao: dec || '', corDecisao: decCor(dec), podeDecidir: can('approvals.decide') && !dec && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')), semAlcada: can('approvals.decide') && !dec && /Orçamento|acima de limite/i.test(sel.tipo) && !can('approvals.spend'),
+      v.apSel = Object.assign({}, sel, { agenteNome: agNome(sel.agente), creditos: sel.creditos ? sel.creditos.toLocaleString('pt-BR') : 'Sem consumo', decidida: !!dec, decisao: dec || '', corDecisao: decCor(dec), podeDecidir: can('approvals.decide') && !dec && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')) && (!/pedido à Althius/i.test(sel.tipo) || papel === 'superadmin'), semAlcada: can('approvals.decide') && !dec && /Orçamento|acima de limite/i.test(sel.tipo) && !can('approvals.spend'),
         histTl: (sel.historico || []).map(l => { const m = String(l).match(/^(\d{1,2}:\d{2})\s+(.*)$/); return m ? { hora: m[1], texto: m[2] } : { hora: '', texto: l }; }),
         fasesAp: (sel.historico || []).map(l => { const t = String(l), i = t.indexOf(' '); return { quando: t.slice(0, i), label: t.slice(i + 1), det: '', done: 'true', st: 'done' }; }).concat([
-          { quando: dec ? 'Agora' : 'Pendente', label: dec ? dec : (can('approvals.decide') && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')) ? 'Sua decisão' : 'Decisão do C-level'), det: dec ? 'Registrada por ' + U.usuario : 'Prazo: ' + (sel.prazo || '—'), done: dec ? 'true' : 'false', st: dec ? 'done' : 'now' }]) });
+          { quando: dec ? 'Agora' : 'Pendente', label: dec ? dec : (/pedido à Althius/i.test(sel.tipo) ? (papel === 'superadmin' ? 'Sua decisão' : 'Decisão da Althius') : can('approvals.decide') && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')) ? 'Sua decisão' : 'Decisão do C-level'), det: dec ? 'Registrada por ' + U.usuario : 'Prazo: ' + (sel.prazo || '—'), done: dec ? 'true' : 'false', st: dec ? 'done' : 'now' }]) });
       const decidir = d => { this.setState({ decisoes: Object.assign({}, st.decisoes, { [sel.id]: d }), ajusteAberto: false, ajusteTexto: '', ajusteErro: false }); this.D.approvalService.decide(sel.id, d); };
       v.aprovar = () => sel.creditos > 1000 ? this.confirmar('Aprovar reserva de ' + v.apSel.creditos + ' créditos?', 'A execução reserva até ' + v.apSel.creditos + ' créditos do saldo do ciclo antes de começar.', 'Aprovar', () => decidir('Aprovada')) : decidir('Aprovada');
       v.rotuloAjuste = st.ajusteAberto ? 'Enviar ajustes' : 'Solicitar ajustes';

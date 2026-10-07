@@ -78,7 +78,7 @@ function listaVazia(): ListaProspeccao {
 /** Tela vazia de verdade: nenhum nome nem número do protótipo. */
 export function prospeccaoSemDados(): ProspeccaoTela {
   return {
-    kpis: ROTULOS.map(label => ({ label, valor: SEM_DADOS, delta: SEM_DADOS })),
+    kpis: ROTULOS.map(label => ({ label, valor: SEM_DADOS, delta: '' })),
     listas: [listaVazia()]
   };
 }
@@ -113,7 +113,7 @@ function montar(brutos: ExecucaoLista[]): ProspeccaoTela {
   const creditos = brutos.map(b => numero(b.actual_credits));
   const valores = [String(brutos.length), soma(contas), soma(validos), soma(creditos)];
   return {
-    kpis: ROTULOS.map((label, i) => ({ label, valor: valores[i], delta: SEM_DADOS })),
+    kpis: ROTULOS.map((label, i) => ({ label, valor: valores[i], delta: '' })),
     listas: listas.length ? listas : [listaVazia()]
   };
 }

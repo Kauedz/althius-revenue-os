@@ -42,7 +42,7 @@ describe('listarProspeccao (unitário / mapeamento)', () => {
     const texto = JSON.stringify(tela);
     expect(texto).not.toMatch(/US\$|dólar|dolar|1\.946|2\.050|81%/);
     expect(tela.kpis.map(k => k.valor)).toEqual(['2', SEM_DADOS, SEM_DADOS, SEM_DADOS]);
-    expect(tela.kpis.every(k => k.delta === SEM_DADOS)).toBe(true);
+    expect(tela.kpis.every(k => k.delta === '')).toBe(true); // ADR 0064: sem repetir "Sem dados ainda" embaixo do número
     expect(tela.listas[0]).toEqual({ id: 'l1', nome: 'Lista do banco', origem: 'Zoe', contas: '10', validos: '7', status: 'Em execução' });
     expect(tela.listas[1]).toEqual({ id: 'l2', nome: SEM_DADOS, origem: SEM_DADOS, contas: SEM_DADOS, validos: SEM_DADOS, status: SEM_DADOS });
   });
