@@ -1,13 +1,16 @@
 // Rota que a tela chama para conectar a PRÓPRIA conta de mensagem. O login da pessoa vai junto e é repassado ao banco:
 // quem confere "é você mesmo, no seu workspace, com permissão" é o Postgres (messaging_connect_start), não este código.
 import { criarLinkHospedado, PROVEDORES, type ProvedorNosso } from './hospedado.ts';
-import type { ObterConfig } from '../unipile/config.ts';
+import { versaoDaApi, type ObterConfig } from '../unipile/config.ts';
+import { chaveDoAviso } from './unipile.ts';
 
 export interface DepsConexoes {
   /** endereço público do sistema (SITE_URL) */
   siteUrl: string;
   /** chave e endereço do canal, relidos a cada pedido (trocar a chave vale na hora) */
   obterConfig: ObterConfig;
+  /** segredo do webhook (lido a cada pedido): na v1 assina o endereço do aviso da conexão */
+  obterSegredo?: () => Promise<string> | string;
   baseBanco: string;
   chaveAnon: string;
   buscar?: typeof fetch;
@@ -26,7 +29,12 @@ export async function iniciarConexao(d: DepsConexoes, jwt: string, corpo: unknow
     return resposta(400, { erro: 'pedido_invalido' });
   }
   // Sem chave do provedor não há como conectar: avisa claro, sem simular.
-  if (!(await d.obterConfig()).apiKey) return resposta(503, { erro: 'conexao_indisponivel' });
+  const cfg = await d.obterConfig();
+  if (!cfg.apiKey) return resposta(503, { erro: 'conexao_indisponivel' });
+  // Na v1 quem avisa que a conta foi conectada é o endereço de aviso do link; ele precisa do segredo para levar a chave do pedido.
+  const v1 = versaoDaApi(cfg) === 'v1';
+  const segredo = v1 ? String((await d.obterSegredo?.()) ?? '').trim() : '';
+  if (v1 && !segredo) return resposta(503, { erro: 'webhook_sem_segredo' });
 
   const r = await buscar(`${d.baseBanco.replace(/\/$/, '')}/rpc/messaging_connect_start`, {
     method: 'POST',
@@ -51,7 +59,8 @@ export async function iniciarConexao(d: DepsConexoes, jwt: string, corpo: unknow
       pedidoId: pedido.request_id,
       retornoUrl: `${site}/#/inbox`,
       expiraEm: new Date(agora.getTime() + 30 * 60_000),
-      reconnectAccount: pedido.reconnect_account_id
+      reconnectAccount: pedido.reconnect_account_id,
+      ...(v1 ? { avisoUrl: `${site}/webhooks/unipile?k=${chaveDoAviso(segredo, pedido.request_id)}` } : {})
     }, buscar);
     return resposta(200, { url });
   } catch {

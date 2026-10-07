@@ -32,6 +32,15 @@ describe.skipIf(!bancoLocalNoAr)('Campanhas e Cadências (banco local)', () => {
     await adm.from('cadences').delete().eq('workspace_id', WS);
   });
 
+  it('Campanhas é uma lista simples (ADR 0064): sem os seis cartões de canal; o Meta Ads aparece como "em breve"', async () => {
+    await entrar('camila@althius.com.br', 'campaigns', 'Nova campanha');
+    expect(screen.queryByText('O que o agente faz')).not.toBeInTheDocument();
+    expect(screen.queryByText(/cuida de todos os canais/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/conectores ativos/)).not.toBeInTheDocument();
+    for (const bruto of ['liads', 'gads', 'ga4', 'gdrive', 'eventbrite', 'gsc']) expect(screen.queryByText(bruto, { exact: true }), bruto).not.toBeInTheDocument();
+    expect(screen.getByText(/Meta Ads: em breve/)).toBeInTheDocument();
+  });
+
   it('Campanhas: sem nada do protótipo; a estrategista cria a campanha e a verba vira pedido ao C-level', async () => {
     await entrar('camila@althius.com.br', 'campaigns', 'Nova campanha');
     for (const nome of PROTOTIPO) expect(screen.queryByText(nome, { exact: false }), nome).not.toBeInTheDocument();

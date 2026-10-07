@@ -33,6 +33,8 @@ INSERT INTO public.accounts (workspace_id, name, domain, status) VALUES
   ('a0000000-0000-0000-0000-000000000001', 'CANARIO-E3', 'canario-e3.test', 'arquivada'),
   ('b0000000-0000-0000-0000-000000000001', 'CANARIO-G1', 'canario-g1.test', 'ativa'),
   ('b0000000-0000-0000-0000-000000000001', 'CANARIO-G2', 'canario-g2.test', 'ativa');
+-- Spec prospeccao-revenue (ADR 0066): a coleta automática só roda nas contas monitoradas; as de teste são marcadas.
+UPDATE public.accounts SET monitorar_sinais = true WHERE name LIKE 'CANARIO-%';
 -- Só as contas de teste entram na conta: as do seed ficam arquivadas durante o teste para o resultado ser exato.
 UPDATE public.accounts SET status = 'arquivada' WHERE name NOT LIKE 'CANARIO-%';
 INSERT INTO public.credit_wallets (workspace_id, allowance_balance, topup_balance, reserved_balance, allowance_expires_at)
@@ -82,7 +84,7 @@ SELECT is((public.signal_collect_finish((SELECT run_id FROM alvo), jsonb_build_a
 ), 12, 0.0123))->>'eventos_novos', '2', 'Dois acontecimentos novos (a repetição não conta)');
 SELECT is((SELECT count(*)::int FROM public.signal_events WHERE account_id = (SELECT account_id FROM alvo)), 2, 'Dois eventos gravados');
 SELECT is((SELECT payload->>'texto' FROM public.signal_events WHERE account_id = (SELECT account_id FROM alvo) AND event_key = 'vaga|e1|analista|2026'), 'Abriu vaga de Analista', 'O texto do evento vai no payload que a tela lê');
-SELECT is((SELECT temperature FROM public.accounts WHERE id = (SELECT account_id FROM alvo)), 2, 'A conta esquentou um nível, não um por evento');
+SELECT is((SELECT (fit_partes->1->>'pontos')::int FROM public.accounts WHERE id = (SELECT account_id FROM alvo)), 18, 'A nota de fit conta os 2 sinais novos (18 pontos), não um por tentativa');
 SELECT is((SELECT estado FROM internal.signal_runs WHERE id = (SELECT run_id FROM alvo)), 'ok', 'Execução concluída');
 SELECT is((SELECT custo_usd FROM internal.signal_runs WHERE id = (SELECT run_id FROM alvo)), 0.0123::numeric, 'O custo real fica só na execução interna');
 SELECT is((SELECT monthly_consumed FROM public.credit_wallets WHERE workspace_id = 'a0000000-0000-0000-0000-000000000001'), 5, 'Cobrou os 5 créditos do sinal');
@@ -102,7 +104,7 @@ SELECT is((SELECT temperature FROM public.accounts WHERE id = (SELECT account_id
 -- ---- Falha: devolve o crédito, não grava evento, e só tenta de novo depois de um tempo (e no máximo 3 vezes).
 UPDATE public.credit_wallets SET reserved_balance = 0, monthly_consumed = 0 WHERE workspace_id = 'a0000000-0000-0000-0000-000000000001';
 -- Uma conta nova da Evolut para a falha (a E1 já tem a coleta deste período concluída).
-INSERT INTO public.accounts (workspace_id, name, domain, status) VALUES ('a0000000-0000-0000-0000-000000000001', 'CANARIO-E4', 'canario-e4.test', 'ativa');
+INSERT INTO public.accounts (workspace_id, name, domain, status, monitorar_sinais) VALUES ('a0000000-0000-0000-0000-000000000001', 'CANARIO-E4', 'canario-e4.test', 'ativa', true);
 CREATE TEMP TABLE r2 ON COMMIT DROP AS SELECT public.signal_collect_next(50) AS x;
 SELECT is(jsonb_array_length((SELECT x FROM r2)), 1, 'Só a conta nova é pedida (as outras já têm coleta neste período)');
 SELECT is((SELECT reserved_balance FROM public.credit_wallets WHERE workspace_id = 'a0000000-0000-0000-0000-000000000001'), 7, 'Reservou 7');

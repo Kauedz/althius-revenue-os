@@ -3,11 +3,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   listarContas,
+  linkedinDoPerfil,
+  geoDaConta,
   textoUltimoContato,
   SEM_CONTATO,
   criarConta,
   editarConta,
-  importarContas
+  importarContas,
+  definirMonitoramento,
+  porqueDoFit
 } from './contas';
 import { bancoLocalNoAr, entrarComoLocal } from '../../test/supabaseLocal';
 import { isolarContas } from '../../test/isolarContas';
@@ -16,6 +20,18 @@ const EVOLUT = 'a0000000-0000-0000-0000-000000000001';
 const GRAO_NORTE = 'b0000000-0000-0000-0000-000000000001';
 const MEMBRO_ALINE = 'd0000000-0000-0000-0000-000000000003';
 const MEMBRO_LUCAS = 'd0000000-0000-0000-0000-000000000004';
+
+describe('por que esta nota (ADR 0067)', () => {
+  it('monta a frase com as três partes; sem partes, nada', () => {
+    expect(porqueDoFit(72, [
+      { parte: 'ICP', pontos: 40, max: 60, motivo: 'setor sim, porte sem dado, região sim' },
+      { parte: 'Sinais', pontos: 18, max: 25, motivo: '2 sinais nos últimos 30 dias' },
+      { parte: 'Dados', pontos: 14, max: 15, motivo: 'falta telefone' }
+    ])).toBe('Por que fit 72: ICP 40/60 (setor sim, porte sem dado, região sim) · Sinais 18/25 (2 sinais nos últimos 30 dias) · Dados 14/15 (falta telefone)');
+    expect(porqueDoFit(10, [])).toBe('');
+    expect(porqueDoFit(10, null)).toBe('');
+  });
+});
 
 describe('textoUltimoContato', () => {
   const agora = new Date('2026-10-06T12:00:00Z');
@@ -150,6 +166,9 @@ describe('listarContas (unitário / mapeamento)', () => {
       decisor: 'Mariana Lima',
       dominio: 'acme.com',
       logoUrl: 'https://acme.com/logo.png',
+      uf: 'SP',
+      geo: null,
+      monitorar: false,
       ultimoContato: 'Sem contato ainda',
       comite: [
         {
@@ -176,6 +195,19 @@ describe('listarContas (unitário / mapeamento)', () => {
     const contas = await listarContas(cliente, 'ws');
     expect(contas[0].comite?.map(p => p.nome)).toEqual(['Carla', 'Bruno', 'Ana', 'Zélia']);
     expect(contas[0].decisor).toBe('Carla');
+  });
+
+  it('enriquecimento: o perfil do LinkedIn guardado e o ponto no mapa (exato pelo CEP, aproximado pela cidade)', async () => {
+    const conta = (id: string, extra: Record<string, unknown>) => ({ id, name: id, domain: id + '.test', logo_url: null, segment: 'x', fit: 50, temperature: 1, last_signal_text: null, owner_member_id: null, city: 'Campinas', state_uf: 'SP', status: 'ativa', ...extra });
+    const cliente = mockSupabase({
+      accounts: { data: [conta('exata', { lat: -22.9, lng: -47.06, localizacao_precisao: 'cep' }), conta('cidade', { lat: -22.9, lng: -47.06, localizacao_precisao: 'cidade' }), conta('sem', { state_uf: null, city: null })], error: null },
+      contacts: { data: [{ id: 'p1', account_id: 'exata', name: 'Bia Rocha', job_title: 'CEO', buying_role: 'decisor', photo_url: 'https://media.licdn.test/bia.jpg', linkedin_status: 'sem_conexao' }], error: null },
+      contact_channels: { data: [{ contact_id: 'p1', type: 'linkedin', value: 'https://www.linkedin.com/in/bia-rocha', position: 1 }], error: null }
+    });
+    const contas = await listarContas(cliente, 'ws');
+    expect(contas.map(c => c.geo)).toEqual([{ lat: -22.9, lng: -47.06, aprox: false }, { lat: -22.9, lng: -47.06, aprox: true }, null]);
+    expect(contas.map(c => c.uf)).toEqual(['SP', 'SP', null]);
+    expect(contas[0].comite?.[0]).toMatchObject({ linkedin: 'https://www.linkedin.com/in/bia-rocha', foto: 'https://media.licdn.test/bia.jpg' });
   });
 
   it('quando não há decisor mapeado, mostra "A mapear"', async () => {
@@ -279,13 +311,16 @@ describe.skipIf(!bancoLocalNoAr)('Contas e leads (banco local)', () => {
     expect(serraAzul).toMatchObject({
       nome: 'Serra Azul Têxtil',
       segmento: 'Têxtil',
-      fit: 96,
-      temperatura: 3,
+      temperatura: 2, // fit 68 (ICP 60 + dados 8): 2 chamas; chega a 3 com 70 (ADR 0069)
       sinal: 'Vaga aberta · Gerente de Importação',
       dono: 'Lucas Teixeira',
       cidade: 'São Paulo, SP',
       decisor: 'Aline Xavier'
     });
+
+    // ADR 0067: o fit é calculado pelo banco (nunca o número fixo do seed) e vem com o "por que".
+    expect(serraAzul!.fit).toBeGreaterThanOrEqual(0);
+    expect(serraAzul!.fitPorque).toMatch(new RegExp(String.raw`^Por que fit ${serraAzul!.fit}: ICP \d+/60 \(.+\) · Sinais \d+/25 \(.+\) · Dados \d+/15 \(.+\)$`));
 
     // Confere se o comitê foi carregado com cargos e contatos
     expect(serraAzul?.comite).toBeDefined();
@@ -395,5 +430,33 @@ describe.skipIf(!bancoLocalNoAr)('Contas e leads (banco local)', () => {
     expect(resultado.total).toBe(2);
     expect(resultado.duplicadas).toBeGreaterThanOrEqual(1);
     expect(resultado.criadas).toBeGreaterThanOrEqual(1);
+  });
+
+  it('ADR 0066: marcar a conta para monitorar sinais (a tela lê a marca; o BDR só mexe nas dele)', async () => {
+    const aline = await entrarComoLocal('aline@evolut.com.br');
+    const antes = (await listarContas(aline, EVOLUT)).find(c => c.nome === 'Campo Belo Agro')!;
+    expect(antes.monitorar).toBe(false);
+    expect(await definirMonitoramento(aline, EVOLUT, MEMBRO_ALINE, antes.id, true)).toEqual({ ok: true });
+    expect((await listarContas(aline, EVOLUT)).find(c => c.id === antes.id)!.monitorar).toBe(true);
+    expect(await definirMonitoramento(aline, EVOLUT, MEMBRO_ALINE, antes.id, false)).toEqual({ ok: true });
+    const lucas = await entrarComoLocal('lucas@evolut.com.br');
+    const deOutro = (await listarContas(aline, EVOLUT)).find(c => c.nome === 'Metalúrgica Ipê')!;
+    expect(await definirMonitoramento(lucas, EVOLUT, MEMBRO_LUCAS, deOutro.id, true)).toEqual({ ok: false, mensagem: 'BDR só mexe nas contas em que é o responsável.' });
+  });
+});
+
+describe('ajudas do enriquecimento na tela', () => {
+  it('perfil do LinkedIn: aceita endereço completo ou só o identificador; o resto é nulo', () => {
+    expect(linkedinDoPerfil('https://br.linkedin.com/in/bia-rocha/?trk=x')).toBe('https://www.linkedin.com/in/bia-rocha');
+    expect(linkedinDoPerfil('bia-rocha')).toBe('https://www.linkedin.com/in/bia-rocha');
+    expect(linkedinDoPerfil('javascript:alert(1)')).toBeNull();
+    expect(linkedinDoPerfil('')).toBeNull();
+  });
+
+  it('ponto no mapa: só dentro do Brasil e com as duas coordenadas', () => {
+    expect(geoDaConta({ lat: -23.5, lng: -46.6, localizacao_precisao: 'endereco' })).toEqual({ lat: -23.5, lng: -46.6, aprox: false });
+    expect(geoDaConta({ lat: -23.5, lng: -46.6 })).toEqual({ lat: -23.5, lng: -46.6, aprox: true });
+    expect(geoDaConta({ lat: 40.7, lng: -74 })).toBeNull();
+    expect(geoDaConta({ lat: -23.5, lng: null })).toBeNull();
   });
 });

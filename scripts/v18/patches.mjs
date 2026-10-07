@@ -678,4 +678,351 @@ export const PATCHES = [
   // ---- Relatórios, Sinais e Prospecção (Grok)
   // Relatórios, no modo real, troca os números na própria tela (AlthiusApp).
   // Sem patch no arquivo gerado. Sinais e Prospecção entram nesta seção depois.
+
+  // ---- Enriquecimento de contas (ADR 0062): toda conta aparece no mapa do Início, sem estragar as outras.
+  // Com coordenada (do enriquecimento): pin no ponto. Só com o estado: pin em volta do número do estado, com contorno
+  // tracejado (local aproximado). Sem nada: marcador "Sem localização" no oceano, que lista essas contas ao clicar.
+  {
+    regra: 'mapa real: toda conta vira pin (ponto exato, aproximado pelo estado ou "Sem localização")',
+    arquivo: 'logic.generated.js',
+    trocar: 'm.pins = contas.filter(c => MAPA_GEO[c.id] && MAPA_GEO[c.id][2] <= diasMax && (COM[c.id] || []).length).map(c => { const g = MAPA_GEO[c.id], xy = proj(g[0], g[1]), p = pct(xy[0], xy[1]);',
+    por: "const real = this.modoDemo === false;\n" +
+      "      const pontoReal = c => { const g = this.geoDaContaNoMapa ? this.geoDaContaNoMapa(c.id) : null; if (g) return { xy: proj(g.lat, g.lng), aprox: !!g.aprox };\n" +
+      "        const u = MAPA_UFS.find(x => x.uf === ufDe(c)); if (!u) return null;\n" +
+      "        let hsh = 0; for (const ch of String(c.id)) hsh = (hsh * 31 + ch.charCodeAt(0)) >>> 0;\n" +
+      "        const ang = (hsh % 360) * Math.PI / 180, raio = 22 + (hsh >>> 9) % 12;\n" +
+      "        return { xy: [u.cx + Math.cos(ang) * raio, u.cy + Math.sin(ang) * raio], aprox: true }; };\n" +
+      "      const semLocalReal = real ? contas.filter(c => !pontoReal(c)) : [];\n" +
+      "      m.pins = (real ? contas.filter(c => pontoReal(c)) : contas.filter(c => MAPA_GEO[c.id] && MAPA_GEO[c.id][2] <= diasMax && (COM[c.id] || []).length)).map(c => { const pr = real ? pontoReal(c) : null, g = real ? [0, 0, 0] : MAPA_GEO[c.id], xy = real ? pr.xy : proj(g[0], g[1]), p = pct(xy[0], xy[1]);"
+  },
+  {
+    regra: 'mapa real: pin aproximado se diferencia (contorno) e diz que o local é aproximado',
+    arquivo: 'logic.generated.js',
+    trocar: 'return { x: p.x, y: p.y, nome: c.nome, cidade: c.cidade, fit: c.fit,',
+    por: "return { x: p.x, y: p.y, dica: 'Abrir conta e comitê', aprox: pr && pr.aprox ? 'true' : 'false', semLocal: 'false', nome: c.nome, cidade: c.cidade + (pr && pr.aprox ? ' (local aproximado)' : ''), fit: c.fit,"
+  },
+  {
+    regra: 'mapa real: marcador "Sem localização" no oceano e textos da legenda',
+    arquivo: 'logic.generated.js',
+    trocar: "      const regs = ['Brasil', 'Norte', 'Nordeste', 'Centro-Oeste', 'Sudeste', 'Sul'];",
+    por: "      if (real) {\n" +
+      "        m.semLocal = semLocalReal.length; cont.SL = semLocalReal.length;\n" +
+      "        if (semLocalReal.length) { const xy = proj(0.5, -35.5), p = pct(xy[0], xy[1]);\n" +
+      "          m.pins.push({ x: p.x, y: p.y, dica: 'Ver quais contas', aprox: 'false', semLocal: 'true', nome: 'Sem localização', cidade: semLocalReal.length + (semLocalReal.length === 1 ? ' conta sem endereço' : ' contas sem endereço'), fit: '—', nivel: '0', chamas: [], dim: 'false',\n" +
+      "            rotulo: 'Sem localização: ' + semLocalReal.length + (semLocalReal.length === 1 ? ' conta' : ' contas') + '. Ver quais', abrir: () => this.setState({ mapaUf: this.state.mapaUf === 'SL' ? null : 'SL' }) }); }\n" +
+      "      }\n" +
+      "      m.semLocalTexto = real ? (m.semLocal ? m.semLocal + (m.semLocal === 1 ? ' conta sem endereço fica' : ' contas sem endereço ficam') + ' no marcador \"Sem localização\", no oceano. O enriquecimento completa sozinho quando achar o endereço.' : 'Todas as contas estão no mapa.') : m.semLocal + ' contas sem endereço ainda ficam fora do mapa.';\n" +
+      "      m.legendaPins = real ? ' cada pin é uma conta. Contorno tracejado = local aproximado (só a cidade ou o estado). Os números agrupam por estado; clique no estado para ver as contas dele.' : ' o mapa mostra contas com sinal no período escolhido. Os números agrupam por estado; os pins mostram as contas com comitê mapeado. Clique no estado para ver as contas dele.';\n" +
+      "      const regs = ['Brasil', 'Norte', 'Nordeste', 'Centro-Oeste', 'Sudeste', 'Sul'];"
+  },
+  {
+    regra: 'mapa real: clicar em "Sem localização" lista as contas sem endereço',
+    arquivo: 'logic.generated.js',
+    trocar: 'if (uSel) { const u = MAPA_UFS.find(x => x.uf === uSel), cs = contas.filter(c => ufDe(c) === uSel && (MAPA_GEO[c.id] || [0, 0, 0])[2] <= diasMax);',
+    por: "if (uSel) { const u = MAPA_UFS.find(x => x.uf === uSel) || { nome: 'Sem localização', uf: 'SL', regiao: 'sem endereço' }, cs = uSel === 'SL' ? semLocalReal : contas.filter(c => ufDe(c) === uSel && (MAPA_GEO[c.id] || [0, 0, 0])[2] <= diasMax);"
+  },
+  {
+    regra: 'mapa real: o pin leva as marcas de aproximado e de sem localização',
+    arquivo: 'template.generated.tsx',
+    trocar: '<button className={"mapa-pin"} data-nivel={p?.nivel} data-dim={p?.dim}',
+    por: '<button className={"mapa-pin"} data-nivel={p?.nivel} data-dim={p?.dim} data-aprox={p?.aprox} data-semlocal={p?.semLocal}'
+  },
+  {
+    regra: 'mapa real: legenda explica os pins',
+    arquivo: 'template.generated.tsx',
+    trocar: '{" o mapa mostra contas com sinal no período escolhido. Os números agrupam por estado; os pins mostram as contas com comitê mapeado. Clique no estado para ver as contas dele."}',
+    por: '{__t($v.mapa?.legendaPins)}'
+  },
+  {
+    regra: 'mapa real: legenda diz onde ficam as contas sem endereço',
+    arquivo: 'template.generated.tsx',
+    trocar: '{__t($v.mapa?.semLocal)}{" contas sem endereço ainda ficam fora do mapa."}',
+    por: '{__t($v.mapa?.semLocalTexto)}'
+  },
+  {
+    regra: 'mapa real: estilo do pin aproximado (contorno tracejado) e do "Sem localização"',
+    arquivo: 'althius.css',
+    trocar: '.mapa-pin[data-dim="true"] { opacity: 0.2; pointer-events: none; }',
+    por: '.mapa-pin[data-dim="true"] { opacity: 0.2; pointer-events: none; }\n' +
+      '  .mapa-pin[data-aprox="true"] path { fill: var(--paper); stroke: var(--ink); stroke-dasharray: 3 2; } .mapa-pin[data-aprox="true"] circle { fill: var(--ink); }\n' +
+      '  .mapa-pin[data-semlocal="true"] path { fill: var(--paper); stroke: var(--graphite); stroke-width: 2; stroke-dasharray: 2 2; } .mapa-pin[data-semlocal="true"] circle { fill: var(--graphite); }'
+  },
+  {
+    regra: 'conta real: salvar o site grava no banco (o logo e o enriquecimento usam o site)',
+    arquivo: 'logic.generated.js',
+    trocar: "this.avisar('mod', 'Site salvo. O logo vem do próprio ' + d + ' e aparece aqui, na lista de contas e no Pipeline.'); };",
+    por: "if (this.modoDemo === false && this.salvarSiteDaConta) this.salvarSiteDaConta(contaSel.id, d);\n            this.avisar('mod', 'Site salvo. O logo vem do próprio ' + d + ' e aparece aqui, na lista de contas e no Pipeline.'); };"
+  },
+  {
+    // Pessoa achada pelo enriquecimento costuma vir só com LinkedIn: sem isso a tela mostrava "undefined · undefined".
+    regra: 'comitê: contato sem e-mail ou telefone não mostra "undefined"',
+    arquivo: 'logic.generated.js',
+    trocar: "contato: (p.emails || [])[0] + ' · ' + (p.fones || [])[0],",
+    por: "contato: [(p.emails || [])[0], (p.fones || [])[0]].filter(Boolean).join(' · ') || 'Sem e-mail nem telefone ainda',"
+  },
+  {
+    regra: 'mapa real: a dica do pin diz o que o clique faz ("Sem localização" abre a lista, não uma conta)',
+    arquivo: 'template.generated.tsx',
+    trocar: '{"Abrir conta e comitê"}',
+    por: '{__t(p?.dica)}'
+  },
+  {
+    regra: 'mapa real: a lista "Sem localização" não fala de uma sigla de estado',
+    arquivo: 'logic.generated.js',
+    trocar: "' de ' + u.uf + ' em Contas e leads'",
+    por: "(uSel === 'SL' ? '' : ' de ' + u.uf) + ' em Contas e leads'"
+  },
+  {
+    regra: 'mapa real: "Ver as contas" da lista "Sem localização" não filtra por um estado que não existe',
+    arquivo: 'logic.generated.js',
+    trocar: '{ uf: uSel, aberto: null }',
+    por: "{ uf: uSel === 'SL' ? null : uSel, aberto: null }"
+  },
+  {
+    regra: 'mapa real: a dica do marcador "Sem localização" (na borda direita) não é cortada',
+    arquivo: 'althius.css',
+    trocar: '.mapa-pin[data-semlocal="true"] path {',
+    por: '.mapa-pin[data-semlocal="true"] .pin-tip { left: auto; right: 0; transform: none; }\n  .mapa-pin[data-semlocal="true"] path {'
+  },
+  {
+    // ADR 0063: o Nan enxugou o catálogo em 06/10/2026. Fica o que conecta hoje (HubSpot, Pipedrive, Notion, Apollo, canais de
+    // mensagem...) mais o que ele quer ter: RD Station, Google Agenda e Meta Ads (os três "Em breve"). O resto, que não existe, sai.
+    regra: 'catálogo de conectores: só os que existem ou foram pedidos (ADR 0063)',
+    arquivo: 'module.js',
+    aplicar: texto => {
+      const FICAM = ['hubspot', 'pipedrive', 'rdstation', 'whatsapp', 'instagram', 'gmail', 'gcal', 'outlook', 'granola', 'otter', 'notion', 'confluence', 'apollo', 'linkedin', 'calendly', 'meta'];
+      const inicio = texto.indexOf('window.ALTHIUS_CONECTORES = ');
+      if (inicio < 0) throw new Error('Regra "catálogo de conectores": não achei window.ALTHIUS_CONECTORES. O design mudou? Revise scripts/v18/patches.mjs.');
+      const fimLinha = texto.indexOf('\n', inicio) < 0 ? texto.length : texto.indexOf('\n', inicio);
+      const catalogo = JSON.parse(texto.slice(inicio + 'window.ALTHIUS_CONECTORES = '.length, fimLinha).replace(/;\s*$/, ''));
+      const faltam = FICAM.filter(id => !catalogo.lista.some(c => c.id === id));
+      if (faltam.length) throw new Error(`Regra "catálogo de conectores": o design não traz mais ${faltam.join(', ')}. Revise scripts/v18/patches.mjs.`);
+      catalogo.lista = catalogo.lista.filter(c => FICAM.includes(c.id));
+      catalogo.cats = catalogo.cats.filter(cat => catalogo.lista.some(c => c.cat === cat.id));
+      return texto.slice(0, inicio) + 'window.ALTHIUS_CONECTORES = ' + JSON.stringify(catalogo) + ';' + texto.slice(fimLinha);
+    }
+  },
+  {
+    // ADR 0063: os cartões de canal da tela de Campanhas ligavam cada canal a conectores que saíram do catálogo (apareciam
+    // com o código cru, como "liads"). O canal continua (é como a campanha é classificada); só cita o conector que existe.
+    regra: 'campanhas: cartões de canal só citam conectores que existem (ADR 0063)',
+    arquivo: 'logic.generated.js',
+    trocar: "['LinkedIn Ads', ['liads'], 'ABM com as contas do ICP: anúncio só para quem está na lista.'",
+    por: "['LinkedIn Ads', [], 'ABM com as contas do ICP: anúncio só para quem está na lista.'"
+  },
+  {
+    regra: 'campanhas: Google Ads sem conectores que saíram do catálogo (ADR 0063)',
+    arquivo: 'logic.generated.js',
+    trocar: "['Google Ads', ['gads', 'ga4'],",
+    por: "['Google Ads', [],"
+  },
+  {
+    regra: 'campanhas: Orgânico sem Google Drive (ADR 0063)',
+    arquivo: 'logic.generated.js',
+    trocar: "['Orgânico', ['notion', 'gdrive'],",
+    por: "['Orgânico', ['notion'],"
+  },
+  {
+    regra: 'campanhas: Evento sem Eventbrite (ADR 0063)',
+    arquivo: 'logic.generated.js',
+    trocar: "['Evento', ['eventbrite', 'hubspot'],",
+    por: "['Evento', ['hubspot'],"
+  },
+  {
+    regra: 'campanhas: SEO/GEO sem Search Console nem Analytics (ADR 0063)',
+    arquivo: 'logic.generated.js',
+    trocar: "['SEO/GEO', ['gsc', 'ga4'],",
+    por: "['SEO/GEO', [],"
+  },
+  {
+    regra: 'agentes: Jax não cita Google Ads nem LinkedIn Ads, que saíram do catálogo (ADR 0063)',
+    arquivo: 'data.js',
+    trocar: "I('Mídia paga','Meta Ads','Leitura'), I('Mídia paga','Google Ads','Leitura'), I('Mídia paga','LinkedIn Ads','Leitura')",
+    por: "I('Mídia paga','Meta Ads','Leitura')"
+  },
+  {
+    regra: 'agentes: Neo não cita Google Sheets, que saiu do catálogo (ADR 0063)',
+    arquivo: 'data.js',
+    trocar: "I('CRM','HubSpot','Leitura e escrita'), I('Planilhas','Google Sheets','Escrita')",
+    por: "I('CRM','HubSpot','Leitura e escrita')"
+  },
+  {
+    // ADR 0064: a Althius opera junto com o cliente; nada compra créditos sozinho. Recarga automática some no modo real.
+    regra: 'créditos: recarga automática escondida no modo real (abre)',
+    arquivo: 'template.generated.tsx',
+    trocar: "<span style={{\"display\":\"flex\",\"alignItems\":\"center\",\"gap\":\"12px\",\"flex\":\"1 1 300px\"}}>",
+    por: "{$v.cr?.mostraRecarga ? (<span style={{\"display\":\"flex\",\"alignItems\":\"center\",\"gap\":\"12px\",\"flex\":\"1 1 300px\"}}>"
+  },
+  {
+    regra: 'créditos: recarga automática escondida no modo real (fecha)',
+    arquivo: 'template.generated.tsx',
+    trocar: "{\"Abaixo de 1.000, compra 10.000 créditos.\"}\n                            </span>\n                          </span>\n                        </span>",
+    por: "{\"Abaixo de 1.000, compra 10.000 créditos.\"}\n                            </span>\n                          </span>\n                        </span>) : null}"
+  },
+  {
+    regra: 'créditos: o cliente pede à Althius (ADR 0064)',
+    arquivo: 'logic.generated.js',
+    trocar: "leitura, compraTitulo: podeComprar ? 'Comprar em 1 clique' : 'Pedir créditos', compraSub: podeComprar ? 'cai na hora' : 'quem decide: ' + decisor,",
+    por: "leitura, mostraRecarga: this.modoDemo !== false, compraTitulo: this.modoDemo === false ? 'Pedir créditos à Althius' : podeComprar ? 'Comprar em 1 clique' : 'Pedir créditos', compraSub: this.modoDemo === false ? 'a Althius confere e libera' : podeComprar ? 'cai na hora' : 'quem decide: ' + decisor,"
+  },
+  {
+    regra: 'créditos: nota do pedido à Althius (ADR 0064)',
+    arquivo: 'logic.generated.js',
+    trocar: "compraNota: podeComprar ? 'Preço fixo por crédito,",
+    por: "compraNota: this.modoDemo === false ? 'O pedido vai para a Althius, que libera os créditos no saldo. A cobrança segue o seu contrato; os valores são de referência.' : podeComprar ? 'Preço fixo por crédito,"
+  },
+  {
+    // ADR 0064: pedido de créditos é para a Althius. Só o superadmin decide; o C-level vê "Decisão da Althius", sem botões.
+    regra: 'aprovações: pedido de créditos à Althius só o superadmin decide (botões)',
+    arquivo: 'logic.generated.js',
+    trocar: "podeDecidir: can('approvals.decide') && !dec && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')),",
+    por: "podeDecidir: can('approvals.decide') && !dec && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')) && (!/pedido à Althius/i.test(sel.tipo) || papel === 'superadmin'),"
+  },
+  {
+    regra: 'aprovações: pedido de créditos à Althius mostra quem decide',
+    arquivo: 'logic.generated.js',
+    trocar: "label: dec ? dec : (can('approvals.decide') && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')) ? 'Sua decisão' : 'Decisão do C-level'),",
+    por: "label: dec ? dec : (/pedido à Althius/i.test(sel.tipo) ? (papel === 'superadmin' ? 'Sua decisão' : 'Decisão da Althius') : can('approvals.decide') && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')) ? 'Sua decisão' : 'Decisão do C-level'),"
+  },
+  {
+    // ADR 0064: no modo real, Campanhas é só a lista. Os seis cartões de canal (texto longo e conectores) somem; o aviso
+    // de que subir no Meta Ads ainda não existe fica no subtítulo (AlthiusApp.publicarCampanhas).
+    regra: 'campanhas: sem os cartões de canal no modo real (ADR 0064)',
+    arquivo: 'logic.generated.js',
+    trocar: "v.cp = { ativo: page === 'campaigns' && vista === 'modulo', canais: [], conAgente: [] };",
+    por: "v.cp = { ativo: page === 'campaigns' && vista === 'modulo' && this.modoDemo !== false, canais: [], conAgente: [] };"
+  },
+  {
+    // ADR 0064: no modo real, Execuções fica só na Lista (Kanban e Timeline eram poluição sem uso).
+    regra: 'execuções: só a visão Lista no modo real (abas)',
+    arquivo: 'logic.generated.js',
+    trocar: "v.exViews = [['lista','Lista'],['kanban','Kanban'],['timeline','Timeline']].map(",
+    por: "v.exViews = (this.modoDemo === false ? [] : [['lista','Lista'],['kanban','Kanban'],['timeline','Timeline']]).map("
+  },
+  {
+    regra: 'execuções: só a visão Lista no modo real (conteúdo)',
+    arquivo: 'logic.generated.js',
+    trocar: "v.exLista = st.exView === 'lista' && !v.exVazio; v.exKanban = st.exView === 'kanban' && !v.exVazio; v.exTimeline = st.exView === 'timeline' && !v.exVazio;",
+    por: "const exVista = this.modoDemo === false ? 'lista' : st.exView; v.exLista = exVista === 'lista' && !v.exVazio; v.exKanban = exVista === 'kanban' && !v.exVazio; v.exTimeline = exVista === 'timeline' && !v.exVazio;"
+  },
+  {
+    // ADR 0064: "Relatórios automáticos" não tem banco por trás; no modo real a seção some (título e tabela genérica).
+    regra: 'relatórios: sem a seção "Relatórios automáticos" no modo real (título)',
+    arquivo: 'template.generated.tsx',
+    trocar: "<h2 style={{\"fontFamily\":\"var(--f-display)\",\"margin\":\"4px 0 0\",\"fontWeight\":\"400\",\"fontSize\":\"18px\"}}>\n                    {\"Relatórios automáticos\"}\n                  </h2>",
+    por: "{$v.md?.mostraAutomaticos ? (<h2 style={{\"fontFamily\":\"var(--f-display)\",\"margin\":\"4px 0 0\",\"fontWeight\":\"400\",\"fontSize\":\"18px\"}}>\n                    {\"Relatórios automáticos\"}\n                  </h2>) : null}"
+  },
+  {
+    regra: 'relatórios: sem a seção "Relatórios automáticos" no modo real (tabela)',
+    arquivo: 'logic.generated.js',
+    trocar: "if (page === 'pipeline' || page === 'credits') { md.tabela = false; md.kanban = false; md.vazio = false; }",
+    por: "md.mostraAutomaticos = !(page === 'analytics' && this.modoDemo === false); if (page === 'pipeline' || page === 'credits' || !md.mostraAutomaticos) { md.tabela = false; md.kanban = false; md.vazio = false; md.filtros = []; }"
+  },
+  {
+    // ADR 0065: no modo real, o card do Pipeline abre a ficha da conta (como em Contas e leads); o lápis edita o negócio.
+    regra: 'pipeline: rótulo do card diz o que o Enter faz',
+    arquivo: 'logic.generated.js',
+    trocar: "rotulo: d.conta + ', ' + brl(d.valor) + ', ' + rot(d.etapa) + ', ' + s[0] + '. Enter para editar.',",
+    por: "rotulo: d.conta + ', ' + brl(d.valor) + ', ' + rot(d.etapa) + ', ' + s[0] + (this.modoDemo === false ? '. Enter para abrir a conta.' : '. Enter para editar.'),"
+  },
+  {
+    regra: 'pipeline: clicar no card abre a ficha da conta; o lápis edita o negócio',
+    arquivo: 'logic.generated.js',
+    trocar: "abrir: () => { if (!meu) { bloq(); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); },",
+    por: "editar: e => { if (e && e.stopPropagation) e.stopPropagation(); if (!meu) { bloq(); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); }, abrir: () => { if (this.modoDemo === false && d.cid) { this.abrirConta(d.cid, 'comite'); return; } if (!meu) { bloq(); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); },"
+  },
+  {
+    regra: 'pipeline: Enter no card abre a ficha da conta no modo real',
+    arquivo: 'logic.generated.js',
+    trocar: "tecla: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); } } }; }) }; }) };",
+    por: "tecla: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (this.modoDemo === false && d.cid) { this.abrirConta(d.cid, 'comite'); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); } } }; }) }; }) };"
+  },
+  {
+    regra: 'pipeline: lápis no card para editar o negócio',
+    arquivo: 'template.generated.tsx',
+    trocar: "<span className={\"pk-tag\"}>\n                                    {__t(c?.motion)}\n                                  </span>",
+    por: "<span className={\"pk-tag\"}>\n                                    {__t(c?.motion)}\n                                  </span><button className={\"icon-btn\"} style={{\"width\":\"26px\",\"height\":\"26px\",\"flex\":\"0 0 auto\"}} onClick={c?.editar} aria-label={\"Editar negócio de \" + (c?.conta || \"\")} title=\"Editar negócio\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"1.6\" strokeLinecap=\"round\" strokeLinejoin=\"round\" aria-hidden=\"true\"><path d=\"M14.5 5.5l4 4\"></path><path d=\"M4 20l1-4.5L15.8 4.7a1.8 1.8 0 0 1 2.5 0l1 1a1.8 1.8 0 0 1 0 2.5L8.5 19z\"></path></svg></button>"
+  },
+  {
+    // ADR 0065: segundo botão no topo das páginas de módulo (ex.: "Importar lista" em Contas, "Adicionar contas da base" no Pipeline).
+    regra: 'módulos: botão secundário no topo (acao2)',
+    arquivo: 'template.generated.tsx',
+    trocar: "<span style={{\"flex\":\"1 1 auto\"}}></span>\n                  {\"\\n              \"}\n                  {$v.md?.temAcao ? (<>",
+    por: "<span style={{\"flex\":\"1 1 auto\"}}></span>\n                  {\"\\n              \"}\n                  {$v.md?.temAcao2 ? (<button className={\"b-sec\"} onClick={$v.md?.acao2} style={{\"height\":\"44px\",\"padding\":\"0 16px\",\"border\":\"1px solid var(--ink)\",\"borderRadius\":\"10px\",\"background\":\"var(--paper)\",\"color\":\"var(--ink)\",\"fontFamily\":\"inherit\",\"fontSize\":\"14px\",\"cursor\":\"pointer\"}}>{__t($v.md?.acao2Label)}</button>) : null}{$v.md?.temAcao ? (<>"
+  },
+  {
+    regra: 'ficha da conta: botão "Adicionar ao Pipeline" (ADR 0065)',
+    arquivo: 'template.generated.tsx',
+    trocar: "<button className={\"b-sec\"} onClick={$v.cta?.fechar} aria-label=\"Fechar\"",
+    por: "{$v.cta?.podePipeline ? (<button className={\"b-sec mini-btn\"} onClick={$v.cta?.adicionarPipeline} style={{\"flex\":\"none\",\"height\":\"40px\"}}>{\"Adicionar ao Pipeline\"}</button>) : null}<button className={\"b-sec\"} onClick={$v.cta?.fechar} aria-label=\"Fechar\""
+  },
+  {
+    regra: 'ficha da conta: botão "Monitorar sinais" (ADR 0066)',
+    arquivo: 'template.generated.tsx',
+    trocar: "{$v.cta?.podePipeline ? (<button className={\"b-sec mini-btn\"} onClick={$v.cta?.adicionarPipeline}",
+    por: "{$v.cta?.podeMonitorar ? (<button className={\"b-sec mini-btn\"} onClick={$v.cta?.alternarMonitorar} title={$v.cta?.monitorarDica} style={{\"flex\":\"none\",\"height\":\"40px\"}}>{__t($v.cta?.monitorarLabel)}</button>) : null}{$v.cta?.podePipeline ? (<button className={\"b-sec mini-btn\"} onClick={$v.cta?.adicionarPipeline}"
+  },
+  {
+    // ADR 0067: o fit é calculado pelo banco; a ficha mostra o "por que esta nota" (ICP, sinais e dados).
+    regra: 'ficha da conta: por que esta nota (fit calculado)',
+    arquivo: 'template.generated.tsx',
+    trocar: "<span className={\"co-site\"}>",
+    por: "{$v.cta?.fitPorque ? (<span className={\"fit-porque\"} style={{\"fontSize\":\"12px\",\"lineHeight\":\"1.4\",\"color\":\"var(--graphite)\"}}>{__t($v.cta?.fitPorque)}</span>) : null}<span className={\"co-site\"}>"
+  },
+  {
+    // ADR 0067 (fatia 5): os papéis dos 4 agentes decididos pelo Nan. Zoe é a única que prospecta; Jax cuida da
+    // estratégia, do ICP e da mídia; Lia de copy e cadências; Neo de RevOps. Sem integração que não existe (Apollo) e
+    // com o Meta Ads "Em breve" (ADR 0063).
+    regra: 'agentes: papéis de Zoe, Jax, Lia e Neo',
+    arquivo: 'data.js',
+    aplicar: texto => {
+      const trocas = [
+        ["funcao: 'Comercial · ICP, contas e comitê', latim: 'Vai atrás das contas certas'",
+         "funcao: 'Prospecção · empresas, pessoas e comitê', latim: 'Vai atrás das contas certas'"],
+        ["objetivo: 'Encontra e prioriza contas dentro do ICP, mapeia o comitê de compra e acompanha sinais de compra.', escopo: 'Lê o CRM, pesquisa dados públicos e da Receita Federal, monta listas e comitês. Não escreve no CRM sem aprovação.'",
+         "objetivo: 'A única que prospecta: busca empresas novas pelo ICP (Google Maps, Receita Federal), traz candidatas para você incluir ou excluir, mapeia o comitê de compra e acompanha os sinais das contas.', escopo: 'Diz o custo antes de rodar e só roda quando uma pessoa pede. Propõe contas, enriquecimento, Pipeline e planos; nada muda sem aprovação.'"],
+        ["I('Enriquecimento de contatos','Apollo','Leitura')", "I('Busca de empresas','Google Maps','Leitura')"],
+        ["funcao: 'Marketing · mídia, SEO/GEO e eventos', latim: 'Anuncia a marca ao mercado'",
+         "funcao: 'Estratégia · ICP e mídia paga', latim: 'Anuncia a marca ao mercado'"],
+        ["objetivo: 'Planeja e lê campanhas pagas, orgânico, SEO/GEO e eventos, e aponta onde realocar orçamento.', escopo: 'Lê dados de mídia e do site. Mudanças de orçamento e publicação exigem aprovação.'",
+         "objetivo: 'Escreve e remodela o ICP pelo que já vende, pelos dados e pelo Playbook, e cuida das campanhas e da verba de mídia paga.', escopo: 'Propõe mudanças no ICP, nas campanhas e na verba; tudo vira aprovação (verba, só o C-level). Lookalike no Meta Ads quando o conector existir.'"],
+        ["integracoes: [I('Mídia paga','Meta Ads','Leitura')]", "integracoes: [I('Mídia paga','Meta Ads','Em breve')]"],
+        ["funcao: 'Copy · mensagens e conteúdo', latim: 'Escreve no tom da marca'",
+         "funcao: 'Copy · mensagens e cadências', latim: 'Escreve no tom da marca'"],
+        ["objetivo: 'Escreve e-mails, mensagens, roteiros de ligação, anúncios e conteúdos no tom da marca.'",
+         "objetivo: 'Escreve e-mails, mensagens e roteiros de ligação no tom da marca e monta os passos das cadências.'"],
+        ["funcao: 'RevOps · CRM, pipeline e relatórios', latim: 'Mantém os números de pé'",
+         "funcao: 'RevOps · métricas e relatórios', latim: 'Mantém os números de pé'"],
+        ["objetivo: 'Mantém o CRM limpo, acompanha o pipeline, avisa sobre negócios parados e monta os relatórios do ciclo.', escopo: 'Lê e escreve no CRM somente com aprovação. Publica relatórios internos.'",
+         "objetivo: 'Lê as métricas, o pipeline e os negócios parados, explica os números e monta os relatórios quando você pede.', escopo: 'Lê o CRM e os números. Mudanças no CRM e tarefas só com aprovação.'"]
+      ];
+      for (const [de, para] of trocas) {
+        if (texto.split(de).length !== 2) throw new Error('Regra "agentes: papéis": não achei exatamente uma vez: ' + de.slice(0, 60));
+        texto = texto.replace(de, () => para);
+      }
+      return texto;
+    }
+  },
+  {
+    // ADR 0068: no modo real o Copiloto é um assistente (não um agente). O texto de abertura vem da camada real.
+    regra: 'copiloto: texto de abertura vem da camada real',
+    arquivo: 'template.generated.tsx',
+    trocar: "{\"Descreva o objetivo. O copiloto monta o plano, delega aos agentes e pede sua aprovação antes de qualquer ação irreversível.\"}",
+    por: "{__t($v.copIntro || \"Descreva o objetivo. O copiloto monta o plano, delega aos agentes e pede sua aprovação antes de qualquer ação irreversível.\")}"
+  },
+  {
+    // ADR 0068: a conversa privada com o Copiloto (perguntas, respostas, encaminhamento ao agente certo).
+    regra: 'copiloto: conversa com mensagens e encaminhamento',
+    arquivo: 'template.generated.tsx',
+    trocar: "{$v.copAndamento ? (<>",
+    por: "{__arr($v.copMsgs).map((m, $index) => (<div key={m?.id || $index} className={\"msg\"} data-align={m?.alinhar}><span className={m?.avClasse}>{__t(m?.sigla)}</span><div className={\"msg-body\"}><div className={m?.bolha} style={{\"whiteSpace\":\"pre-wrap\"}}>{__t(m?.texto)}</div>{m?.encaminhar ? (<button className={\"b-sec mini-btn\"} onClick={m?.encaminhar} style={{\"alignSelf\":\"flex-start\",\"height\":\"36px\"}}>{__t(m?.encaminharLabel)}</button>) : null}<span className={\"msg-foot\"}>{__t(m?.rodape)}</span></div></div>))}{$v.copPensando ? (<p role=\"status\" style={{\"margin\":\"0\",\"fontSize\":\"13px\",\"color\":\"var(--graphite)\"}}>{\"O Copiloto está respondendo…\"}</p>) : null}{$v.copAndamento ? (<>"
+  },
+  {
+    // ADR 0068: no modo real a Caixa de entrada é uma conversa por empresa (lista à esquerda, conversa à direita;
+    // no celular, uma tela por vez), com o responder escolhendo a pessoa e o canal.
+    regra: 'caixa de entrada: conversa por empresa',
+    arquivo: 'template.generated.tsx',
+    trocar: "{$v.md?.tabela ? (<>",
+    por: "{$v.md?.chat ? (<section aria-label={\"Conversas por empresa\"} style={{\"display\":\"grid\",\"gridTemplateColumns\":$v.md.chat.colunas,\"border\":\"1px solid var(--rule)\",\"borderRadius\":\"12px\",\"overflow\":\"hidden\",\"minHeight\":\"420px\",\"background\":\"var(--paper)\"}}>{$v.md.chat.mostraLista ? (<nav aria-label={\"Empresas\"} className={\"scroll-area\"} style={{\"borderRight\":\"1px solid var(--rule)\",\"overflowY\":\"auto\",\"maxHeight\":\"640px\",\"minWidth\":\"0\"}}>{$v.md.chat.vazio ? (<p style={{\"margin\":\"0\",\"padding\":\"18px\",\"fontSize\":\"14px\",\"color\":\"var(--graphite)\"}}>{__t($v.md.chat.vazio)}</p>) : null}{__arr($v.md.chat.empresas).map((e, $index) => (<button key={e?.id || $index} onClick={e?.abrir} aria-current={e?.atual} style={{\"display\":\"flex\",\"flexDirection\":\"column\",\"gap\":\"4px\",\"width\":\"100%\",\"textAlign\":\"left\",\"padding\":\"12px 14px\",\"border\":\"0\",\"borderBottom\":\"1px solid var(--rule)\",\"background\":e?.bg,\"cursor\":\"pointer\",\"fontFamily\":\"inherit\",\"color\":\"var(--ink)\"}}><span style={{\"display\":\"flex\",\"justifyContent\":\"space-between\",\"gap\":\"8px\",\"alignItems\":\"baseline\"}}><span style={{\"fontWeight\":\"600\",\"fontSize\":\"14px\"}}>{__t(e?.nome)}</span><span style={{\"fontSize\":\"12px\",\"color\":\"var(--graphite)\",\"flex\":\"none\"}}>{__t(e?.quando)}</span></span><span style={{\"fontSize\":\"13px\",\"color\":\"var(--graphite)\",\"overflow\":\"hidden\",\"textOverflow\":\"ellipsis\",\"whiteSpace\":\"nowrap\"}}>{__t(e?.ultima)}</span><span style={{\"display\":\"flex\",\"gap\":\"8px\",\"alignItems\":\"center\",\"fontSize\":\"12px\",\"color\":\"var(--graphite)\"}}><span style={{\"overflow\":\"hidden\",\"textOverflow\":\"ellipsis\",\"whiteSpace\":\"nowrap\"}}>{__t(e?.pessoas)}</span>{e?.naoLidas ? (<span aria-label={e?.naoLidasRotulo} style={{\"marginLeft\":\"auto\",\"background\":\"var(--signal)\",\"color\":\"var(--paper)\",\"borderRadius\":\"999px\",\"padding\":\"0 8px\",\"fontWeight\":\"600\"}}>{__t(e?.naoLidas)}</span>) : null}</span></button>))}</nav>) : null}{$v.md.chat.mostraConversa ? (<div style={{\"display\":\"flex\",\"flexDirection\":\"column\",\"minWidth\":\"0\"}}>{$v.md.chat.temSelecao ? (<><header style={{\"display\":\"flex\",\"alignItems\":\"center\",\"gap\":\"10px\",\"padding\":\"12px 14px\",\"borderBottom\":\"1px solid var(--rule)\"}}>{$v.md.chat.voltar ? (<button className={\"icon-btn\"} onClick={$v.md.chat.voltar} aria-label={\"Voltar para a lista\"} style={{\"width\":\"34px\",\"height\":\"34px\",\"flex\":\"none\"}}>{\"←\"}</button>) : null}<span style={{\"display\":\"flex\",\"flexDirection\":\"column\",\"minWidth\":\"0\"}}><span style={{\"fontWeight\":\"600\"}}>{__t($v.md.chat.titulo)}</span><span style={{\"fontSize\":\"12px\",\"color\":\"var(--graphite)\"}}>{__t($v.md.chat.subtitulo)}</span></span></header><div role=\"log\" aria-label={\"Mensagens de \" + ($v.md.chat.titulo || \"\")} className={\"scroll-area\"} style={{\"flex\":\"1 1 auto\",\"overflowY\":\"auto\",\"maxHeight\":\"480px\",\"padding\":\"14px\",\"display\":\"flex\",\"flexDirection\":\"column\",\"gap\":\"12px\"}}>{__arr($v.md.chat.mensagens).map((m, $index) => (<div key={m?.id || $index} className={\"msg\"} data-align={m?.alinhar}><span className={m?.avClasse}>{__t(m?.sigla)}</span><div className={\"msg-body\"}><span style={{\"fontSize\":\"12px\",\"color\":\"var(--graphite)\"}}>{__t(m?.cabecalho)}</span><div className={m?.bolha} style={{\"whiteSpace\":\"pre-wrap\"}}>{__t(m?.texto)}</div><span className={\"msg-foot\"}>{__t(m?.quando)}{m?.intencao ? (<span style={{\"marginLeft\":\"8px\",\"padding\":\"0 8px\",\"borderRadius\":\"999px\",\"border\":\"1px solid var(--rule)\",\"color\":\"var(--ink)\"}}>{__t(m?.intencao)}</span>) : null}</span></div></div>))}</div><div style={{\"borderTop\":\"1px solid var(--rule)\",\"padding\":\"12px 14px\",\"display\":\"flex\",\"flexDirection\":\"column\",\"gap\":\"8px\"}}><label className={\"cfg-campo\"}><span>{\"Responder para\"}</span><select className={\"cfg-select\"} value={__val($v.md.chat.destino)} onChange={$v.md.chat.mudarDestino}>{__arr($v.md.chat.destinos).map((d, $i) => (<option key={$i} value={__val(d?.valor)}>{__t(d?.rotulo)}</option>))}</select></label>{$v.md.chat.motivo ? (<p role=\"note\" style={{\"margin\":\"0\",\"fontSize\":\"13px\",\"color\":\"var(--graphite)\"}}>{__t($v.md.chat.motivo)}</p>) : null}{$v.md.chat.temAssunto ? (<input value={__val($v.md.chat.assunto)} onChange={$v.md.chat.mudarAssunto} placeholder=\"Assunto (opcional)\" aria-label=\"Assunto\" style={{\"height\":\"40px\",\"border\":\"1px solid var(--steel)\",\"borderRadius\":\"10px\",\"padding\":\"0 12px\",\"fontFamily\":\"inherit\",\"fontSize\":\"14px\"}} />) : null}<textarea value={__val($v.md.chat.texto)} onChange={$v.md.chat.mudarTexto} rows={3} placeholder=\"Escreva a resposta\" aria-label=\"Sua resposta\" style={{\"border\":\"1px solid var(--steel)\",\"borderRadius\":\"10px\",\"padding\":\"10px 12px\",\"fontFamily\":\"inherit\",\"fontSize\":\"14px\",\"resize\":\"vertical\"}}></textarea><div style={{\"display\":\"flex\",\"gap\":\"8px\",\"flexWrap\":\"wrap\",\"alignItems\":\"center\"}}><button className={\"b-pri\"} onClick={$v.md.chat.enviar} disabled={!$v.md.chat.podeEnviar} style={{\"height\":\"40px\",\"padding\":\"0 16px\",\"borderRadius\":\"10px\",\"border\":\"1px solid var(--ink)\",\"background\":\"var(--ink)\",\"color\":\"var(--paper)\",\"fontFamily\":\"inherit\",\"fontSize\":\"14px\",\"cursor\":\"pointer\",\"opacity\":$v.md.chat.podeEnviar ? \"1\" : \"0.5\"}}>{\"Enviar resposta\"}</button><button className={\"b-sec\"} onClick={$v.md.chat.sugerir} style={{\"height\":\"40px\",\"padding\":\"0 14px\",\"borderRadius\":\"10px\",\"border\":\"1px solid var(--ink)\",\"background\":\"var(--paper)\",\"fontFamily\":\"inherit\",\"fontSize\":\"14px\",\"cursor\":\"pointer\"}}>{\"Sugerir resposta\"}</button><button className={\"b-sec\"} onClick={$v.md.chat.excluir} style={{\"height\":\"40px\",\"padding\":\"0 14px\",\"borderRadius\":\"10px\",\"border\":\"1px solid var(--err)\",\"color\":\"var(--err)\",\"background\":\"var(--paper)\",\"fontFamily\":\"inherit\",\"fontSize\":\"14px\",\"cursor\":\"pointer\"}}>{\"Excluir contato do CRM\"}</button></div><p style={{\"margin\":\"0\",\"fontSize\":\"12px\",\"color\":\"var(--graphite)\"}}>{\"Não é um grupo de verdade: a resposta vai só para a pessoa e o canal escolhidos, pela sua conta, e custa 4 créditos.\"}</p></div></>) : (<p style={{\"margin\":\"0\",\"padding\":\"18px\",\"fontSize\":\"14px\",\"color\":\"var(--graphite)\"}}>{\"Escolha uma empresa para ver a conversa.\"}</p>)}</div>) : null}</section>) : null}{$v.md?.tabela ? (<>"
+  }
 ];

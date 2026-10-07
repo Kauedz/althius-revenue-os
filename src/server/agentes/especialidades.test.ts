@@ -9,7 +9,8 @@ const AGENTES = ['comercial', 'marketing', 'copy', 'revops'] as const;
 const FERRAMENTAS = [
   'buscar_contatos', 'listar_membros', 'listar_tarefas', 'listar_cadencias', 'listar_contas', 'listar_quadros', 'listar_negocios', 'listar_campanhas',
   'listar_habilidades', 'listar_sinais', 'integracao_ferramentas', 'integracao_ler', 'integracao_propor', 'propor_atualizacao', 'propor_tarefa', 'propor_inscricao_cadencia', 'propor_negocio', 'propor_mover_negocio',
-  'propor_campanha', 'propor_verba_campanha', 'propor_status_campanha'
+  'propor_campanha', 'propor_verba_campanha', 'propor_status_campanha', 'propor_contas', 'propor_enriquecimento', 'propor_levar_ao_pipeline', 'propor_plano',
+  'ler_icp', 'propor_icp', 'prospeccao_fontes', 'prospeccao_buscas', 'prospeccao_estimar', 'prospeccao_rodar'
 ];
 
 describe('especialidades dos agentes', () => {
@@ -38,7 +39,7 @@ describe('especialidades dos agentes', () => {
   });
   it('só cita ferramentas que existem', () => {
     for (const a of AGENTES) {
-      for (const nome of ESPECIALIDADES[a].match(/\b(?:listar|propor|buscar)_[a-z_]+\b/g) ?? []) expect(FERRAMENTAS, `${a} cita ${nome}`).toContain(nome);
+      for (const nome of ESPECIALIDADES[a].match(/\b(?:listar|propor|buscar|ler|prospeccao)_[a-z_]+\b/g) ?? []) expect(FERRAMENTAS, `${a} cita ${nome}`).toContain(nome);
     }
   });
   it('não promete resultado, não usa dólar e deixa claro que o agente não age sozinho', () => {
@@ -54,5 +55,22 @@ describe('especialidades dos agentes', () => {
     expect(ESPECIALIDADES.copy).toMatch(/mensagem|texto/i);
     expect(ESPECIALIDADES.revops).toMatch(/dados|pipeline/i);
     expect(nomeDoAgente('copy')).toBe('Lia');
+  });
+  it('papéis do Nan (ADR 0067): só a Zoe prospecta, e diz o custo antes; o Jax cuida do ICP; os outros encaminham à Zoe', () => {
+    expect(ESPECIALIDADES.comercial).toMatch(/prospeccao_estimar/);
+    expect(ESPECIALIDADES.comercial).toMatch(/custo/);
+    expect(ESPECIALIDADES.comercial).toMatch(/pode rodar/);
+    expect(ESPECIALIDADES.comercial).toMatch(/fontes são curadas pela Althius/);
+    expect(ESPECIALIDADES.comercial).toMatch(/limite de coleta do mês/);
+    expect(ESPECIALIDADES.comercial).toMatch(/ler_icp/);
+    expect(ESPECIALIDADES.marketing).toMatch(/propor_icp/);
+    for (const a of ['marketing', 'copy', 'revops']) {
+      expect(ESPECIALIDADES[a], a).not.toMatch(/prospeccao_(estimar|rodar)/);
+      expect(ESPECIALIDADES[a], a).toMatch(/Zoe/);
+    }
+    expect(instrucoes('comercial', 'geral')).toMatch(/Você é Zoe, o agente da Althius para prospecção/);
+    expect(instrucoes('marketing', 'geral')).toMatch(/Você é Jax, o agente da Althius para estratégia, ICP e mídia paga/);
+    expect(instrucoes('copy', 'geral')).toMatch(/Você é Lia, o agente da Althius para copy e cadências/);
+    expect(instrucoes('revops', 'geral')).toMatch(/Você é Neo, o agente da Althius para RevOps: métricas e relatórios/);
   });
 });

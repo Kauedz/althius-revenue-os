@@ -20,6 +20,11 @@ INSERT INTO public.accounts (id, workspace_id, name, domain, temperature) VALUES
   ('acc00000-0000-0000-0000-000000000001', '11111111-1111-1111-1111-111111111111', 'Hospital São Lucas', 'saolucas.com.br', 1)
 ON CONFLICT (id) DO NOTHING;
 
+-- Conta de fit alto (ADR 0069: as chamas saem da nota): o ICP do cliente é Saúde e a conta tem os dados completos.
+INSERT INTO public.workspace_settings (workspace_id, icp) VALUES ('11111111-1111-1111-1111-111111111111', '{"setores": ["Saúde"]}'::jsonb)
+  ON CONFLICT (workspace_id) DO UPDATE SET icp = EXCLUDED.icp;
+UPDATE public.accounts SET segment = 'Saúde', cnpj = '11222333000181', telefone = '1130000000' WHERE id = 'acc00000-0000-0000-0000-000000000001';
+
 -- 2. Verify that all 20 canonical signals are seeded
 SELECT is(
   (SELECT count(*)::integer FROM public.signal_definitions),
@@ -63,8 +68,8 @@ SELECT ok(
 -- Verify Account was updated with temperature = 3, location and signal text
 SELECT is(
   (SELECT temperature FROM public.accounts WHERE id = 'acc00000-0000-0000-0000-000000000001'),
-  3,
-  'Signal Events: Conta deve ter subido para temperatura maxima (3 chamas)'
+  (SELECT internal.chamas_do_fit(fit) FROM public.accounts WHERE id = 'acc00000-0000-0000-0000-000000000001'),
+  'Signal Events: as chamas da conta seguem a nota de fit (ADR 0069), que ja conta o sinal'
 );
 
 SELECT is(

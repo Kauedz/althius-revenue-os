@@ -54,9 +54,6 @@ export interface PerfilDeIntegracao {
   identificacao?: Identificacao;
 }
 
-const APP_DO_FORNECEDOR = 'Exige um app da Althius registrado no fornecedor (e, no Google, a verificação do app). Em preparação.';
-const POR_CLIENTE = 'Cada cliente precisa criar um app ou uma URL na própria conta. Exige um guia próprio, ainda em desenho.';
-const SEM_SERVIDOR = 'O fornecedor não oferece um servidor oficial para terceiros conectarem.';
 
 const emBreve = (id: string, nome: string, motivo: string): PerfilDeIntegracao => ({ id, nome, situacao: 'em_breve', motivo, portalFixo: false });
 // Canais de mensagem: o cartão do catálogo conecta pela Unipile (a conta é da PESSOA; a permissão é a da Caixa, `inbox.connect`).
@@ -88,38 +85,17 @@ export const PERFIS: Record<string, PerfilDeIntegracao> = Object.fromEntries([
   { id: 'pipedrive', nome: 'Pipedrive', situacao: 'disponivel', portalFixo: false, mcp: { url: 'https://mcp.pipedrive.ai/mcp', registro: 'automatico', enviarRecurso: true } } satisfies PerfilDeIntegracao,
   { id: 'granola', nome: 'Granola', situacao: 'disponivel', portalFixo: false, mcp: { url: 'https://mcp.granola.ai/mcp', registro: 'automatico', enviarRecurso: true } } satisfies PerfilDeIntegracao,
   { id: 'confluence', nome: 'Confluence', situacao: 'disponivel', portalFixo: false, mcp: { url: 'https://mcp.atlassian.com/v1/mcp', registro: 'automatico', enviarRecurso: true } } satisfies PerfilDeIntegracao,
-  emBreve('clay', 'Clay', 'O servidor da Clay roda como programa na máquina de quem usa (sem login para terceiros conectarem), então ainda não serve como conector da Althius.'),
   // Registro automático (RFC 7591) lido no metadado público em 06/10/2026 (Calendly e Otter: S256).
   { id: 'calendly', nome: 'Calendly', situacao: 'disponivel', portalFixo: false, mcp: { url: 'https://mcp.calendly.com/mcp', registro: 'automatico', enviarRecurso: true } } satisfies PerfilDeIntegracao,
   { id: 'otter', nome: 'Otter.ai', situacao: 'disponivel', portalFixo: false, mcp: { url: 'https://mcp.otter.ai/mcp', registro: 'automatico', enviarRecurso: true } } satisfies PerfilDeIntegracao,
-  emBreve('tldv', 'tl;dv', 'O servidor do tl;dv só aceita registrar apps de domínios que ele autoriza antes (testado em 06/10/2026: recusou o registro). Precisa de uma parceria ou liberação do tl;dv.'),
-  emBreve('gong', 'Gong', 'O servidor da Gong está em preview fechado, só para alguns clientes.'),
-  emBreve('fireflies', 'Fireflies.ai', 'Só conecta por chave da própria conta, sem login oficial para terceiros.'),
-  emBreve('fathom', 'Fathom', 'Não há servidor oficial confirmado.'),
-  emBreve('slack', 'Slack', 'O Slack só deixa apps publicados no Marketplace dele (ou internos) usarem o MCP. A Althius precisa publicar um app e passar pela revisão do Slack.'),
-  emBreve('zoom', 'Zoom', 'Exige um app da Althius criado no Zoom Marketplace (registro manual, sem registro automático). Em preparação.'),
-  emBreve('gsheets', 'Google Sheets', APP_DO_FORNECEDOR),
   emBreve('gcal', 'Google Calendar', 'Vai usar a conta Google já conectada pelo canal de mensagens (a agenda do Google). Falta construir e testar.'),
-  emBreve('gdrive', 'Google Drive', APP_DO_FORNECEDOR),
-  emBreve('meet', 'Google Meet', APP_DO_FORNECEDOR),
-  emBreve('meta', 'Meta Ads', APP_DO_FORNECEDOR),
-  emBreve('salesforce', 'Salesforce', POR_CLIENTE),
-  emBreve('dynamics', 'Dynamics 365 Sales', POR_CLIENTE),
-  emBreve('zoho', 'Zoho CRM', 'Dá para conectar por login, pela API do Zoho, com um app da Althius, mas precisa de ferramentas próprias (não há MCP aberto a terceiros). Em avaliação.'),
+  emBreve('meta', 'Meta Ads', 'A conexão oficial da Meta aceita login direto, mas ainda falta construir a criação e a ativação de campanhas, sempre com a aprovação do C-level (verba é gasto).'),
   emBreve('rdstation', 'RD Station CRM', 'A RD Station tem servidor oficial, mas cada cliente gera a própria URL e o token no catálogo MCP deles. Em avaliação.'),
-  emBreve('teams', 'Microsoft Teams', POR_CLIENTE),
-  emBreve('sharepoint', 'SharePoint', POR_CLIENTE),
-  emBreve('m365', 'Microsoft 365', POR_CLIENTE),
   canal('whatsapp', 'WhatsApp Business', 'whatsapp'),
   canal('gmail', 'Gmail', 'google'),
   canal('outlook', 'Outlook', 'microsoft'),
   canal('instagram', 'Instagram', 'instagram'),
   canal('linkedin', 'LinkedIn Sales Navigator', 'linkedin'),
-  emBreve('liads', 'LinkedIn Ads', SEM_SERVIDOR),
-  emBreve('gads', 'Google Ads', SEM_SERVIDOR),
-  emBreve('gsc', 'Google Search Console', SEM_SERVIDOR),
-  emBreve('ga4', 'Google Analytics 4', SEM_SERVIDOR),
-  emBreve('eventbrite', 'Eventbrite', SEM_SERVIDOR)
 ].map(p => [p.id, p]));
 
 /** Lê um valor de um objeto JSON por um caminho com pontos (`owner.user.name`); nulo se não houver. */

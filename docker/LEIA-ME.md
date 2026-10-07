@@ -38,6 +38,8 @@ O que acontece: o usuário é criado no login **sem senha**, o banco registra o 
 A Unipile é só um canal: toda a ligação com ela (chave, endereço, assinatura) está em `src/server/unipile/`, `src/server/webhooks/` e `src/server/cadencia/envio.ts`. Usamos a API **v2** (`https://api.unipile.com`), como no protótipo que já enviou e-mail em conta real.
 - **Trocar a chave de API:** `npm run docker:chave-unipile` (pergunta a chave, grava no `.env` e recria só `webhooks` e `cadencia`; nada de banco ou login é tocado). A chave nunca aparece na tela, no log nem no banco.
 - **Webhook:** cadastre na Unipile um *Webhook Endpoint* apontando para `https://SEU-DOMINIO/webhooks/unipile` (o Caddy repassa; a porta 3100 não fica aberta) com os eventos `account.add`, `account.reconnect`, `account.status.*`, `account.initial_sync.completed`, `account.remove`, `email.new`, `message.new` e `relation.new`. A resposta traz o campo `secret`: cole em `UNIPILE_WEBHOOK_SECRET` no `.env` e rode `npm run docker:subir`. Cada aviso vem assinado (`unipile-signature`, HMAC-SHA256) e vale 5 minutos; sem segredo ou com assinatura errada, o aviso é recusado (401).
+- **Unipile v1 (ADR 0069):** o sistema fala com a v1 e com a v2. Na v1 cole o endereço do seu painel (ex.: `https://api68.unipile.com:19840`) em `UNIPILE_API_URL`; no painel crie os webhooks *Messaging*, *Account* e *Mailing* (um para cada), todos apontando para `https://SEU-DOMINIO/webhooks/unipile`, com o cabeçalho `Unipile-Auth` igual ao `UNIPILE_WEBHOOK_SECRET` que você inventou. O link de conexão de conta avisa o sistema sozinho (o endereço do aviso leva uma chave só daquele pedido). Para conferir com a chave real: `npm run unipile:conferir` (somente leitura; `-- --link linkedin` gera o link para conectar).
+- **Trocar a conta da Unipile (as gratuitas de 7 dias que se revezam, ADR 0071):** (1) no painel superadmin, Fornecedores, troque a chave e o endereço da Unipile; (2) rode `npm run unipile:webhooks -- --url https://SEU-DOMINIO/webhooks/unipile --segredo <UNIPILE_WEBHOOK_SECRET> --aplicar` com `UNIPILE_API_KEY` e `UNIPILE_API_URL` da conta nova; (3) cada pessoa vê o pop-up "Conta desconectada" e clica em Reconectar. As conversas e o histórico continuam.
 - **Conectar conta de mensagem (Caixa de entrada):** com `UNIPILE_API_KEY` preenchida, o botão Conectar abre o link da Unipile; sem ela mostra "ainda não está disponível neste ambiente" (nunca finge conectar). A conta é sempre da pessoa que clicou: o pedido tem um código nosso (`state`) que volta no aviso `account.add`, e o dono vem do pedido, nunca do aviso. O link vale 30 minutos.
 - Responde 200 na hora e grava em seguida (3 tentativas). Se o banco ficar fora do ar nas 3, o aviso é perdido e fica só no log (`docker compose logs webhooks`, linha `webhook_unipile_perdido`). Não existe fila ainda.
 - Só entra mensagem de contato do CRM, em conversa individual e recebida (não a que a própria pessoa enviou). O resto é descartado sem gravar nada, e o log nunca mostra remetente nem texto.
@@ -111,7 +113,7 @@ npm run docker:subir                         # sobe o resto
 As versões estão fixas no `docker-compose.yml`. Troque a versão num PR, teste em homologação com uma cópia de backup e depois: `docker compose pull && npm run docker:subir`.
 
 ## Ainda não está aqui (entra quando existir ponto de entrada)
-Outros workers das filas (enriquecimento, raspagem), servidor MCP e Hermes Agent. Hoje só existe o Redis das filas.
+Outros workers das filas (raspagem). O enriquecimento tem contêiner próprio (veja abaixo).
 
 ## Agentes respondendo (Hermes Agent)
 O contêiner `agentes` (ADR 0047) pega os pedidos dos canais e os entrega ao Hermes Agent de cada cliente. Ele **só responde por quem está em `docker/agentes-executores.json`** (copie de `docker/agentes-executores.exemplo.json`; o arquivo não vai para o git porque tem chaves). Sem entrada para o agente, o pedido espera na fila e nada é respondido: não existe resposta de mentira.
@@ -122,3 +124,48 @@ O contêiner `agentes` (ADR 0047) pega os pedidos dos canais e os entrega ao Her
 - **Testar de graça pela assinatura do ChatGPT/Codex (só teste, ADR 0051):** `npm run agentes:provisionar -- --workspace <uuid> --responsavel <uuid> --slug <nome-curto> --modelo-oauth <nome do modelo>` (ex.: `gpt-6-luna`; para ver os nomes que a sua conta tem: `docker exec -it hermes-<slug> hermes model`). Depois `npm run docker:subir` e faça o login uma vez: `docker exec -it hermes-<slug> hermes auth add openai-codex` (abre um código para digitar no navegador; se a organização bloquear, `... --browser`). Se algum agente ainda disser "No Codex credentials stored", repita com `hermes -p comercial auth add openai-codex` (e os outros perfis). Para voltar ao gateway com chave de API, rode o provisionar de novo **sem** `--modelo-oauth`. Não use assinatura pessoal para atender clientes sem conferir os termos da OpenAI.
 - **Modelo de IA:** cadastre em Fornecedores → Nova chave → "Modelo de IA dos agentes" (tipo OpenAI ou Claude, endereço, nome do modelo, prioridade; preço opcional para medir o custo real). Pode cadastrar mais de um: o de menor número é o principal e os outros são reserva automática. Sem nenhum cadastrado, o agente não responde (nada de resposta de mentira). Uso e custo real por cliente: Uso global do superadmin.
 
+## Enriquecimento de contas (ADR 0062)
+O contêiner `enriquecimento` completa sozinho cada conta nova: site, logo, CNPJ, Receita Federal, localização no mapa e até 5 pessoas com foto e LinkedIn. A cada rodada o banco diz quais contas enriquecer e reserva os créditos (5 por conta, 2 por pessoa achada); o contêiner só busca fora. Falha devolve o crédito.
+- **Chaves:** a etapa da empresa usa fontes públicas, sem chave, e parte do site que a conta já tem. Só quando o site não mostra o CNPJ ela faz uma busca no Google pela Apify (centavos); sem chave da Apify, essa busca é pulada. A etapa das pessoas usa a Apify, com as chaves do cofre (a mesma tela de Fornecedores da coleta de sinais). Sem chave da Apify, as pessoas esperam e o log avisa; nada é inventado.
+- **Ver o que está acontecendo:** `docker compose logs -f enriquecimento` (só números, nunca nome, CNPJ, telefone nem chave).
+- **Variáveis (todas opcionais, no `.env`):**
+  - `ENRIQ_INTERVALO_MINUTOS` (padrão 5): de quanto em quanto tempo olha a fila.
+  - `ENRIQ_PEDIDOS_POR_RODADA` (padrão 10): quantos trabalhos pega por vez.
+  - `ENRIQ_CONCORRENCIA` (padrão 2): quantos roda ao mesmo tempo.
+  - `ENRIQ_TELEFONE_ATOR` e `ENRIQ_TELEFONE_ENTRADA`: fonte do telefone pessoal na Apify (nome do ator e a entrada em JSON, com `{{linkedin_url}}` ou `{{linkedin_urls}}`). **Sem as duas, as pessoas entram sem telefone.** Antes de ligar, confirme a base legal da LGPD com um advogado.
+  - `ENRIQ_TELEFONE_MAX_USD_POR_PESSOA` (padrão 0,01): teto de gasto por pessoa na busca de telefone.
+- **Custo:** o preço atual (5 + 2 por pessoa) é provisório. O custo real de cada trabalho fica em `internal.account_enrichments.custo_usd` (só o superadmin vê). **Para medir**, com 10 a 20 contas reais já enriquecidas, rode no banco:
+  ```sql
+  select etapa, count(*) as trabalhos, round(avg(custo_usd), 4) as custo_medio_usd,
+         round(avg(internal.signal_teto_usd(creditos)), 4) as cobrado_medio_usd,
+         round(sum(custo_usd) / nullif(sum(internal.signal_teto_usd(creditos)), 0), 2) as custo_sobre_cobrado
+    from internal.account_enrichments where estado = 'ok' and creditos > 0 group by etapa;
+  ```
+  Regra (ADR 0062): se `custo_sobre_cobrado` passar de 0,5, subir o preço ou tirar a leitura de perfis; se ficar abaixo de 0,2, dá para baixar o preço.
+- **Contas que já existiam** não entram sozinhas na fila; um gestor pede o enriquecimento pela função `account_enrichment_request`.
+- **Pessoa pediu para sair (LGPD):** `contact_suppress` apaga o contato e guarda os dados dele numa lista de supressão, para o enriquecimento nunca recriá-lo.
+
+## Respostas da Caixa de entrada (ADR 0068)
+O contêiner `cadencia` também envia as respostas escritas na Caixa de entrada (e-mail e WhatsApp, pela conta de quem respondeu), com a mesma chave da Unipile. Sem chave, as respostas esperam reservadas. Log: `docker compose logs -f cadencia` (linhas `caixa_respostas`). Resposta com resultado incerto fica "enviando" e aparece no log como `resposta_incerta_conferir`: confira no app antes de reenviar.
+
+## Copiloto (ADR 0068)
+O contêiner `copiloto` responde às perguntas que cada pessoa faz no painel do Copiloto. Ele lê do banco os números do cliente (contas, negócios, aprovações, créditos para quem pode ver), chama o modelo de IA com as mesmas chaves do cofre do gateway e grava a resposta. Quando o pedido é trabalho, a resposta indica o agente e mostra o botão para abrir a conversa com ele. **Não gasta crédito** (limite de 60 perguntas por pessoa por dia). Sem cofre ou sem modelo cadastrado em Fornecedores, a pessoa vê "Não consegui responder agora: ..." com o motivo.
+- **Ver o que está acontecendo:** `docker compose logs -f copiloto` (só números).
+- **Variável (opcional):** `COPILOTO_INTERVALO_SEGUNDOS` (padrão 3): de quanto em quanto tempo olha as perguntas.
+- O uso do modelo aparece no Uso global do superadmin com o rótulo `copiloto`.
+
+## Prospecção (ADR 0067)
+O contêiner `prospeccao` roda as buscas de empresas novas que a Zoe estimou e uma pessoa pediu (ou que o C-level aprovou, quando passam do teto). O banco reserva o crédito máximo antes; o contêiner roda a fonte na Apify (chaves do cofre, tela de Fornecedores) com o teto do pedido e entrega as empresas, que aparecem como **candidatas** na página Prospecção. Cobra-se só por empresa nova (repetida não cobra); o resto da reserva volta. Falha devolve tudo e tenta de novo depois de 30 minutos (até 3 vezes). Sem chave da Apify, a busca falha com aviso claro e o crédito volta.
+- **Fontes:** ficam na tabela `internal.prospect_sources` (Google Maps e Receita Federal por CNAE, para começar). Fonte nova é um registro novo (ator, entrada com `{{variáveis}}` e mapeamento dos campos), sem código. Fonte de pessoas (B2C) não roda (LGPD).
+- **Ver o que está acontecendo:** `docker compose logs -f prospeccao` (só números).
+- **Variáveis (todas opcionais, no `.env`):**
+  - `PROSP_INTERVALO_MINUTOS` (padrão 2): de quanto em quanto tempo olha a fila.
+  - `PROSP_BUSCAS_POR_RODADA` (padrão 5): quantas buscas pega por vez (roda uma de cada vez).
+  - `PROSP_PRAZO_SEGUNDOS` (padrão 300): prazo de cada execução do ator.
+- **Custo:** o preço (1 crédito por empresa nova) é provisório. O custo real de cada busca fica em `internal.prospect_search_costs` (só o superadmin vê). **Para medir**, depois de 5 a 10 buscas reais:
+  ```sql
+  select s.source_code, count(*) as buscas, sum(s.encontradas) as empresas, round(sum(c.custo_usd), 4) as custo_usd,
+         round(sum(internal.signal_teto_usd(s.creditos_cobrados)), 4) as cobrado_usd
+    from public.prospect_searches s join internal.prospect_search_costs c on c.search_id = s.id
+   where s.estado in ('concluida', 'sem_resultado') group by s.source_code;
+  ```

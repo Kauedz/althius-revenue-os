@@ -35,7 +35,7 @@ const siteUrl = process.env.SITE_URL ?? '';
 const chaveAnon = process.env.ANON_KEY ?? '';
 const obterConfig: ObterConfig = cofre ? configDoCofre(cofre) : configDoAmbiente();
 const conexoes: DepsConexoes | undefined = siteUrl && chaveAnon
-  ? { siteUrl, obterConfig, baseBanco: base, chaveAnon }
+  ? { siteUrl, obterConfig, obterSegredo: segredo, baseBanco: base, chaveAnon }
   : undefined;
 if (!conexoes) {
   console.warn(JSON.stringify({ nivel: 'aviso', msg: 'conexão de contas desligada: faltam SITE_URL ou ANON_KEY' }));

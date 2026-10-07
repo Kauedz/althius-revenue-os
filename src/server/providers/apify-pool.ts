@@ -1,6 +1,7 @@
 // Rodízio de chaves da Apify (ADR 0049). O superadmin cadastra quantas quiser na tela (cofre); cada pedido vai para a
-// chave menos ocupada, e chave que recusa ou estoura limite sai de cena por um tempo. Sem chave nenhuma, o pedido
-// falha com mensagem clara: nada de resultado simulado. Sem cofre, valem as APIFY_TOKEN_* do `.env`.
+// chave menos ocupada, e chave que recusa ou estoura limite sai de cena por um tempo. Conta que ESGOTOU o limite do mês
+// (as contas gratuitas, ADR 0071) sai de cena por horas, não por um minuto, e a tela do cofre diz isso; a próxima assume.
+// Sem chave nenhuma, o pedido falha com mensagem clara: nada de resultado simulado. Sem cofre, valem as APIFY_TOKEN_* do `.env`.
 import type { Cofre } from '../cofre/cofre.ts';
 import { assinaturaDaCobranca, cobraPorEvento, custoDaExecucaoLida } from './apify-custo.ts';
 
@@ -31,15 +32,29 @@ export interface OpcoesPoolApify {
   agora?: () => number;
   /** quanto tempo uma chave com problema fica de molho */
   deMolhoMs?: number;
+  /** quanto tempo fica de molho a conta que esgotou o limite do mês (a Apify renova no ciclo da própria conta) */
+  deMolhoEsgotadaMs?: number;
 }
 
-type Tentativa<T> = { ok: true; valor: T } | { ok: false; status: number };
+type Tentativa<T> = { ok: true; valor: T } | { ok: false; status: number; esgotada?: boolean };
+
+/**
+ * A Apify responde 402 ou 403 quando a conta gastou o limite do mês (plano gratuito ou teto duro). 401 é chave recusada. Lê o
+ * corpo para separar uma coisa da outra: 403 sem cara de limite continua sendo "chave recusada".
+ */
+async function falhaDa(r: Response): Promise<{ ok: false; status: number; esgotada: boolean }> {
+  let corpo = '';
+  try { corpo = JSON.stringify(await r.json()); } catch { /* sem corpo legível */ }
+  const esgotada = (r.status === 402 || r.status === 403) && /usage|limit|credit|quota|exceed|insufficient|billing/i.test(corpo);
+  return { ok: false, status: r.status, esgotada };
+}
 
 export function criarPoolApify(o: OpcoesPoolApify) {
   const buscar = o.buscar ?? fetch;
   const env = o.env ?? process.env;
   const agora = o.agora ?? Date.now;
   const deMolho = o.deMolhoMs ?? 60_000;
+  const deMolhoEsgotada = o.deMolhoEsgotadaMs ?? 6 * 60 * 60_000;
   const ocupadas = new Map<string, number>();
   const ateQuando = new Map<string, number>();
   const chaveDe = (c: ChaveApify) => c.id ?? `env:${c.rotulo}`;
@@ -77,6 +92,12 @@ export function criarPoolApify(o: OpcoesPoolApify) {
           if (escolhida.id) await o.cofre?.marcarUso(escolhida.id, null);
           return r.valor;
         }
+        if (r.esgotada) {
+          ultimoErro = 'limite do mês esgotado';
+          if (escolhida.id) await o.cofre?.marcarUso(escolhida.id, 'Limite do mês esgotado nesta conta. O sistema usa as outras e tenta esta de novo a cada 6 horas.');
+          ateQuando.set(k, agora() + deMolhoEsgotada);
+          continue;
+        }
         if (r.status === 401 || r.status === 403) {
           ultimoErro = 'chave recusada pela Apify';
           if (escolhida.id) await o.cofre?.marcarUso(escolhida.id, 'Chave recusada pela Apify.');
@@ -100,7 +121,7 @@ export function criarPoolApify(o: OpcoesPoolApify) {
         headers: { Authorization: `Bearer ${c.segredo}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(entrada)
       });
-      if (!r.ok) return { ok: false, status: r.status };
+      if (!r.ok) return falhaDa(r);
       const corpo = (await r.json()) as { data: { id: string; status: string } };
       return { ok: true, valor: { runId: corpo.data.id, conta: c.rotulo, status: corpo.data.status } };
     });
@@ -138,7 +159,7 @@ export function criarPoolApify(o: OpcoesPoolApify) {
       });
       if (r.status === 408) throw new ErroFatalApify('Apify: o ator demorou demais e foi interrompido.');
       if (r.status === 400 || r.status === 404 || r.status === 422) throw new ErroFatalApify(`Apify recusou a entrada do ator (HTTP ${r.status}).`);
-      if (!r.ok) return { ok: false, status: r.status };
+      if (!r.ok) return falhaDa(r);
       const itens = await r.json().catch(() => null);
       if (!Array.isArray(itens)) throw new ErroFatalApify('Apify: resposta inesperada (não veio uma lista de itens).');
       let runId = r.headers.get('x-apify-run-id');

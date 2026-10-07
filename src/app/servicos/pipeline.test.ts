@@ -2,7 +2,7 @@
 // Seed: Aline C-level Evolut (d..03); Lucas BDR (d..04, dono de c..01); Bruna BDR (d..06, dona de c..03); Eduardo C-level Grão Norte.
 import { afterEach, describe, expect, it } from 'vitest';
 import { adminLocal, bancoLocalNoAr, entrarComoLocal } from '../../test/supabaseLocal';
-import { arquivarNegocio, atualizarNegocio, criarNegocio, criarQuadro, excluirQuadro, falhaDoBanco, listarPipeline, moverNegocio, pipelineVazio, reordenarEtapas, renomearQuadro } from './pipeline';
+import { arquivarNegocio, atualizarNegocio, criarNegocio, criarQuadro, excluirQuadro, falhaDoBanco, levarContasAoQuadro, listarPipeline, moverNegocio, pipelineVazio, reordenarEtapas, renomearQuadro } from './pipeline';
 
 const WS = 'a0000000-0000-0000-0000-000000000001';
 const GRAO = 'b0000000-0000-0000-0000-000000000001';
@@ -158,5 +158,22 @@ describe.skipIf(!bancoLocalNoAr)('Pipeline (banco local)', () => {
     const GRAO_MEMBRO = 'd0000000-0000-0000-0000-000000000009';
     expect((await moverNegocio(eduardo, GRAO, GRAO_MEMBRO, n.id, 'ganho', null)).ok).toBe(false);
     expect((await renomearQuadro(eduardo, GRAO, GRAO_MEMBRO, q.id, 'Invadido')).ok).toBe(false);
+  });
+
+  it('ADR 0065: levar contas da base ao quadro, em massa, sem duplicar; o resultado diz quantas entraram', async () => {
+    const aline = await entrarComoLocal('aline@evolut.com.br');
+    const { data: q } = await adm.from('pipelines').select('id').eq('workspace_id', WS).eq('motion', 'mlg').single();
+    const r = await levarContasAoQuadro(aline, WS, ALINE, q!.id, [CONTA_LUCAS, CONTA_BRUNA]);
+    expect(r).toEqual({ ok: true, criados: 2, jaEstavam: 0, ignoradas: 0 });
+    expect(await levarContasAoQuadro(aline, WS, ALINE, q!.id, [CONTA_LUCAS])).toEqual({ ok: true, criados: 0, jaEstavam: 1, ignoradas: 0 });
+    const tela = await listarPipeline(aline, WS);
+    expect(tela.quadros.mlg[0].deals.map(d => d.conta).sort()).toEqual(['Metalúrgica Ipê', 'Serra Azul Têxtil']);
+    expect(tela.quadros.mlg[0].deals.every(d => d.valor === 0)).toBe(true);
+  });
+
+  it('ADR 0065: quadro de outro cliente vem como erro claro, sem criar nada', async () => {
+    const aline = await entrarComoLocal('aline@evolut.com.br');
+    const { data: q } = await adm.from('pipelines').select('id').eq('workspace_id', GRAO).eq('motion', 'slg').single();
+    expect(await levarContasAoQuadro(aline, WS, ALINE, q!.id, [CONTA_LUCAS])).toEqual({ ok: false, mensagem: 'Quadro não encontrado neste workspace.' });
   });
 });

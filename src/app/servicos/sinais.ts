@@ -86,7 +86,7 @@ function resumoCatalogo(ativos: number, total: number): string {
 /** Tela vazia de verdade: nenhum nome nem número do protótipo. */
 export function sinaisSemDados(): SinaisTela {
   return {
-    kpis: ROTULOS_KPI.map(label => ({ label, valor: SEM_DADOS, delta: SEM_DADOS })),
+    kpis: ROTULOS_KPI.map(label => ({ label, valor: SEM_DADOS, delta: '' })),
     eventos: [eventoVazio()],
     grupos: [{
       codigo: '',
@@ -225,7 +225,7 @@ function montarEventos(brutos: EventoBruto[], agora: number): { eventos: EventoS
   });
   return {
     eventos: eventos.length ? eventos : [eventoVazio()],
-    kpis: ROTULOS_KPI.map((label, i) => ({ label, valor: String(contagem[i]), delta: SEM_DADOS }))
+    kpis: ROTULOS_KPI.map((label, i) => ({ label, valor: String(contagem[i]), delta: '' }))
   };
 }
 

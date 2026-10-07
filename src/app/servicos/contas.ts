@@ -15,12 +15,24 @@ export interface ContatoComiteTela {
   fones: string[];
 }
 
+interface ParteDoFit { parte?: unknown; pontos?: unknown; max?: unknown; motivo?: unknown }
+
+/** "Por que fit 72: ICP 40/60 (...) · Sinais 18/25 (...) · Dados 14/15 (...)". Sem as partes do banco: vazio (nada inventado). */
+export function porqueDoFit(fit: number, partes: unknown): string {
+  if (!Array.isArray(partes) || !partes.length) return '';
+  const textos = (partes as ParteDoFit[]).filter(p => p && typeof p.parte === 'string')
+    .map(p => `${p.parte} ${Number(p.pontos) || 0}/${Number(p.max) || 0}${typeof p.motivo === 'string' && p.motivo ? ` (${p.motivo})` : ''}`);
+  return textos.length ? `Por que fit ${fit}: ${textos.join(' · ')}` : '';
+}
+
 /** Conta qualificada no formato consumido pelas telas do front v18. */
 export interface ContaTela {
   id: string;
   nome: string;
   segmento: string;
   fit: number;
+  /** Por que esta nota (ADR 0067): as três partes calculadas pelo banco. Vazio quando o banco ainda não calculou. */
+  fitPorque?: string;
   temperatura: number;
   sinal: string;
   dono: string;
@@ -28,6 +40,12 @@ export interface ContaTela {
   decisor: string;
   dominio?: string;
   logoUrl?: string | null;
+  /** UF da conta (para o mapa do Início), ou nulo */
+  uf?: string | null;
+  /** Ponto no mapa (do enriquecimento ou digitado). `aprox`: só a cidade é conhecida. Nulo: sem coordenada. */
+  geo?: { lat: number; lng: number; aprox: boolean } | null;
+  /** Marcada à mão para a coleta automática de sinais (ADR 0066). Conta com negócio ou cadência ativa é monitorada sem marca. */
+  monitorar?: boolean;
   /** Texto pronto da coluna "Último contato" (das nossas mensagens). Sem mensagem: "Sem contato ainda". */
   ultimoContato: string;
   comite?: ContatoComiteTela[];
@@ -68,7 +86,7 @@ export function textoUltimoContato(
 export async function listarContas(cliente: SupabaseClient, workspaceId: string): Promise<ContaTela[]> {
   const { data, error } = await cliente
     .from('accounts')
-    .select('id, name, domain, logo_url, segment, fit, temperature, last_signal_text, owner_member_id, city, state_uf, status')
+    .select('id, name, domain, logo_url, segment, fit, fit_partes, temperature, last_signal_text, owner_member_id, city, state_uf, status, lat, lng, localizacao_precisao, monitorar_sinais')
     .eq('workspace_id', workspaceId)
     .eq('status', 'ativa')
     .order('fit', { ascending: false });
@@ -99,10 +117,12 @@ export async function listarContas(cliente: SupabaseClient, workspaceId: string)
   if (errCanais) throw new Error('Não foi possível carregar os canais dos contatos.', { cause: errCanais });
 
   // Agrupa canais por contato
-  const canaisPorContato = new Map<string, { emails: string[]; fones: string[] }>();
+  const canaisPorContato = new Map<string, { emails: string[]; fones: string[]; linkedin?: string }>();
   for (const canal of canaisData || []) {
     const atual = canaisPorContato.get(canal.contact_id) || { emails: [], fones: [] };
-    if (canal.type === 'email') {
+    if (canal.type === 'linkedin' && !atual.linkedin) {
+      atual.linkedin = linkedinDoPerfil(canal.value) ?? undefined;
+    } else if (canal.type === 'email') {
       atual.emails.push(canal.value);
     } else if (canal.type === 'phone' || canal.type === 'whatsapp') {
       atual.fones.push(canal.value);
@@ -130,7 +150,8 @@ export async function listarContas(cliente: SupabaseClient, workspaceId: string)
       cargo: c.job_title || '',
       papel: (c.buying_role || 'influenciador') as 'decisor' | 'influenciador' | 'campeao',
       foto: c.photo_url || '',
-      linkedin: `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(c.name)}`,
+      // O perfil guardado (do enriquecimento ou digitado); sem ele, a busca pelo nome.
+      linkedin: canais.linkedin || `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(c.name)}`,
       emails: canais.emails,
       fones: canais.fones
     });
@@ -154,6 +175,7 @@ export async function listarContas(cliente: SupabaseClient, workspaceId: string)
       nome: a.name,
       segmento: a.segment || '—',
       fit: typeof a.fit === 'number' ? a.fit : 0,
+      fitPorque: porqueDoFit(typeof a.fit === 'number' ? a.fit : 0, a.fit_partes) || undefined,
       temperatura: typeof a.temperature === 'number' ? a.temperature : 1,
       sinal: a.last_signal_text || '—',
       dono: (a.owner_member_id && nomes.get(a.owner_member_id)) || 'Alguém do time',
@@ -161,12 +183,32 @@ export async function listarContas(cliente: SupabaseClient, workspaceId: string)
       decisor: decisorContato ? decisorContato.nome : 'A mapear',
       dominio: a.domain,
       logoUrl: a.logo_url,
+      uf: a.state_uf || null,
+      geo: geoDaConta(a),
+      monitorar: Boolean(a.monitorar_sinais),
       ultimoContato: textoUltimoContato(ultimoPorConta.has(a.id)
         ? { quando: ultimoPorConta.get(a.id)!.last_contact_at, direcao: ultimoPorConta.get(a.id)!.last_direction, canal: ultimoPorConta.get(a.id)!.last_channel }
         : null),
       comite
     };
   });
+}
+
+/** Endereço do perfil no LinkedIn a partir do valor guardado (endereço completo ou só o identificador). */
+export function linkedinDoPerfil(valor: string | null | undefined): string | null {
+  const v = String(valor || '').trim();
+  if (!v) return null;
+  const m = v.match(/linkedin\.com\/in\/([^/?#\s]+)/i);
+  if (m) return `https://www.linkedin.com/in/${m[1]}`;
+  return /^[A-Za-z0-9][A-Za-z0-9_%-]{1,99}$/.test(v) ? `https://www.linkedin.com/in/${v}` : null;
+}
+
+/** Coordenada da conta para o mapa. Fora do Brasil ou incompleta: nula (nunca um ponto inventado). */
+export function geoDaConta(a: { lat?: number | null; lng?: number | null; localizacao_precisao?: string | null }): ContaTela['geo'] {
+  const lat = Number(a.lat), lng = Number(a.lng);
+  if (a.lat == null || a.lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  if (lat < -34.5 || lat > 5.5 || lng < -74.5 || lng > -28.5) return null;
+  return { lat, lng, aprox: a.localizacao_precisao !== 'endereco' && a.localizacao_precisao !== 'cep' };
 }
 
 async function nomesDosMembros(cliente: SupabaseClient, membroIds: string[]): Promise<Map<string, string>> {
@@ -356,4 +398,11 @@ export function contasDeCsv(texto: string): ResultadoLeituraContasCsv {
 
   if (registros.length === 0) problemas.push('nenhuma conta no arquivo');
   return { contas, problemas };
+}
+
+/** Marca (ou tira a marca de) uma conta para a coleta automática de sinais. Mesma regra de editar conta: BDR só as dele. */
+export async function definirMonitoramento(cliente: SupabaseClient, workspaceId: string, membroId: string, contaId: string, monitorar: boolean): Promise<{ ok: true } | { ok: false; mensagem: string }> {
+  const { error } = await cliente.rpc('account_set_monitoring', { p_workspace_id: workspaceId, p_member_id: membroId, p_account_id: contaId, p_monitorar: monitorar });
+  if (!error) return { ok: true };
+  return { ok: false, mensagem: error.code === '42501' && error.message ? error.message : 'Não foi possível mudar o monitoramento. Tente de novo.' };
 }

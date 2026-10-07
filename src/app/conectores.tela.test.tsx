@@ -56,11 +56,22 @@ describe.skipIf(!bancoLocalNoAr)('Integrações (modo real, banco local)', () =>
       expect(within(cartao(nome)).getByRole('button', { name: `Conectar ${nome}` }), nome).toBeEnabled();
     }
     // Em breve, com o motivo visível.
-    expect(within(cartao('Slack')).getByText(/Marketplace/)).toBeInTheDocument();
-    expect(within(cartao('Salesforce')).getByText(/cada cliente/i)).toBeInTheDocument();
-    expect(within(cartao('Zoho CRM')).getByText(/API do Zoho/)).toBeInTheDocument();
+    expect(within(cartao('RD Station CRM')).getByText(/URL/)).toBeInTheDocument();
+    expect(within(cartao('Google Calendar')).getByText(/conta Google/)).toBeInTheDocument();
+    expect(within(cartao('Meta Ads')).getByText(/campanhas/)).toBeInTheDocument();
+    for (const nome of ['RD Station CRM', 'Google Calendar', 'Meta Ads']) expect(within(cartao(nome)).queryByRole('button', { name: `Conectar ${nome}` }), nome).not.toBeInTheDocument();
     expect(screen.queryByText(/Em breve: estes conectores ainda não estão disponíveis/)).not.toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/US\$|unipile/i);
+  });
+
+  it('o catálogo é enxuto (ADR 0063): só o que conecta e o que o Nan quer; nada de app que não existe', async () => {
+    cleanup();
+    await entrar();
+    expect(document.querySelectorAll('.con-card')).toHaveLength(16);
+    for (const nome of ['HubSpot', 'Pipedrive', 'RD Station CRM', 'Google Calendar', 'Meta Ads', 'Notion', 'Apollo.io']) expect(cartao(nome), nome).toBeInTheDocument();
+    for (const nome of ['Slack', 'Zoom', 'Google Sheets', 'Google Drive', 'Google Meet', 'Google Ads', 'LinkedIn Ads', 'Google Search Console', 'Google Analytics 4', 'Eventbrite', 'Salesforce', 'Zoho CRM']) {
+      expect(screen.queryByText(nome, { exact: true }), nome).not.toBeInTheDocument();
+    }
   });
 
   it('Conectar um app pede o link ao backend com o login e o membro da pessoa e abre a janela do app', async () => {

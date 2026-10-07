@@ -1,71 +1,77 @@
-// Seam: Copiloto no modo real, de ponta a ponta com o Supabase local: o pedido vira execução na fila,
-// sem plano nem resultado simulados; envio duplo não duplica; pedido acima do teto vai para Aprovações.
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+// Seam: Copiloto no modo real (ADR 0068), de ponta a ponta com o Supabase local: a pergunta entra na conversa privada,
+// a resposta (gravada aqui no lugar do serviço `copiloto`) aparece sozinha, o encaminhamento abre a conversa com o agente
+// e a falha diz a verdade. Nada de plano encenado, execução na fila ou crédito gasto.
+import { afterAll, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '../v18/data.js';
 import '../v18/module.js';
 import { Raiz } from './Raiz';
 import { adminLocal, bancoLocalNoAr, novoClienteLocal } from '../test/supabaseLocal';
 
 const MARCA = Date.now().toString(36);
-const PEDIDO = 'Gerar lista de importadores do Sul ' + MARCA;
-const PEDIDO_CARO = 'Pedido acima do teto ' + MARCA;
+const PERGUNTA = 'Ache clínicas em Campinas ' + MARCA;
 const WS = 'a0000000-0000-0000-0000-000000000001';
 
-async function abrirCopiloto() {
+async function abrirCopiloto(email = 'lucas@evolut.com.br') {
   window.location.hash = '#/app/evolut/home';
   render(<Raiz supabase={novoClienteLocal()} />);
-  fireEvent.change(await screen.findByPlaceholderText('voce@empresa.com.br'), { target: { value: 'lucas@evolut.com.br' } });
+  fireEvent.change(await screen.findByPlaceholderText('voce@empresa.com.br'), { target: { value: email } });
   fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'althius-demo' } });
   fireEvent.click(screen.getByRole('button', { name: 'Continuar' }));
   fireEvent.click((await screen.findAllByRole('button', { name: /Copiloto/ }, { timeout: 8000 }))[0]);
   return screen.findByPlaceholderText('O que você precisa?');
 }
 
+async function responderComoServico(pergunta: string, resposta: { texto?: string; encaminhar?: string; falha?: string }) {
+  const admin = adminLocal();
+  let id = '';
+  await waitFor(async () => {
+    const { data } = await admin.from('copilot_messages').select('id').eq('workspace_id', WS).eq('texto', pergunta).single();
+    expect(data).toBeTruthy();
+    id = data!.id;
+  }, { timeout: 8000 });
+  await admin.from('copilot_messages').update({ estado: 'processando' }).eq('id', id);
+  if (resposta.falha) await admin.rpc('copilot_fail', { p_id: id, p_motivo: resposta.falha });
+  else await admin.rpc('copilot_answer', { p_id: id, p_texto: resposta.texto, p_encaminhar: resposta.encaminhar ?? null });
+}
+
 describe.skipIf(!bancoLocalNoAr)('Copiloto (banco local)', () => {
-  let configOriginal: Record<string, unknown> | null = null;
+  afterAll(async () => { await adminLocal().from('copilot_messages').delete().eq('workspace_id', WS).like('texto', '%' + MARCA + '%'); });
 
-  beforeAll(async () => {
-    const { data } = await adminLocal().from('workspace_settings').select('credit_mode, approval_threshold').eq('workspace_id', WS).single();
-    configOriginal = data;
-  });
-
-  afterAll(async () => {
-    if (configOriginal) await adminLocal().from('workspace_settings').update(configOriginal).eq('workspace_id', WS);
-    const admin = adminLocal();
-    const { data: aprovacoes } = await admin.from('approvals').select('id').like('title', 'Copiloto: ' + PEDIDO_CARO + '%');
-    const ids = (aprovacoes || []).map(a => a.id);
-    if (ids.length) {
-      await admin.from('notifications').delete().in('entity_id', ids);
-      await admin.from('approvals').delete().in('id', ids);
-    }
-    await admin.from('executions').delete().like('title', 'Copiloto: ' + MARCA + '%');
-    await admin.from('executions').delete().like('title', 'Copiloto: ' + PEDIDO + '%');
-  });
-
-  it('pedido vira execução de verdade, sem encenar, e Enter duas vezes não duplica', async () => {
+  it('pergunta, vê "respondendo", a resposta chega sozinha e o encaminhamento abre a conversa com a Zoe; nada vira execução', async () => {
+    const execAntes = (await adminLocal().from('executions').select('id', { count: 'exact', head: true }).eq('workspace_id', WS)).count;
     const caixa = await abrirCopiloto();
-    expect(screen.queryByText("Lista do Sudeste para a cadência T1–T7")).not.toBeInTheDocument(); // conversa de exemplo do protótipo
-    fireEvent.change(caixa, { target: { value: PEDIDO } });
+    expect(screen.queryByText('Encontre empresas do setor têxtil com sinais de expansão.')).not.toBeInTheDocument(); // exemplo do protótipo
+    expect(screen.getByText(/não é um dos agentes/)).toBeInTheDocument();
+    fireEvent.change(caixa, { target: { value: PERGUNTA } });
     fireEvent.keyDown(caixa, { key: 'Enter' });
     fireEvent.keyDown(caixa, { key: 'Enter' });
-    expect(await screen.findByText(/Pedido registrado na fila/, {}, { timeout: 8000 })).toBeInTheDocument();
-    expect(screen.getByText(/ainda aguarda processamento/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Aprovar e executar' })).not.toBeInTheDocument();
-    await waitFor(async () => {
-      const { data } = await adminLocal().from('executions').select('execution_type').like('title', 'Copiloto: ' + PEDIDO + '%');
-      expect(data).toEqual([{ execution_type: 'Pedido ao Copiloto' }]);
-    });
+    expect(await screen.findByText(PERGUNTA, {}, { timeout: 8000 })).toBeInTheDocument();
+    expect(await screen.findByText('O Copiloto está respondendo…', {}, { timeout: 8000 })).toBeInTheDocument();
+
+    await responderComoServico(PERGUNTA, { texto: 'Buscar empresas novas é com a Zoe ' + MARCA + '. Ela diz o custo antes.', encaminhar: 'comercial' });
+    expect(await screen.findByText('Buscar empresas novas é com a Zoe ' + MARCA + '. Ela diz o custo antes.', {}, { timeout: 10000 })).toBeInTheDocument();
+    const { data } = await adminLocal().from('copilot_messages').select('id').eq('workspace_id', WS).eq('texto', PERGUNTA);
+    expect(data).toHaveLength(1); // Enter duas vezes não duplicou
+    expect((await adminLocal().from('executions').select('id', { count: 'exact', head: true }).eq('workspace_id', WS)).count).toBe(execAntes);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir conversa com Zoe' }));
+    await waitFor(() => expect(window.location.hash).toBe('#/app/evolut/agents/comercial'));
   });
 
-  it('pedido acima do teto vai para Aprovações e não aparece como falha', async () => {
-    await adminLocal().from('workspace_settings').update({ credit_mode: 'approval', approval_threshold: 0 }).eq('workspace_id', WS);
+  it('sem modelo, a resposta diz a verdade', async () => {
+    cleanup();
     const caixa = await abrirCopiloto();
-    fireEvent.change(caixa, { target: { value: PEDIDO_CARO } });
+    fireEvent.change(caixa, { target: { value: 'Quantas contas? ' + MARCA } });
     fireEvent.keyDown(caixa, { key: 'Enter' });
-    expect(await screen.findByText(/Pedido enviado para Aprovações/, {}, { timeout: 8000 })).toBeInTheDocument();
-    expect(screen.queryByText('Pedido não enviado')).not.toBeInTheDocument();
-    const { data } = await adminLocal().from('approvals').select('status').like('title', 'Copiloto: ' + PEDIDO_CARO + '%');
-    expect(data).toEqual([{ status: 'pendente' }]);
+    await responderComoServico('Quantas contas? ' + MARCA, { falha: 'o modelo de IA não está configurado' });
+    expect(await screen.findByText('Não consegui responder agora: o modelo de IA não está configurado.', {}, { timeout: 10000 })).toBeInTheDocument();
+  });
+
+  it('a conversa é privada: a C-level não vê o que o BDR perguntou', async () => {
+    cleanup();
+    await abrirCopiloto('aline@evolut.com.br');
+    await new Promise(r => setTimeout(r, 1500));
+    expect(screen.queryByText(PERGUNTA)).not.toBeInTheDocument();
   });
 });

@@ -7,6 +7,7 @@ const EVOLUT = "a0000000-0000-0000-0000-000000000001";
 const GRAO = "b0000000-0000-0000-0000-000000000001";
 const VERTICE = "c0000000-0000-0000-0000-000000000001";
 const RAFAEL = "d0000000-0000-0000-0000-000000000001";
+const RAFAEL_NO_VERTICE = "d0000000-0000-0000-0000-000000000010";
 const CAMILA = "d0000000-0000-0000-0000-000000000002";
 const ALINE = "d0000000-0000-0000-0000-000000000003";
 const LUCAS = "d0000000-0000-0000-0000-000000000004";
@@ -112,19 +113,19 @@ describe("compra e regras quando a função recusa", () => {
 
   it("sem permissão de compra", async () => {
     const cliente = clienteRpc({ data: null, error: { code: "42501", message: "nao" } });
-    await expect(comprarCreditos(cliente as never, EVOLUT, LUCAS, 10000)).rejects.toThrow("Você não tem permissão para comprar créditos.");
+    await expect(comprarCreditos(cliente as never, EVOLUT, LUCAS, 10000)).rejects.toThrow("Você não tem permissão para pedir créditos.");
   });
 
   it("falha genérica de compra", async () => {
     const cliente = clienteRpc({ data: null, error: { code: "08000", message: "rede" } });
-    await expect(comprarCreditos(cliente as never, EVOLUT, ALINE, 10000)).rejects.toThrow("Não foi possível registrar a compra de créditos.");
+    await expect(comprarCreditos(cliente as never, EVOLUT, ALINE, 10000)).rejects.toThrow("Não foi possível registrar o pedido de créditos.");
   });
 
   it("compra recusada com motivo e sem motivo", async () => {
     await expect(comprarCreditos(clienteRpc({ data: { success: false, reason: "Pacote de créditos não reconhecido." }, error: null }) as never, EVOLUT, ALINE, 1))
       .rejects.toThrow("Pacote de créditos não reconhecido.");
     await expect(comprarCreditos(clienteRpc({ data: { success: false }, error: null }) as never, EVOLUT, ALINE, 1))
-      .rejects.toThrow("A compra de créditos não foi registrada.");
+      .rejects.toThrow("O pedido de créditos não foi registrado.");
   });
 
   it("sem permissão para mudar as regras", async () => {
@@ -185,12 +186,12 @@ describe.skipIf(!bancoLocalNoAr)("Creditos no banco local", () => {
 
   it("BDR não compra créditos", async () => {
     const lucas = await entrarComoLocal("lucas@evolut.com.br");
-    await expect(comprarCreditos(lucas, EVOLUT, LUCAS, 10000)).rejects.toThrow("Você não tem permissão para comprar créditos.");
+    await expect(comprarCreditos(lucas, EVOLUT, LUCAS, 10000)).rejects.toThrow("Você não tem permissão para pedir créditos.");
   });
 
   it("estrategista não compra no workspace de que não participa", async () => {
     const camila = await entrarComoLocal("camila@althius.com.br");
-    await expect(comprarCreditos(camila, VERTICE, CAMILA, 10000)).rejects.toThrow("Você não tem permissão para comprar créditos.");
+    await expect(comprarCreditos(camila, VERTICE, CAMILA, 10000)).rejects.toThrow("Você não tem permissão para pedir créditos.");
   });
 
   it("pacote que não existe é recusado", async () => {
@@ -204,7 +205,7 @@ describe.skipIf(!bancoLocalNoAr)("Creditos no banco local", () => {
     try {
       const r = await comprarCreditos(camila, EVOLUT, CAMILA, 10000);
       approvalId = r.approval_id;
-      expect(r).toMatchObject({ success: true, status: "requires_approval" });
+      expect(r).toMatchObject({ success: true, status: "requested" }); // ADR 0064: vai para a Althius
       expect(approvalId).toBeTruthy();
       expect((await lerCreditos(camila, EVOLUT)).disponivel).toBe(7950);
       const linha = (await adminLocal().from("approvals").select("status, approval_type, category, estimated_credits").eq("id", approvalId!).single()).data;
@@ -217,23 +218,41 @@ describe.skipIf(!bancoLocalNoAr)("Creditos no banco local", () => {
     }
   });
 
-  it("C-level compra e o saldo aumenta", async () => {
+  it("C-level pede à Althius e o saldo não muda (ADR 0064)", async () => {
     const aline = await entrarComoLocal("aline@evolut.com.br");
+    let approvalId: string | undefined;
     try {
-      expect(await comprarCreditos(aline, EVOLUT, ALINE, 10000)).toMatchObject({ success: true, status: "credited", amount: 10000 });
-      expect((await lerCreditos(aline, EVOLUT)).disponivel).toBe(17950);
+      const r = await comprarCreditos(aline, EVOLUT, ALINE, 10000);
+      approvalId = r.approval_id;
+      expect(r).toMatchObject({ success: true, status: "requested", amount: 10000 });
+      expect((await lerCreditos(aline, EVOLUT)).disponivel).toBe(7950);
     } finally {
-      await restaurarCompra(EVOLUT);
+      if (approvalId) {
+        await adminLocal().from("notifications").delete().eq("entity_id", approvalId);
+        await adminLocal().from("approvals").delete().eq("id", approvalId);
+      }
     }
   });
 
-  it("superadmin compra em qualquer workspace dele", async () => {
+  it("a Althius (superadmin) libera o pedido e o crédito entra no saldo (ADR 0064)", async () => {
     const rafael = await entrarComoLocal("rafael@althius.com.br");
+    let approvalId: string | undefined;
     try {
-      expect(await comprarCreditos(rafael, VERTICE, RAFAEL, 25000)).toMatchObject({ success: true, status: "credited", amount: 25000 });
+      const r = await comprarCreditos(rafael, VERTICE, RAFAEL, 25000);
+      approvalId = r.approval_id;
+      expect(r).toMatchObject({ success: true, status: "requested", amount: 25000 });
+      expect((await lerCreditos(rafael, VERTICE)).disponivel).toBe(10000);
+      const pedido = (await adminLocal().from("approvals").select("payload_json").eq("id", approvalId!).single()).data!;
+      const { data, error } = await rafael.rpc("approval_decide", { p_approval_id: approvalId, p_decider_member_id: RAFAEL_NO_VERTICE, p_decision: "aprovado", p_payload_to_verify: pedido.payload_json });
+      expect(error).toBeNull();
+      expect(data).toMatchObject({ success: true });
       expect((await lerCreditos(rafael, VERTICE)).disponivel).toBe(35000);
     } finally {
       await restaurarCompra(VERTICE);
+      if (approvalId) {
+        await adminLocal().from("notifications").delete().eq("entity_id", approvalId);
+        await adminLocal().from("approvals").delete().eq("id", approvalId);
+      }
     }
   });
 
@@ -258,7 +277,8 @@ describe.skipIf(!bancoLocalNoAr)("Creditos no banco local", () => {
     const rafael = await entrarComoLocal("rafael@althius.com.br");
     try {
       await salvarPoliticaCreditos(aline, EVOLUT, ALINE, { modo: "aprovacao", teto: 200, limite: 8000, recarga: true });
-      expect((await lerCreditos(aline, EVOLUT)).politica).toEqual({ modo: "aprovacao", teto: 200, limite: 8000, recarga: true });
+      // A recarga automática fica sempre desligada (ADR 0064): pedir "true" grava "false".
+      expect((await lerCreditos(aline, EVOLUT)).politica).toEqual({ modo: "aprovacao", teto: 200, limite: 8000, recarga: false });
       await salvarPoliticaCreditos(rafael, EVOLUT, RAFAEL, { modo: "auto", teto: 400, limite: 4000, recarga: false });
       expect((await lerCreditos(rafael, EVOLUT)).politica).toEqual({ modo: "auto", teto: 400, limite: 4000, recarga: false });
     } finally {

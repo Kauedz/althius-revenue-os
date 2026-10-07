@@ -6,7 +6,6 @@ import { AlthiusLogic } from '../v18/logic.generated.js';
 import { PAPEL_FRONT, sigla, type DadosAlthius, type PapelBanco, type PapelFront } from './dados';
 import { controlarExecucao, listarExecucoes } from './servicos/execucoes';
 import { comprarCreditos, lerCreditos, salvarPoliticaCreditos as gravarPoliticaCreditos } from './servicos/creditos';
-import { precoEmReais } from './precos';
 import { decidirAprovacao, listarAprovacoes, type AprovacaoTela, type DecisaoTela } from './servicos/aprovacoes';
 import { listarEquipe, convidarEquipe, mudarPapelEquipe, suspenderMembroEquipe, cancelarConviteEquipe, type Equipe } from './servicos/equipe';
 import {
@@ -14,6 +13,8 @@ import {
   criarConta,
   editarConta,
   importarContas,
+  contasDeCsv,
+  definirMonitoramento,
   type ContaTela,
   type NovaContaInput,
   type EditarContaInput,
@@ -27,19 +28,22 @@ import { decidirAprendizado, lerPlaybooks, listarSugestoes, publicarPlaybook } f
 import { desconectarConta, iniciarConexaoConta, provedorDoCanal } from './servicos/conexoes';
 import { carregarIntegracoes, desconectarIntegracao, iniciarConexaoIntegracao, montarConexoes, resultadoDaConexao } from './servicos/integracoes';
 import { PERFIS } from '../server/integracoes/perfis';
-import { excluirContatoDoCrm, listarCaixa, marcarLida, minhasConexoes, pedirSugestaoDeResposta, type CaixaTela, type ConexoesTela } from './servicos/caixa';
+import { excluirContatoDoCrm, listarCaixaPorEmpresa, marcarLida, minhasConexoes, minhasContasComProblema, pedirSugestaoDeResposta, responderNaCaixa, textoDoAvisoDeConexao, type CaixaTela, type ConexoesTela, type EmpresaDaCaixa } from './servicos/caixa';
 import * as admin from './servicos/admin';
 import { decidirConsentimento, lerConsentimento, marcarAvisoVisto, type EstadoAprendizado } from './servicos/aprendizado';
 import { alternarChave, guardarChave, removerChave, ROTULO_PROVEDOR, testarChave, type ProvedorCofre } from './servicos/cofre';
 import { arquivarCanal, criarCanal, editarMensagem, enviarNoCanal, lerMensagens, listarCanais, mudarCanal, reagir, type CanalTela } from './servicos/canais';
-import { pedirAoCopiloto } from './servicos/copiloto';
+import { lerConversaCopiloto, perguntarAoCopiloto, type MensagemCopiloto } from './servicos/copiloto';
+import { nomeDoAgente as nomeDeExibicao } from './agentes-exibicao';
 import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla } from './servicos/notificacoes';
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 import { avisoDeColeta, listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
-import { listarProspeccao, prospeccaoSemDados, type ProspeccaoTela } from './servicos/prospeccao';
-import { arquivarNegocio, atualizarNegocio, criarNegocio, criarQuadro, excluirQuadro, listarPipeline, moverNegocio, MOTIONS, pipelineVazio, reordenarEtapas, renomearQuadro, type Motion, type PipelineTela, type Resultado } from './servicos/pipeline';
+import { decidirCandidatas, listarProspeccao, prospeccaoVazia, type LinhaCandidata, type ProspeccaoTela } from './servicos/prospeccao';
+import { arquivarNegocio, atualizarNegocio, criarNegocio, criarQuadro, excluirQuadro, levarContasAoQuadro, listarPipeline, moverNegocio, MOTIONS, pipelineVazio, reordenarEtapas, renomearQuadro, type Motion, type PipelineTela, type Resultado } from './servicos/pipeline';
 import { adiarTarefa, criarTarefa, listarTarefas, mudarStatusTarefa, tarefasVazias, type TarefasTela } from './servicos/tarefas';
 import { CANAIS_CAMPANHA, campanhasVazias, criarCampanha, listarCampanhas, mudarStatusCampanha, mudarVerba, type CampanhasTela } from './servicos/campanhas';
+import { estrategiaVazia, listarEstrategia, salvarIcp, type EstrategiaTela } from './servicos/estrategia';
+import { kpisDaColeta, lerPainelDeColeta, salvarTetoDeSinais, type PainelColeta } from './servicos/coleta';
 import { adicionarPasso, cadenciasVazias, CANAL_PASSO, DICA_VARIAVEIS, inscreverContato, listarCadencias, removerUltimoPasso, salvarCadencia, type CadenciasTela } from './servicos/cadencias';
 import { nomeDoAgente } from './agentes-exibicao';
 import { abrirConversa, arquivarConversa, listarConversas, tituloDaPrimeiraMensagem, type ConversaDireta } from './servicos/conversaDireta';
@@ -59,7 +63,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     super(props);
     const relatoriosReais = relatorioSemDados();
     const sinaisReais = sinaisSemDados();
-    const prospeccaoReais = prospeccaoSemDados();
+    const prospeccaoReais = prospeccaoVazia();
     this.state = { ...this.state, relatoriosReais, sinaisReais, prospeccaoReais };
     this.publicarRelatorios(relatoriosReais);
     this.publicarSinais(sinaisReais);
@@ -109,11 +113,14 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       list: () => this.carregarNotificacoes()
     };
     super.componentDidMount?.();
+    // Conta que cai no meio do uso: confere de tempos em tempos e avisa com um pop-up (ADR 0071).
+    this.temporizadorConexoes = setInterval(() => void this.conferirConexoes(), 60_000);
     void this.carregarMinhaConta();
     this.publicarCaixa(null);
     this.publicarTarefas(null);
     this.publicarCampanhas(null);
     this.publicarCadencias(null);
+    this.publicarEstrategia(null);
     this.registrarTelasAdmin();
     this.limparIntegracoesDeExemplo();
   }
@@ -122,7 +129,13 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   private vivo = true;
 
   componentDidUpdate(prevProps: Readonly<AlthiusAppProps>, prevState: Readonly<Record<string, any>>) {
+    if (this.levarPendente !== undefined && this.state.pipeReal && this.state.pipeReal !== prevState.pipeReal) {
+      const pendente = this.levarPendente;
+      this.levarPendente = undefined;
+      this.abrirLevarContas(pendente ?? undefined);
+    }
     super.componentDidUpdate?.(prevProps, prevState);
+    if (this.modoDemo === false && this.state.cop && (!prevState.cop || prevState.rota?.ws !== this.state.rota?.ws)) void this.carregarCopiloto();
     this.carregarPaginaSobDemanda(prevState);
     if (prevState.rota?.ws !== this.state.rota?.ws) {
       this.cargaWorkspace++;
@@ -135,18 +148,21 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   componentWillUnmount() {
     this.vivo = false;
+    if (this.temporizadorConexoes) clearInterval(this.temporizadorConexoes);
     if (this.temporizadorConversa) clearTimeout(this.temporizadorConversa);
+    if (this.copEspera) clearTimeout(this.copEspera);
     this.cargaEquipe++;
     this.cargaWorkspace++;
     this.publicarContas([]);
     this.publicarRelatorios(relatorioSemDados());
     this.publicarSinais(sinaisSemDados());
-    this.publicarProspeccao(prospeccaoSemDados());
+    this.publicarProspeccao(prospeccaoVazia());
     this.publicarAprendizados({}, {});
     this.publicarCaixa(null);
     this.publicarTarefas(null);
     this.publicarCampanhas(null);
     this.publicarCadencias(null);
+    this.publicarEstrategia(null);
     super.componentWillUnmount?.();
   }
 
@@ -181,7 +197,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const carga = ++this.cargaWorkspace;
     const relatoriosVazios = relatorioSemDados();
     const sinaisVazios = sinaisSemDados();
-    const prospeccaoVazios = prospeccaoSemDados();
+    const prospeccaoVazios = prospeccaoVazia();
     this.publicarContas([]);
     this.publicarRelatorios(relatoriosVazios);
     this.publicarSinais(sinaisVazios);
@@ -270,6 +286,9 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.valoresEquipe(v);
     this.formularioNovoCliente(v);
     this.formularioDoModulo(v);
+    this.acoesDeLeads(v);
+    this.copilotoNaTela(v);
+    this.caixaNaTela(v);
     return v;
   }
 
@@ -280,32 +299,29 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     return lerCreditos(this.props.supabase, ws.uuid).then(c => ({ extrato: c.extrato, saldoCreditos: c.disponivel, credCfg: c.politica }));
   }
 
+  /** ADR 0064: créditos não se compram em 1 clique. O pedido vai para a Althius, que libera no saldo (cobrança pelo contrato). */
   comprarOuPedirCreditos(quantidade: number) {
-    const pode = (this.props.dados.PERMS[this.papel()] || []).includes('credits.buy');
-    const preco = precoEmReais(quantidade);
     const nf = (n: number) => Math.round(n).toLocaleString('pt-BR');
-    const pessoas = this.membros(this.wsId()) as Array<{ papel: string; dono?: boolean; nome: string }>;
-    const decisor = (pessoas.find(m => m.papel === 'cliente' && m.dono) || pessoas.find(m => m.papel === 'cliente') || { nome: 'o C-level' }).nome;
     this.confirmar(
-      pode ? 'Comprar ' + nf(quantidade) + ' créditos por ' + preco + '?' : 'Pedir ' + nf(quantidade) + ' créditos?',
-      pode ? 'A cobrança vai no método de pagamento do workspace e os créditos entram na hora.' : decisor + ' recebe o pedido em Aprovações e decide a compra de ' + preco + '.',
-      pode ? 'Comprar' : 'Enviar pedido',
-      () => { void this.registrarCompra(quantidade, pode, nf, decisor); }
+      'Pedir ' + nf(quantidade) + ' créditos à Althius?',
+      'A Althius confere o pedido e libera os créditos no saldo. A cobrança segue o seu contrato; nada é cobrado por aqui.',
+      'Enviar pedido',
+      () => { void this.registrarCompra(quantidade); }
     );
   }
 
-  async registrarCompra(quantidade: number, pode: boolean, nf: (n: number) => string, decisor: string) {
+  async registrarCompra(quantidade: number) {
     const ws = this.workspaceAtual();
     const slug = this.wsId();
     try {
       if (!ws?.membroId) throw new Error('Você não participa deste workspace como membro.');
-      const r = await comprarCreditos(this.props.supabase, ws.uuid, ws.membroId, quantidade);
+      await comprarCreditos(this.props.supabase, ws.uuid, ws.membroId, quantidade);
       if (!this.vivo || this.wsId() !== slug) return;
       await this.recarregarWorkspace();
       if (!this.vivo || this.wsId() !== slug) return;
-      this.avisar('mod', r.status === 'requires_approval' ? 'Pedido enviado para ' + decisor + '.' : nf(quantidade) + ' créditos adicionados.');
+      this.avisar('mod', 'Pedido enviado à Althius. Você recebe um aviso quando os créditos forem liberados.');
     } catch (falha) {
-      this.avisarFalha(pode ? 'Compra não registrada' : 'Pedido não registrado', falha);
+      this.avisarFalha('Pedido não registrado', falha);
     }
   }
 
@@ -546,7 +562,40 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     return ws ? listarContas(this.props.supabase, ws.uuid) : Promise.resolve([]);
   }
 
+  // Site e ponto no mapa de cada conta (do banco: digitados ou achados pelo enriquecimento, ADR 0062).
+  private sitesDasContas: Record<string, string> = {};
+  private geoDasContas: Record<string, NonNullable<ContaTela['geo']>> = {};
+
+  /** O site da conta: o que a pessoa acabou de editar na tela vale; senão, o do banco. O logo sai do site. */
+  siteDe(id: string): string {
+    if (!id) return '';
+    const editado = (this.state.sites || {})[id];
+    return typeof editado === 'string' ? editado : this.sitesDasContas[id] || '';
+  }
+
+  /** Ponto da conta no mapa do Início (nulo: sem coordenada). Lido pela regra do mapa em scripts/v18/patches.mjs. */
+  geoDaContaNoMapa(id: string): NonNullable<ContaTela['geo']> | null {
+    return this.geoDasContas[id] ?? null;
+  }
+
+  /** "Salvar site" na conta grava o domínio no banco (antes só ficava na tela). Limpar o campo não apaga o site. */
+  salvarSiteDaConta(id: string, dominio: string) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId || !dominio) return;
+    const anterior = this.sitesDasContas[id] || '';
+    editarConta(this.props.supabase, ws.membroId, { id, dominio }).then(
+      () => { this.sitesDasContas[id] = dominio; },
+      falha => {
+        if (!this.vivo) return;
+        this.setState({ sites: Object.assign({}, this.state.sites, { [id]: anterior }) });
+        this.avisarFalha('Não foi possível salvar o site da conta', falha);
+      }
+    );
+  }
+
   private publicarContas(contas: ContaTela[]) {
+    this.sitesDasContas = Object.fromEntries(contas.filter(c => c.dominio).map(c => [c.id, String(c.dominio)]));
+    this.geoDasContas = Object.fromEntries(contas.filter(c => c.geo).map(c => [c.id, c.geo!]));
     if (typeof window === 'undefined') return;
     const mod = (window as any).ALTHIUS_MOD;
     if (mod?.accounts) {
@@ -575,6 +624,26 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       }
     }
     (window as any).ALTHIUS_COMITES = comites;
+    this.publicarFotosDosContatos(contas);
+  }
+
+  /** Fotos que o banco trouxe e que estão em ALTHIUS_FOTOS, para tirar quando a lista mudar (as da demonstração ficam). */
+  private fotosPublicadas: string[] = [];
+
+  /** A tela acha a foto pela chave em ALTHIUS_FOTOS; a foto do banco é um endereço https e vira a própria chave. */
+  private publicarFotosDosContatos(contas: ContaTela[]) {
+    const w = window as any;
+    w.ALTHIUS_FOTOS = w.ALTHIUS_FOTOS || {};
+    for (const url of this.fotosPublicadas) delete w.ALTHIUS_FOTOS[url];
+    this.fotosPublicadas = [];
+    for (const conta of contas) {
+      for (const pessoa of conta.comite || []) {
+        const url = pessoa.foto;
+        if (!/^https:\/\//i.test(url) || url in w.ALTHIUS_FOTOS) continue;
+        w.ALTHIUS_FOTOS[url] = url;
+        this.fotosPublicadas.push(url);
+      }
+    }
   }
 
   private avisarFalha(titulo: string, falha: unknown) {
@@ -680,19 +749,11 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     v.md.temKpis = relatorios.kpis.length > 0;
     v.md.temFunil = false;
     v.md.temAcao = false;
-    const cols = ['nome', 'fonte', 'frequencia', 'ultimo', 'dest'] as const;
-    v.md.linhas = relatorios.linhas.map(l => ({
-      abrir: () => {},
-      tecla: () => {},
-      bg: 'transparent',
-      celulas: cols.map((k, ci) => ({
-        temCo: false, temFogo: false, chamas: [], fogoRotulo: '', temTexto: true, temFoto: false, foto: '',
-        v: l[k] || 'Sem dados ainda', temPonto: false, ponto: 'transparent',
-        fs: ci === 0 ? '15px' : '14px', cor: ci === 0 ? 'var(--ink)' : 'var(--text-2)', ws: ci === 0 ? 'normal' : 'nowrap'
-      }))
-    }));
-    v.md.vazio = v.md.linhas.length === 0;
-    v.md.tabela = v.md.linhas.length > 0;
+    // "Relatórios automáticos" não tem banco por trás (ADR 0064): a tabela e os filtros dela não aparecem.
+    v.md.linhas = [];
+    v.md.filtros = [];
+    v.md.vazio = false;
+    v.md.tabela = false;
   }
 
   carregarSinais(): Promise<SinaisTela> {
@@ -706,6 +767,10 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const mod = (window as any).ALTHIUS_MOD;
     if (!mod?.signals) return;
     mod.signals.kpis = sinais.kpis.map(k => [k.label, k.valor, k.delta]);
+    // Coleta do mês e teto de sinais (ADR 0069): só porcentagem e créditos, nunca dólar.
+    const coleta = this.state?.coletaPainel as PainelColeta | undefined;
+    if (coleta) mod.signals.kpis = mod.signals.kpis.concat(kpisDaColeta(coleta));
+    mod.signals.acao = coleta?.podeEditarTeto ? { label: 'Ajustar teto de sinais' } : null;
     mod.signals.linhas = sinais.eventos;
     mod.signals.acoesLinha = [];
     // A coleta (Apify) ainda não está ligada: nada busca sinais sozinho. A tela diz isso em vez de parecer que coleta.
@@ -735,18 +800,77 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   carregarProspeccao(): Promise<ProspeccaoTela> {
     const ws = this.workspaceAtual();
-    return ws ? listarProspeccao(this.props.supabase, ws.uuid) : Promise.resolve(prospeccaoSemDados());
+    return ws ? listarProspeccao(this.props.supabase, ws.uuid) : Promise.resolve(prospeccaoVazia());
   }
 
-  /** Substitui as listas fictícias da página de Prospecção pelas do banco. Somente leitura. */
+  /**
+   * Página de Prospecção (ADR 0067): as candidatas que as buscas da Zoe trouxeram, no lugar das listas do protótipo.
+   * Novas buscas se pedem à Zoe (ela diz o custo antes). Incluir e excluir só para quem decide prospecção.
+   */
   private publicarProspeccao(tela: ProspeccaoTela) {
     if (typeof window === 'undefined') return;
     const mod = (window as any).ALTHIUS_MOD;
     if (!mod?.prospecting) return;
-    mod.prospecting.kpis = tela.kpis.map(k => [k.label, k.valor, k.delta]);
-    mod.prospecting.linhas = tela.listas;
-    mod.prospecting.acoesLinha = [];
-    mod.prospecting.acao = null;
+    const decide = this.podeNoWorkspace('prospecting.approve');
+    mod.prospecting.sub = tela.buscas.length
+      ? 'Buscas recentes: ' + tela.buscas.slice(0, 3).join(' · ') + '.'
+      : 'Peça à Zoe uma busca de empresas novas: ela diz quanto custa antes de rodar. O que ela trouxer aparece aqui para incluir ou excluir.';
+    mod.prospecting.colunas = [['nome', 'Empresa', '2fr'], ['site', 'Site', '1.4fr'], ['local', 'Cidade', '1fr'], ['categoria', 'Ramo', '1fr'], ['busca', 'Busca', '1.6fr'], ['status', 'Situação', '1fr']];
+    mod.prospecting.filtro = 'status';
+    mod.prospecting.busca = true;
+    mod.prospecting.kpis = tela.kpis;
+    mod.prospecting.linhas = tela.linhas;
+    mod.prospecting.acoesLinha = decide ? [['Incluir', ''], ['Excluir', '', null, true, '{x} sai das candidatas. O crédito da busca já foi gasto e não volta.']] : [];
+    mod.prospecting.acao = { label: 'Pedir à Zoe' };
+  }
+
+  private async recarregarProspeccao() {
+    try {
+      const tela = await this.carregarProspeccao();
+      if (!this.vivo) return;
+      this.publicarProspeccao(tela);
+      this.setState({ prospeccaoReais: tela });
+    } catch (falha) {
+      if (this.vivo) this.avisarFalha('Não foi possível carregar a prospecção', falha);
+    }
+  }
+
+  private async decidirProspeccao(ids: string[], acao: 'incluir' | 'excluir', dominios: Record<string, string> = {}) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return { ok: false as const, mensagem: 'Você não participa deste workspace como membro.' };
+    const r = await decidirCandidatas(this.props.supabase, ws.uuid, ws.membroId, ids, acao, dominios);
+    if (r.ok) {
+      await this.recarregarProspeccao();
+      if (r.incluidas + r.ligadas > 0) {
+        const contas = await this.carregarContas().catch(() => null);
+        if (contas && this.vivo) { this.publicarContas(contas); this.setState({ contas }); }
+      }
+    }
+    return r;
+  }
+
+  private async acaoNaCandidata(acao: string, linha: LinhaCandidata) {
+    if (acao === 'Incluir' && linha.semSite) {
+      return this.abrirFormulario({ tipo: 'site_candidata', id: linha.id, titulo: 'Site de ' + linha.nome, salvarLabel: 'Incluir como conta',
+        campos: [{ k: 'site', label: 'Site da empresa', valor: '', placeholder: 'empresa.com.br (a fonte não trouxe o site)' }] });
+    }
+    if (acao !== 'Incluir' && acao !== 'Excluir') return;
+    const r = await this.decidirProspeccao([linha.id], acao === 'Incluir' ? 'incluir' : 'excluir');
+    if (!r.ok) return this.confirmar('Candidata não atualizada', r.mensagem, 'Entendi', () => {});
+    if (acao === 'Excluir') return this.avisar('mod', r.excluidas ? 'Candidata excluída.' : 'Essa candidata já tinha sido decidida.');
+    if (!r.incluidas && !r.ligadas) return this.avisar('mod', r.semSite ? 'A fonte não trouxe o site: informe o site para incluir.' : 'Essa candidata já tinha sido decidida.');
+    this.avisar('mod', r.ligadas ? 'Esse site já era uma conta: a candidata foi ligada a ela.' : 'Conta criada. O enriquecimento completa CNPJ, endereço e pessoas sozinho.');
+  }
+
+  private async incluirTodasComSite() {
+    const linhas = (((window as any).ALTHIUS_MOD || {}).prospecting?.linhas || []) as LinhaCandidata[];
+    const ids = linhas.filter(l => l.status === 'Candidata' && !l.semSite).map(l => l.id);
+    if (!ids.length) return this.confirmar('Nada para incluir', 'Nenhuma candidata com site esperando decisão.', 'Entendi', () => {});
+    const r = await this.decidirProspeccao(ids, 'incluir');
+    if (!r.ok) return this.confirmar('Candidatas não incluídas', r.mensagem, 'Entendi', () => {});
+    const partes = [r.incluidas + (r.incluidas === 1 ? ' conta criada' : ' contas criadas')];
+    if (r.ligadas) partes.push(r.ligadas + ' já eram contas');
+    this.avisar('mod', partes.join('; ') + '. O enriquecimento completa o resto sozinho.');
   }
 
   // ---- Agentes (Claude)
@@ -956,7 +1080,10 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (rota.page === 'inbox') void this.carregarCaixa();
     if (rota.page === 'pipeline') void this.carregarPipeline();
     if (rota.page === 'tasks') void this.carregarTarefas();
+    if (rota.page === 'prospecting' && !(this.state.pronto && !prev.pronto)) void this.recarregarProspeccao();
     if (rota.page === 'campaigns') void this.carregarCampanhas();
+    if (rota.page === 'strategy') void this.carregarEstrategia();
+    if (rota.page === 'signals') void this.carregarPainelDeColeta();
     if (rota.page === 'cadences') void this.carregarCadencias();
     if (String(rota.page || '').startsWith('admin/')) void this.carregarAdmin(rota.page);
     if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) { void this.carregarConexoes(); void this.carregarCanais(); void this.carregarAprendizado(); }
@@ -1056,6 +1183,32 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       ...(apps.status === 'fulfilled' ? { integracoesReais: apps.value } : {})
     });
     this.avisarRetornoDaConexao();
+    void this.conferirConexoes();
+  }
+
+  private temporizadorConexoes: ReturnType<typeof setInterval> | undefined;
+  /** conta+estado que já viraram pop-up nesta sessão (não repete a cada minuto) */
+  private avisadasDeConexao = new Set<string>();
+
+  /**
+   * Confere se alguma conta de mensagem da PRÓPRIA pessoa caiu e, se caiu agora, abre o pop-up (uma vez por conta e estado).
+   * Também atualiza a lista de conectadas sem piscar a tela. Falha ao conferir não incomoda: tenta no próximo minuto.
+   */
+  private async conferirConexoes() {
+    const ws = this.workspaceAtual();
+    if (this.modoDemo !== false || !ws?.membroId || !this.vivo) return;
+    try {
+      const [problemas, conectadas] = await Promise.all([minhasContasComProblema(this.props.supabase, ws.uuid), minhasConexoes(this.props.supabase, ws.uuid)]);
+      if (!this.vivo || this.workspaceAtual()?.uuid !== ws.uuid) return;
+      this.setState({ conexoesReais: conectadas });
+      const chaves = new Set(problemas.map(p => ws.uuid + ':' + p.provider + ':' + p.status));
+      for (const k of [...this.avisadasDeConexao]) if (k.startsWith(ws.uuid + ':') && !chaves.has(k)) this.avisadasDeConexao.delete(k);
+      const novas = problemas.filter(p => !this.avisadasDeConexao.has(ws.uuid + ':' + p.provider + ':' + p.status));
+      if (!novas.length) return;
+      for (const p of novas) this.avisadasDeConexao.add(ws.uuid + ':' + p.provider + ':' + p.status);
+      const { titulo, texto } = textoDoAvisoDeConexao(problemas);
+      this.confirmar(titulo, texto, 'Reconectar agora', () => this.ir('app/' + this.wsId() + '/inbox'));
+    } catch { /* tenta de novo no próximo minuto */ }
   }
 
   /** Conectar a PRÓPRIA conta de mensagem: pede o link ao backend e abre a janela segura do provedor. */
@@ -1275,9 +1428,92 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const tela = t ?? campanhasVazias();
     // Sem fonte de investimento real, a tabela mostra a verba aprovada (e não "Investido" nem CPL).
     mod.colunas = [['nome', 'Campanha', '2fr'], ['canal', 'Canal', '1fr'], ['verba', 'Verba aprovada', '1fr'], ['leads', 'Leads', '80px'], ['status', 'Status', '1fr']];
+    mod.sub = 'Meta Ads: em breve. Aqui ficam as campanhas e a verba aprovada.';
     mod.kpis = tela.kpis;
     mod.linhas = tela.linhas;
     mod.acoesLinha = t ? [['Ativar', ''], ['Pausar', ''], ['Concluir', ''], ['Mudar verba', '']] : [];
+  }
+
+  // ---- Estratégia ligada ao banco (ADR 0064): Playbooks publicados e personas alvo; nada do protótipo.
+  private cargaEstrategia = 0;
+
+  private publicarEstrategia(t: EstrategiaTela | null) {
+    if (typeof window === 'undefined' || this.modoDemo !== false) return;
+    const mod = (window as any).ALTHIUS_MOD?.strategy;
+    if (!mod) return;
+    const tela = t ?? estrategiaVazia();
+    const icpLinha = tela.linhas.find(l => l.tipo === 'ICP');
+    mod.sub = icpLinha?.status === 'Definido'
+      ? 'ICP: ' + icpLinha.desc
+      : 'O ICP do cliente, o Playbook de cada agente e as personas que o enriquecimento procura';
+    mod.kpis = tela.kpis;
+    mod.linhas = tela.linhas;
+    this.icpAtual = tela.icp ?? {};
+    // Gestor do cliente edita o ICP direto (ADR 0067); o Jax propõe pela conversa.
+    mod.acao = t && ['superadmin', 'estrategista', 'cliente'].includes(this.papel()) ? { label: 'Editar ICP' } : null;
+    mod.acoesLinha = [];
+  }
+
+  private icpAtual: Record<string, unknown> = {};
+
+  private cargaColeta = 0;
+
+  /** Coleta do mês e teto de sinais (ADR 0069). Em falha, o painel some: nada de número inventado. */
+  async carregarPainelDeColeta() {
+    const ws = this.workspaceAtual();
+    const carga = ++this.cargaColeta;
+    if (this.modoDemo !== false || !ws?.membroId) return;
+    try {
+      const p = await lerPainelDeColeta(this.props.supabase, ws.uuid, ws.membroId);
+      if (!this.vivo || carga !== this.cargaColeta) return;
+      this.state = { ...this.state, coletaPainel: p };
+      this.publicarSinais(this.state.sinaisReais || sinaisSemDados());
+      this.setState({ coletaVersao: carga, coletaPainel: p });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaColeta) this.avisarFalha('Não foi possível carregar a coleta do mês', falha);
+    }
+  }
+
+  private abrirAjusteDoTeto() {
+    const p = this.state.coletaPainel as PainelColeta | undefined;
+    this.abrirFormulario({ tipo: 'teto_sinais', titulo: 'Teto mensal de sinais', salvarLabel: 'Salvar teto', campos: [
+      { k: 'teto', label: 'Créditos de sinais por mês (0 desliga os sinais automáticos)', valor: p ? String(p.sinaisTeto) : '2000', placeholder: 'Ex.: 2000' }
+    ] });
+  }
+
+  private abrirEditarIcp() {
+    const icp = this.icpAtual;
+    const lista = (k: string) => (Array.isArray(icp[k]) ? (icp[k] as unknown[]).join(', ') : '');
+    const num = (k: string) => (typeof icp[k] === 'number' ? String(icp[k]) : '');
+    this.abrirFormulario({ tipo: 'icp', titulo: 'ICP do cliente', salvarLabel: 'Salvar ICP', campos: [
+      { k: 'setores', label: 'Setores (separados por vírgula)', valor: lista('setores'), placeholder: 'Ex.: Clínicas odontológicas, Laboratórios' },
+      { k: 'cnaes', label: 'CNAEs (7 dígitos, separados por vírgula)', valor: lista('cnaes'), placeholder: 'Ex.: 8630504' },
+      { k: 'portes', label: 'Porte na Receita (MICRO, EPP, DEMAIS)', valor: lista('portes'), placeholder: 'Ex.: MICRO, EPP' },
+      { k: 'funcionarios_min', label: 'Funcionários: mínimo', valor: num('funcionarios_min'), placeholder: 'Opcional' },
+      { k: 'funcionarios_max', label: 'Funcionários: máximo', valor: num('funcionarios_max'), placeholder: 'Opcional' },
+      { k: 'faturamento_min', label: 'Faturamento anual mínimo (R$)', valor: num('faturamento_min'), placeholder: 'Opcional' },
+      { k: 'faturamento_max', label: 'Faturamento anual máximo (R$)', valor: num('faturamento_max'), placeholder: 'Opcional' },
+      { k: 'capital_min', label: 'Capital social mínimo (R$)', valor: num('capital_min'), placeholder: 'Opcional (a Receita traz o capital, não o faturamento)' },
+      { k: 'capital_max', label: 'Capital social máximo (R$)', valor: num('capital_max'), placeholder: 'Opcional' },
+      { k: 'ufs', label: 'Estados (siglas, separadas por vírgula)', valor: lista('ufs'), placeholder: 'Ex.: SP, MG' },
+      { k: 'cidades', label: 'Cidades (separadas por vírgula)', valor: lista('cidades'), placeholder: 'Opcional' },
+      { k: 'observacoes', label: 'Observações', valor: typeof icp.observacoes === 'string' ? icp.observacoes : '', longo: true, placeholder: 'O que mais define o cliente ideal' }
+    ] });
+  }
+
+  async carregarEstrategia() {
+    const ws = this.workspaceAtual();
+    const carga = ++this.cargaEstrategia;
+    this.publicarEstrategia(null);
+    if (!ws) return;
+    try {
+      const t = await listarEstrategia(this.props.supabase, ws.uuid);
+      if (!this.vivo || carga !== this.cargaEstrategia) return;
+      this.publicarEstrategia(t);
+      this.setState({ estrategiaVersao: carga });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaEstrategia) this.avisarFalha('Não foi possível carregar a estratégia', falha);
+    }
   }
 
   private publicarCadencias(t: CadenciasTela | null) {
@@ -1328,7 +1564,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   private formularioDoModulo(v: Record<string, any>) {
     const f = this.state.formModulo as { tipo: string; titulo: string; salvarLabel: string; erro: string; campos: Array<Record<string, any>> } | undefined;
     const pagina = (this.state.rota || {}).page;
-    if (!f || !v.md || (pagina !== 'campaigns' && pagina !== 'cadences' && pagina !== 'admin/providers')) return;
+    if (!f || !v.md || !['campaigns', 'cadences', 'admin/providers', 'accounts', 'pipeline', 'prospecting', 'strategy', 'signals', 'admin/usage'].includes(pagina)) return;
     v.md.form = {
       titulo: f.titulo,
       campos: f.campos.map(c => ({
@@ -1355,10 +1591,46 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const f = this.state.formModulo as { tipo: string; id?: string; extra?: Record<string, any>; campos: Array<{ k: string; valor: string }> } | undefined;
     const ws = this.workspaceAtual();
     if (f?.tipo === 'cofre_nova') return this.enviarChaveNova(f.campos);
+    if (f?.tipo === 'orcamento_coleta') {
+      const usd = AlthiusApp.numeroBR(String(f.campos.find(c => c.k === 'orcamento')?.valor ?? ''));
+      const r = await admin.ajustarOrcamentoDeColeta(this.props.supabase, f.id!, usd);
+      if (!r.ok) return this.setState({ formModulo: Object.assign({}, this.state.formModulo, { erro: r.mensagem }) });
+      if (!this.vivo) return;
+      this.setState({ formModulo: undefined });
+      await this.carregarAdmin('admin/usage');
+      return this.avisar('mod', 'Orçamento de coleta salvo.');
+    }
     if (!f || !ws?.membroId) return;
     const val = (k: string) => (f.campos.find(c => c.k === k)?.valor ?? '').trim();
     const falhou = (erro: string) => this.setState({ formModulo: Object.assign({}, this.state.formModulo, { erro }) });
     const sb = this.props.supabase;
+    if (f.tipo === 'nova_conta' || f.tipo === 'importar_contas' || f.tipo === 'levar_contas') return this.enviarFormularioDeLeads(f, val, falhou);
+    if (f.tipo === 'icp') {
+      const icp = Object.fromEntries(f.campos.map(c => [c.k, (c.valor ?? '').trim()]));
+      const r = await salvarIcp(sb, ws.uuid, ws.membroId, icp);
+      if (!r.ok) return falhou(r.mensagem);
+      if (!this.vivo) return;
+      this.setState({ formModulo: undefined });
+      await this.carregarEstrategia();
+      return this.avisar('mod', 'ICP salvo. A Zoe passa a usar nas próximas buscas.');
+    }
+    if (f.tipo === 'teto_sinais') {
+      const teto = AlthiusApp.numeroBR(val('teto'));
+      const r = await salvarTetoDeSinais(sb, ws.uuid, ws.membroId, teto);
+      if (!r.ok) return falhou(r.mensagem);
+      if (!this.vivo) return;
+      this.setState({ formModulo: undefined });
+      await this.carregarPainelDeColeta();
+      return this.avisar('mod', teto === 0 ? 'Sinais automáticos desligados neste cliente.' : 'Teto de sinais salvo.');
+    }
+    if (f.tipo === 'site_candidata') {
+      if (!normalizarDominio(val('site'))) return falhou('Informe só o site da empresa, como empresa.com.br.');
+      const r = await this.decidirProspeccao([f.id!], 'incluir', { [f.id!]: val('site') });
+      if (!r.ok) return falhou(r.mensagem);
+      if (!this.vivo) return;
+      this.setState({ formModulo: undefined });
+      return this.avisar('mod', r.ligadas ? 'Esse site já era uma conta: a candidata foi ligada a ela.' : 'Conta criada. O enriquecimento completa CNPJ, endereço e pessoas sozinho.');
+    }
     const verba = AlthiusApp.numeroBR(val('verba'));
     if (Number.isNaN(verba)) return falhou('Informe a verba só com números.');
 
@@ -1469,6 +1741,12 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       void this.acaoNaChave(acao, linha as any);
       return true;
     }
+    if (page === 'admin/usage') {
+      this.abrirFormulario({ tipo: 'orcamento_coleta', id: linha.id, titulo: 'Orçamento de coleta do mês', salvarLabel: 'Salvar orçamento', campos: [
+        { k: 'orcamento', label: 'Dólares por mês que a Althius aceita gastar com a coleta (Apify) deste cliente', valor: '50', placeholder: 'Ex.: 50 (0 trava a coleta)' }
+      ] });
+      return true;
+    }
     if (page === 'inbox') {
       void this.acaoNaConversa(acao, linha.id);
       return true;
@@ -1483,6 +1761,10 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     }
     if (page === 'cadences') {
       void this.acaoNaCadencia(acao, linha as any);
+      return true;
+    }
+    if (page === 'prospecting') {
+      void this.acaoNaCandidata(acao, linha as LinhaCandidata);
       return true;
     }
     return false;
@@ -1512,13 +1794,90 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.publicarCaixa(null);
     if (!ws) return;
     try {
-      const caixa = await listarCaixa(this.props.supabase, ws.uuid);
+      const caixa = await listarCaixaPorEmpresa(this.props.supabase, ws.uuid);
       if (!this.vivo || carga !== this.cargaCaixa) return;
       this.publicarCaixa(caixa);
-      this.setState({ caixaVersao: carga });
+      this.setState({ caixaVersao: carga, caixaEmpresas: caixa.empresas });
     } catch (falha) {
       if (this.vivo && carga === this.cargaCaixa) this.avisarFalha('Não foi possível carregar a caixa de entrada', falha);
     }
+  }
+
+  // ---- Caixa de entrada em conversa (ADR 0068): uma conversa por empresa; responder escolhe a pessoa e o canal.
+
+  private caixaPedido: { chave: string; destino: string; texto: string } | null = null;
+
+  private caixaAbrirEmpresa(e: EmpresaDaCaixa) {
+    const destino = (e.destinos.find(d => d.podeEnviar) || e.destinos[0])?.conversaId || '';
+    this.setState({ caixaSel: e.id, caixaDestino: destino, caixaTexto: '', caixaAssunto: '' });
+    for (const id of e.conversasNaoLidas) void this.abrirConversa(id);
+  }
+
+  private async caixaEnviar() {
+    const ws = this.workspaceAtual();
+    const destino = this.state.caixaDestino as string;
+    const texto = String(this.state.caixaTexto || '').trim();
+    if (!ws?.membroId || !destino) return;
+    if (!texto) return this.confirmar('Resposta não enviada', 'Escreva a resposta antes de enviar.', 'Entendi', () => {});
+    if (this.caixaPedido?.destino !== destino || this.caixaPedido.texto !== texto) this.caixaPedido = { chave: crypto.randomUUID(), destino, texto };
+    const r = await responderNaCaixa(this.props.supabase, ws.uuid, ws.membroId, destino, texto, String(this.state.caixaAssunto || ''), this.caixaPedido.chave);
+    if (!this.vivo) return;
+    if (!r.ok) return this.confirmar('Resposta não enviada', r.mensagem, 'Entendi', () => {});
+    this.caixaPedido = null;
+    this.setState({ caixaTexto: '', caixaAssunto: '' });
+    this.avisar('mod', 'Resposta na fila de envio: sai pela sua conta em instantes e aparece na conversa.');
+  }
+
+  /** A conversa por empresa no lugar da tabela (modo real). */
+  private caixaNaTela(v: Record<string, any>) {
+    if (this.modoDemo !== false || (this.state.rota || {}).page !== 'inbox' || !v.md) return;
+    const empresas = (this.state.caixaEmpresas || []) as EmpresaDaCaixa[];
+    const mobile = !!v.lay?.mobile;
+    const sel = empresas.find(e => e.id === this.state.caixaSel) || null;
+    const destino = sel?.destinos.find(d => d.conversaId === this.state.caixaDestino) || sel?.destinos[0] || null;
+    const canalDestino = sel && destino ? sel.mensagens.find(m => m.conversaId === destino.conversaId)?.canal : null;
+    v.md.tabela = false;
+    v.md.vazio = false;
+    v.md.filtros = [];
+    v.md.temBusca = false;
+    v.md.detalheAberto = false;
+    v.md.chat = {
+      colunas: mobile ? 'minmax(0, 1fr)' : 'minmax(220px, 320px) minmax(0, 1fr)',
+      mostraLista: !mobile || !sel,
+      mostraConversa: !mobile || !!sel,
+      vazio: empresas.length ? '' : 'Nenhuma conversa ainda. Quando um contato do CRM responder, a conversa aparece aqui.',
+      empresas: empresas.map(e => ({
+        id: e.id, nome: e.nome, quando: e.quando, ultima: e.ultima, pessoas: e.pessoas.join(', '),
+        naoLidas: e.naoLidas ? String(e.naoLidas) : '', naoLidasRotulo: e.naoLidas + (e.naoLidas === 1 ? ' não lida' : ' não lidas'),
+        atual: sel?.id === e.id ? 'true' : undefined, bg: sel?.id === e.id ? 'var(--mist)' : 'var(--paper)',
+        abrir: () => this.caixaAbrirEmpresa(e)
+      })),
+      temSelecao: !!sel,
+      voltar: mobile ? () => this.setState({ caixaSel: null }) : null,
+      titulo: sel?.nome || '',
+      subtitulo: sel ? sel.pessoas.join(', ') : '',
+      mensagens: (sel?.mensagens || []).map(m => ({
+        id: m.id, texto: m.texto, quando: m.quando, intencao: m.intencao,
+        alinhar: m.direcao === 'out' ? 'end' : 'start', bolha: m.direcao === 'out' ? 'bubble bubble-ink' : 'bubble',
+        avClasse: m.direcao === 'out' ? 'msg-av msg-av-pessoa' : 'msg-av', sigla: m.autor.split(/\s+/).map(p => p[0]).join('').slice(0, 2).toUpperCase(),
+        cabecalho: `${m.autor} · ${m.canal}`
+      })),
+      destinos: (sel?.destinos || []).map(d => ({ valor: d.conversaId, rotulo: d.rotulo })),
+      destino: destino?.conversaId || '',
+      motivo: destino && !destino.podeEnviar ? destino.motivo : '',
+      podeEnviar: !!destino?.podeEnviar,
+      temAssunto: canalDestino === 'E-mail',
+      assunto: this.state.caixaAssunto || '',
+      texto: this.state.caixaTexto || '',
+      mudarDestino: (ev: { target: { value: string } }) => this.setState({ caixaDestino: ev.target.value }),
+      mudarTexto: (ev: { target: { value: string } }) => this.setState({ caixaTexto: ev.target.value }),
+      mudarAssunto: (ev: { target: { value: string } }) => this.setState({ caixaAssunto: ev.target.value }),
+      enviar: () => void this.caixaEnviar(),
+      sugerir: () => destino && void this.acaoNaConversa('Sugerir resposta', destino.conversaId),
+      excluir: () => destino && this.confirmar('Excluir contato do CRM?',
+        (destino.rotulo.split(' · ')[0] || 'O contato') + ' sai do CRM. As mensagens dele param de entrar na Caixa de entrada na hora, e as conversas que já tinham entrado saem junto.',
+        'Excluir contato do CRM', () => void this.acaoNaConversa('Excluir contato do CRM', destino.conversaId))
+    };
   }
 
   private async abrirConversa(id: string) {
@@ -1551,7 +1910,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     'admin/workspaces': { titulo: 'Workspaces', sub: 'Clientes da Althius', busca: true, filtro: 'status',
       colunas: [['nome', 'Cliente', '2fr'], ['slug', 'Endereço', '1fr'], ['clevel', 'C-level', '1.4fr'], ['membros', 'Membros', '90px'], ['saldo', 'Saldo', '1.2fr'], ['status', 'Status', '1fr']] },
     'admin/usage': { titulo: 'Uso global', sub: 'Consumo de créditos por cliente no ciclo', busca: true,
-      colunas: [['nome', 'Cliente', '2fr'], ['consumido', 'Consumido no ciclo', '1.4fr'], ['saldo', 'Saldo', '1.2fr'], ['execucoes', 'Execuções no mês', '1fr'], ['tokens', 'Tokens do modelo no mês', '1.2fr'], ['custoModelo', 'Custo real do modelo', '1.2fr'], ['ultimo', 'Último uso', '1fr']] },
+      colunas: [['nome', 'Cliente', '2fr'], ['consumido', 'Consumido no ciclo', '1.4fr'], ['saldo', 'Saldo', '1.2fr'], ['execucoes', 'Execuções no mês', '1fr'], ['tokens', 'Tokens do modelo no mês', '1.2fr'], ['coleta', 'Coleta no mês / orçamento', '1.6fr'], ['coletaPct', 'Usado', '80px'], ['custoModelo', 'Custo real do modelo', '1.2fr'], ['ultimo', 'Último uso', '1fr']] },
     'admin/providers': { titulo: 'Fornecedores', sub: 'Chaves de coleta, mensagens e modelo de IA. Só os 4 últimos caracteres aparecem.', filtro: 'tipo',
       colunas: [['nome', 'Fornecedor', '1.6fr'], ['tipo', 'Tipo', '1.4fr'], ['status', 'Status', '1fr'], ['uso', 'Custo real no mês', '1.2fr'], ['detalhe', 'Detalhe', '2fr']] },
     'admin/margins': { titulo: 'Margens', sub: 'Preço em créditos de cada capacidade', busca: true,
@@ -1591,6 +1950,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
         ['Gerar chaves dos agentes', ''],
         ['Revogar chaves dos agentes', '', null, true, 'As chaves dos agentes de {x} param de funcionar na hora. O Hermes Agent desse cliente fica sem acesso até gerar novas.']
       ];
+      if (pagina === 'admin/usage') mod.acoesLinha = [['Ajustar orçamento de coleta', '']];
       if (pagina === 'admin/providers') mod.acoesLinha = [
         ['Testar chave', ''],
         ['Ativar ou desativar', ''],
@@ -1602,7 +1962,166 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     }
   }
 
+  // ---- Leads: adicionar, importar e levar ao Pipeline (ADR 0065)
+
+  private podeNoWorkspace(chave: string) {
+    return (this.props.dados.PERMS[this.papel()] || []).includes(chave);
+  }
+
+  private abrirNovaConta() {
+    this.abrirFormulario({ tipo: 'nova_conta', titulo: 'Nova conta', salvarLabel: 'Criar conta', campos: [
+      { k: 'nome', label: 'Nome da empresa', valor: '', placeholder: 'Ex.: Serra Azul Têxtil' },
+      { k: 'site', label: 'Site', valor: '', placeholder: 'empresa.com.br' },
+      { k: 'uf', label: 'Estado (UF)', valor: '', placeholder: 'SP (opcional)' },
+      { k: 'cidade', label: 'Cidade', valor: '', placeholder: 'Opcional' }
+    ] });
+  }
+
+  private abrirImportarContas() {
+    this.abrirFormulario({ tipo: 'importar_contas', titulo: 'Importar lista de contas', salvarLabel: 'Importar', campos: [
+      { k: 'csv', label: 'Cole a lista (CSV com cabeçalho: nome;site;uf;cidade)', valor: '', longo: true, placeholder: 'nome;site;uf\nSerra Azul Têxtil;serraazul.com.br;SP' }
+    ] });
+  }
+
+  /** Quadros de todas as motions, para escolher onde a conta entra (o padrão é o quadro aberto na motion aberta). */
+  private opcoesDeQuadro() {
+    const p = this.pipe() as { motion: Motion; quadros: Record<string, Array<{ id: string; nome: string }>>; ativo: Record<string, string> };
+    const opcoes = MOTIONS.flatMap(m => (p.quadros[m] || []).filter(q => !String(q.id).startsWith('carregando-'))
+      .map(q => ({ valor: q.id, label: m.toUpperCase() + ' · ' + q.nome })));
+    const ativo = p.ativo[p.motion];
+    return { opcoes, padrao: opcoes.some(o => o.valor === ativo) ? ativo : opcoes[0]?.valor || '' };
+  }
+
+  /** Pedido de "levar ao Pipeline" esperando os quadros chegarem do banco (null = em massa). */
+  private levarPendente: { id: string; nome: string } | null | undefined;
+
+  private abrirLevarContas(conta?: { id: string; nome: string }) {
+    // Os quadros vêm do banco: sem eles carregados, o formulário abre assim que chegarem (componentDidUpdate).
+    if (!this.state.pipeReal) {
+      this.levarPendente = conta ?? null;
+      if (this.state.rota?.page !== 'pipeline') void this.carregarPipeline();
+      return;
+    }
+    const { opcoes, padrao } = this.opcoesDeQuadro();
+    if (!opcoes.length) return this.confirmar('Pipeline indisponível', 'Não consegui carregar os quadros do Pipeline. Tente de novo em instantes.', 'Entendi', () => {});
+    const campos: Array<Record<string, any>> = [{ k: 'quadro', label: 'Quadro', valor: padrao, opcoes }];
+    if (!conta) campos.push({ k: 'quais', label: 'Quais contas', valor: 'todas', opcoes: [
+      { valor: 'todas', label: 'Todas as contas da base' },
+      { valor: 'quentes', label: 'Só as quentes (temperatura alta)' },
+      { valor: 'fit80', label: 'Só as com fit 80 ou mais' },
+      { valor: 'sem_negocio', label: 'Só as que ainda não estão em nenhum quadro' }
+    ] });
+    this.abrirFormulario({ tipo: 'levar_contas', titulo: conta ? 'Levar ' + conta.nome + ' ao Pipeline' : 'Adicionar contas ao Pipeline',
+      salvarLabel: 'Adicionar ao quadro', extra: conta ? { ids: [conta.id] } : {}, campos });
+  }
+
+  /** As contas da base que entram, pelo critério escolhido. O banco não duplica quem já está no quadro. */
+  private contasPeloCriterio(criterio: string): string[] {
+    const linhas = (((window as any).ALTHIUS_MOD || {}).accounts?.linhas || []) as ContaTela[];
+    const p = this.pipe() as { quadros: Record<string, Array<{ deals: Array<{ cid: string }> }>> };
+    const noPipeline = new Set(MOTIONS.flatMap(m => (p.quadros[m] || []).flatMap(q => q.deals.map(d => d.cid))));
+    const filtro: Record<string, (c: ContaTela) => boolean> = {
+      todas: () => true, quentes: c => c.temperatura === 3, fit80: c => c.fit >= 80, sem_negocio: c => !noPipeline.has(c.id)
+    };
+    return linhas.filter(filtro[criterio] || filtro.todas).map(c => c.id);
+  }
+
+  private async enviarFormularioDeLeads(f: { tipo: string; extra?: Record<string, any> }, val: (k: string) => string, falhou: (erro: string) => void) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return falhou('Você não participa deste workspace como membro.');
+    if (f.tipo === 'nova_conta') {
+      if (!val('nome') || !val('site')) return falhou('Informe o nome e o site da empresa.');
+      try {
+        await this.criarNovaConta({ nome: val('nome'), dominio: val('site'), uf: val('uf') ? val('uf').toUpperCase() : undefined, cidade: val('cidade') || undefined });
+      } catch (falha) {
+        return falhou(falha instanceof Error ? falha.message : 'Não foi possível criar a conta.');
+      }
+      if (!this.vivo) return;
+      this.setState({ formModulo: undefined });
+      return this.avisar('mod', 'Conta criada. O enriquecimento completa CNPJ, endereço e pessoas sozinho.');
+    }
+    if (f.tipo === 'importar_contas') {
+      const lidas = contasDeCsv(val('csv'));
+      if (lidas.problemas.length) return falhou('Corrija antes de importar: ' + lidas.problemas.slice(0, 5).join('; ') + (lidas.problemas.length > 5 ? '…' : '.'));
+      try {
+        const r = await this.importarListaContas(lidas.contas);
+        if (!this.vivo) return;
+        this.setState({ formModulo: undefined });
+        return this.avisar('mod', r.criadas + (r.criadas === 1 ? ' conta importada' : ' contas importadas') + (r.duplicadas ? '; ' + r.duplicadas + ' já existiam' : '') + '.');
+      } catch (falha) {
+        return falhou(falha instanceof Error ? falha.message : 'Não foi possível importar as contas.');
+      }
+    }
+    // levar_contas
+    const quadro = val('quadro');
+    if (!quadro) return falhou('Escolha o quadro.');
+    const ids: string[] = Array.isArray(f.extra?.ids) ? f.extra!.ids : this.contasPeloCriterio(val('quais'));
+    if (!ids.length) return falhou('Nenhuma conta da base se encaixa nesse critério.');
+    const r = await levarContasAoQuadro(this.props.supabase, ws.uuid, ws.membroId, quadro, ids);
+    if (!r.ok) return falhou(r.mensagem);
+    if (!this.vivo) return;
+    this.setState({ formModulo: undefined });
+    await this.carregarPipeline();
+    const partes = [r.criados + (r.criados === 1 ? ' conta entrou no quadro' : ' contas entraram no quadro')];
+    if (r.jaEstavam) partes.push(r.jaEstavam + ' já estavam');
+    return this.avisar('mod', partes.join('; ') + '.');
+  }
+
+  private async alternarMonitoramento(contaId: string, monitorar: boolean) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    const r = await definirMonitoramento(this.props.supabase, ws.uuid, ws.membroId, contaId, monitorar);
+    if (!r.ok) return this.confirmar('Monitoramento não alterado', r.mensagem, 'Entendi', () => {});
+    if (!this.vivo) return;
+    const linha = (((window as any).ALTHIUS_MOD || {}).accounts?.linhas || []).find((c: ContaTela) => c.id === contaId);
+    if (linha) linha.monitorar = monitorar;
+    this.setState({ monitoramentoVersao: (this.state.monitoramentoVersao || 0) + 1 });
+    this.avisar('mod', monitorar ? 'Conta monitorada: os sinais dela passam a rodar sozinhos.' : 'Conta sem monitoramento manual.');
+  }
+
+  /** Botões: "Adicionar conta" + "Importar lista" (Contas e leads), "Adicionar contas da base" (Pipeline), "Adicionar ao Pipeline" (ficha). */
+  private acoesDeLeads(v: Record<string, any>) {
+    if (this.modoDemo !== false) return;
+    const pagina = (this.state.rota || {}).page;
+    if (v.md && pagina === 'accounts') {
+      v.md.acaoLabel = 'Adicionar conta';
+      v.md.temAcao2 = this.podeNoWorkspace('accounts.import');
+      v.md.acao2Label = 'Importar lista';
+      v.md.acao2 = () => this.abrirImportarContas();
+    }
+    if (v.md && pagina === 'prospecting') {
+      v.md.temAcao2 = this.podeNoWorkspace('prospecting.approve') && (v.md.linhas?.length ?? 0) > 0;
+      v.md.acao2Label = 'Incluir todas com site';
+      v.md.acao2 = () => void this.incluirTodasComSite();
+    }
+    if (v.md && pagina === 'pipeline') {
+      v.md.temAcao2 = this.podeNoWorkspace('pipeline.deals');
+      v.md.acao2Label = 'Adicionar contas da base';
+      v.md.acao2 = () => this.abrirLevarContas();
+    }
+    if (v.cta?.aberta) {
+      const id = this.state.conta as string;
+      v.cta.podePipeline = this.podeNoWorkspace('pipeline.deals');
+      const linhaConta = (((window as any).ALTHIUS_MOD || {}).accounts?.linhas || []).find((c: ContaTela) => c.id === id) as ContaTela | undefined;
+      const marcada = linhaConta?.monitorar === true;
+      v.cta.fitPorque = linhaConta?.fitPorque || '';
+      v.cta.podeMonitorar = true;
+      v.cta.monitorarLabel = marcada ? 'Parar de monitorar' : 'Monitorar sinais';
+      v.cta.monitorarDica = marcada ? 'Os sinais desta conta rodam sozinhos. Clique para parar.' : 'Faz os sinais desta conta rodarem sozinhos (gasta créditos). Contas com negócio ativo ou em cadência já são monitoradas.';
+      v.cta.alternarMonitorar = () => void this.alternarMonitoramento(id, !marcada);
+      v.cta.adicionarPipeline = () => {
+        this.setState({ conta: null });
+        if (pagina !== 'pipeline') this.ir('app/' + this.wsId() + '/pipeline');
+        this.abrirLevarContas({ id, nome: v.cta.nome });
+      };
+    }
+  }
+
   acaoDaPaginaReal(page: string): boolean {
+    if (page === 'accounts') { this.abrirNovaConta(); return true; }
+    if (page === 'prospecting') { this.ir('app/' + this.wsId() + '/agents/comercial'); return true; }
+    if (page === 'strategy') { this.abrirEditarIcp(); return true; }
+    if (page === 'signals') { this.abrirAjusteDoTeto(); return true; }
     if (page === 'campaigns') {
       this.abrirFormulario({ tipo: 'nova_campanha', titulo: 'Nova campanha', salvarLabel: 'Criar campanha', campos: [
         { k: 'nome', label: 'Nome da campanha', valor: '', placeholder: 'Ex.: Importação sem risco · Q4' },
@@ -1794,6 +2313,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       if (!this.vivo || carga !== this.cargaConversa) return;
       this.gravarConversa(agente, { lista, atual, carregou: true, msgs: Object.assign({}, antes.msgs, atual ? { [atual]: msgs } : {}) });
       if (this.temporizadorConversa) clearTimeout(this.temporizadorConversa);
+    if (this.copEspera) clearTimeout(this.copEspera);
       if (lista.some(c => c.slug === atual && c.aguardando)) this.temporizadorConversa = setTimeout(() => { void this.carregarConversaDireta(agente); }, 3000);
     } catch (falha) {
       if (this.vivo && carga === this.cargaConversa) this.avisarFalha('Não foi possível carregar as conversas', falha);
@@ -1926,41 +2446,84 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     await this.carregarMensagens(canal.id);
   }
 
-  // ---- Copiloto (Claude): o pedido vai para a fila de Execuções; nada é encenado
+  // ---- Copiloto (ADR 0068): assistente pessoal, não agente. Conversa privada; respostas do serviço `copiloto`.
 
-  /** No modo real o histórico de pedidos fica em Execuções (com a situação verdadeira); sem conversas de exemplo. */
+  /** No modo real não há histórico de exemplo: a conversa é a do banco. */
   copHist() {
     return this.modoDemo === false ? [] : (AlthiusLogic.prototype as any).copHist.call(this);
   }
 
-  /** Pedido em andamento: repetir o mesmo texto reaproveita a chave, então nova tentativa não duplica nem cobra de novo. */
+  /** Pergunta em andamento: repetir o mesmo texto reaproveita a chave (nova tentativa não duplica). */
   private copPedido: { texto: string; chave: string } | null = null;
   private copEnviando = false;
+  private copEspera: ReturnType<typeof setTimeout> | null = null;
+  private copEsperas = 0;
+
+  async carregarCopiloto() {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    let msgs: MensagemCopiloto[];
+    try {
+      msgs = await lerConversaCopiloto(this.props.supabase, ws.uuid, ws.membroId);
+    } catch (falha) {
+      if (this.vivo) this.avisarFalha('Não foi possível carregar a conversa com o Copiloto', falha);
+      return;
+    }
+    if (!this.vivo || this.workspaceAtual()?.uuid !== ws.uuid) return;
+    this.setState({ copMsgs: msgs });
+    // Enquanto houver pergunta sem resposta, olha de novo (a cada 2 s, por até 3 minutos).
+    if (this.copEspera) clearTimeout(this.copEspera);
+    this.copEspera = null;
+    const esperando = msgs.some(m => m.autor === 'pessoa' && (m.estado === 'pendente' || m.estado === 'processando'));
+    if (esperando && this.copEsperas < 90) {
+      this.copEsperas++;
+      this.copEspera = setTimeout(() => void this.carregarCopiloto(), 2000);
+    } else if (!esperando) this.copEsperas = 0;
+  }
 
   async pedirAoCopilotoReal(texto: string) {
     if (this.copEnviando) return;
     const ws = this.workspaceAtual();
-    if (!ws?.membroId) return this.confirmar('Pedido não enviado', 'Você não participa deste workspace como membro.', 'Entendi', () => {});
+    if (!ws?.membroId) return this.confirmar('Pergunta não enviada', 'Você não participa deste workspace como membro.', 'Entendi', () => {});
     if (this.copPedido?.texto !== texto) this.copPedido = { texto, chave: crypto.randomUUID() };
     this.copEnviando = true;
     let r;
     try {
-      r = await pedirAoCopiloto(this.props.supabase, ws.uuid, ws.membroId, texto, this.copPedido.chave);
+      r = await perguntarAoCopiloto(this.props.supabase, ws.uuid, ws.membroId, texto, this.copPedido.chave);
     } finally {
       this.copEnviando = false;
     }
     if (!this.vivo) return;
-    if (!r.ok) return this.confirmar('Pedido não enviado', r.mensagem, 'Entendi', () => {});
+    if (!r.ok) return this.confirmar('Pergunta não enviada', r.mensagem, 'Entendi', () => {});
     this.copPedido = null;
     if (this.state.copTexto === texto) this.setState({ copTexto: '' });
+    this.copEsperas = 0;
+    await this.carregarCopiloto();
+  }
+
+  /** A conversa no painel do Copiloto (modo real): mensagens, "respondendo" e o botão para abrir a conversa com o agente. */
+  private copilotoNaTela(v: Record<string, any>) {
+    if (this.modoDemo !== false) return;
+    const msgs = (this.state.copMsgs || []) as MensagemCopiloto[];
     const slug = (this.state.rota || {}).ws;
-    if (r.paraAprovacao) {
-      return this.confirmar('Pedido enviado para Aprovações',
-        (r.motivo || 'O pedido precisa de aprovação antes de rodar.') + ' Quem decide o gasto foi avisado.',
-        'Ver aprovações', () => { this.setState({ cop: false }); this.ir('app/' + slug + '/approvals'); });
-    }
-    this.confirmar('Pedido registrado na fila',
-      'O Hermes conferiu papel e créditos e registrou o pedido em Execuções. Ele ainda aguarda processamento: nada foi feito até agora.',
-      'Ver execuções', () => { this.setState({ cop: false }); this.ir('app/' + slug + '/executions'); });
+    const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    v.copIntro = 'O Copiloto não é um dos agentes da equipe: tira dúvidas sobre a plataforma, explica os seus números e diz qual agente faz cada trabalho. Não executa nada e não gasta créditos.';
+    v.copInicio = true;
+    v.copAndamento = false;
+    v.exemplos = msgs.length ? [] : ['Quantas contas temos com fit acima de 70?', 'O que está esperando aprovação?', 'Como peço uma busca de empresas novas?', 'Onde vejo o ICP?']
+      .map(t => ({ texto: t, usar: () => void this.pedirAoCopilotoReal(t) }));
+    v.copPensando = msgs.some(m => m.autor === 'pessoa' && (m.estado === 'pendente' || m.estado === 'processando'));
+    v.copMsgs = msgs.map(m => {
+      const pessoa = m.autor === 'pessoa';
+      const agente = !pessoa && m.encaminhar ? m.encaminhar : null;
+      return {
+        id: m.id, texto: m.texto, alinhar: pessoa ? 'end' : 'start',
+        avClasse: pessoa ? 'msg-av msg-av-pessoa' : 'msg-av', sigla: pessoa ? v.usuario?.sigla : 'CO',
+        bolha: pessoa ? 'bubble bubble-ink' : 'bubble',
+        rodape: (pessoa ? 'Você' : 'Copiloto') + ' · ' + hora(m.quando),
+        encaminharLabel: agente ? 'Abrir conversa com ' + nomeDeExibicao(agente) : '',
+        encaminhar: agente ? () => { this.setState({ cop: false, agDetTab: 'conversa' }); this.ir('app/' + slug + '/agents/' + agente); } : null
+      };
+    });
   }
 }

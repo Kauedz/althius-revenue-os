@@ -10,7 +10,7 @@ export function configDoCofre(cofre: Cofre, env: Record<string, string | undefin
       const [chave] = await cofre.ler('unipile');
       if (!chave) return doEnv;
       const url = typeof chave.config.url === 'string' ? chave.config.url.trim().replace(/\/+$/, '') : '';
-      return { apiKey: chave.segredo.trim(), url: url || doEnv.url };
+      return { apiKey: chave.segredo.trim(), url: url || doEnv.url, ...(doEnv.versao ? { versao: doEnv.versao } : {}) };
     } catch {
       return doEnv;
     }

@@ -1,0 +1,10 @@
+# Enriquecimento de contas (ADR 0062): busca fora os dados da empresa (site, Receita Federal, localização, logo) e as
+# personas (Google + LinkedIn pela Apify) das contas novas, e entrega ao banco. Só Node: sem dependências, sem build.
+# Copia as pastas inteiras (o principal importa de ../cofre e ../providers).
+FROM node:22-alpine
+WORKDIR /app
+COPY src/server/enriquecimento ./src/server/enriquecimento
+COPY src/server/providers ./src/server/providers
+COPY src/server/cofre ./src/server/cofre
+USER node
+CMD ["node", "src/server/enriquecimento/principal.ts"]

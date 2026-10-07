@@ -26,7 +26,7 @@ export const ROTULO_TIPO: Record<string, string> = {
   execucao: 'Execução',
   orcamento: 'Orçamento',
   execucao_limite: 'Execução acima de limite',
-  creditos: 'Orçamento · compra de créditos'
+  creditos: 'Créditos · pedido à Althius'
 };
 
 export type DecisaoTela = 'Aprovada' | 'Rejeitada' | 'Ajustes solicitados';
@@ -71,6 +71,8 @@ export async function listarAprovacoes(cliente: SupabaseClient, workspaceId: str
     .select('id, approval_type, title, requested_by_member_id, agent_code, reason, impact, preview, estimated_credits, deadline_at, history, payload_json')
     .eq('workspace_id', workspaceId)
     .eq('status', 'pendente')
+    // Passo de um plano do agente só se decide junto com o plano (ADR 0065): não aparece solto.
+    .is('parent_approval_id', null)
     .order('deadline_at', { ascending: true, nullsFirst: false })
     .order('created_at');
   if (error) throw new Error('Não foi possível carregar as aprovações.', { cause: error });

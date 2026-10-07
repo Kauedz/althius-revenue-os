@@ -1,0 +1,9 @@
+# Copiloto (ADR 0068): o assistente pessoal de cada pessoa. Pega as perguntas no banco, chama o modelo de IA pelo
+# gateway (chaves do cofre) e grava a resposta. Só Node: sem dependências, sem build.
+FROM node:22-alpine
+WORKDIR /app
+COPY src/server/copiloto ./src/server/copiloto
+COPY src/server/gateway ./src/server/gateway
+COPY src/server/cofre ./src/server/cofre
+USER node
+CMD ["node", "src/server/copiloto/principal.ts"]

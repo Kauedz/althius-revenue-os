@@ -481,7 +481,7 @@ export class AlthiusLogic extends React.Component {
       md.limpar = () => setMs({ busca: '', filtro: 'Todos', uf: null });
       md.temUf = page === 'accounts' && !!ms.uf; md.ufNome = ms.uf ? ((MAPA_UFS.find(u => u.uf === ms.uf) || {}).nome || ms.uf) : ''; md.limparUf = () => setMs({ uf: null });
       md.vazio = rows.length === 0;
-      md.tabela = M.layout !== 'kanban' && !md.vazio; md.kanban = M.layout === 'kanban' && !md.vazio; if (page === 'pipeline' || page === 'credits') { md.tabela = false; md.kanban = false; md.vazio = false; }
+      md.tabela = M.layout !== 'kanban' && !md.vazio; md.kanban = M.layout === 'kanban' && !md.vazio; md.mostraAutomaticos = !(page === 'analytics' && this.modoDemo === false); if (page === 'pipeline' || page === 'credits' || !md.mostraAutomaticos) { md.tabela = false; md.kanban = false; md.vazio = false; md.filtros = []; }
       md.cols = cols.map(c => 'minmax(0, ' + c[2] + ')').join(' ').replace(/minmax\(0, (\d+px)\)/g, '$1');
       md.colsLinha = lay.mobile ? 'minmax(0, 1fr)' : md.cols;
       md.cabecalho = cols.map(c => ({ label: c[1], seta: ms.ord && ms.ord[0] === c[0] ? (ms.ord[1] > 0 ? '↑' : '↓') : '', ordenar: () => setMs({ ord: ms.ord && ms.ord[0] === c[0] ? [c[0], -ms.ord[1]] : [c[0], 1] }) }));
@@ -559,14 +559,14 @@ export class AlthiusLogic extends React.Component {
               drop: e => { e.preventDefault(); const d = this._drag; if (!d) return; if (d.tipo === 'card') moverCard(d.id, k, null); else moverEtapa(d.id, k); },
               itens: it.map(d => { const s = d.etapa === 'ganho' ? ['Ganho', C.ok] : SIT[d.status]; const f = this.fotoUsuario(d.dono); const meu = can('pipeline.deals') || d.dono === U.usuario, bloq = () => this.avisar('mod', 'Só ' + d.dono + ' ou um gestor mexe neste negócio.');
                 return { ...this.logoDe(d.cid, d.conta, 'co'), conta: d.conta, motion: mot.toUpperCase(), dono: d.dono, sigla: sigla(d.dono), foto: f, temFoto: !!f, prob: d.prob + '%', cor: s[1], status: s[0], cidade: d.cidade, fecha: fData(d.fecha), valor: brl(d.valor),
-                  rotulo: d.conta + ', ' + brl(d.valor) + ', ' + rot(d.etapa) + ', ' + s[0] + '. Enter para editar.',
+                  rotulo: d.conta + ', ' + brl(d.valor) + ', ' + rot(d.etapa) + ', ' + s[0] + (this.modoDemo === false ? '. Enter para abrir a conta.' : '. Enter para editar.'),
                   antes: alvo && alvo.tipo === 'card' && alvo.antes === d.id ? 'true' : 'false', arrastando: dg && dg.tipo === 'card' && dg.id === d.id ? 'true' : 'false',
                   dragStart: e => { if (!meu) { e.preventDefault(); bloq(); return; } try { e.dataTransfer.setData('text/plain', d.id); e.dataTransfer.effectAllowed = 'move'; } catch (x) {} this._drag = { tipo: 'card', id: d.id }; setTimeout(() => this.setState({ pipeDrag: { tipo: 'card', id: d.id } }), 0); },
                   dragEnd: fimDrag,
                   over: e => { if (!this._drag || this._drag.tipo !== 'card') return; e.preventDefault(); e.stopPropagation(); setAlvo({ tipo: 'card', col: k, antes: d.id }); },
                   drop: e => { if (!this._drag || this._drag.tipo !== 'card') return; e.preventDefault(); e.stopPropagation(); if (this._drag.id !== d.id) moverCard(this._drag.id, k, d.id); else fimDrag(); },
-                  abrir: () => { if (!meu) { bloq(); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); },
-                  tecla: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); } } }; }) }; }) };
+                  editar: e => { if (e && e.stopPropagation) e.stopPropagation(); if (!meu) { bloq(); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); }, abrir: () => { if (this.modoDemo === false && d.cid) { this.abrirConta(d.cid, 'comite'); return; } if (!meu) { bloq(); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); },
+                  tecla: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (this.modoDemo === false && d.cid) { this.abrirConta(d.cid, 'comite'); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); } } }; }) }; }) };
         v.md.acao = () => abrirNovo(ordem[0]);
       }
       if (st.pipeCard && v.pp.ativo) { const c = st.pipeCard, setC = o => this.setState({ pipeCard: Object.assign({}, this.state.pipeCard, o) }), contas = MOD.accounts ? MOD.accounts.linhas : [];
@@ -588,7 +588,7 @@ export class AlthiusLogic extends React.Component {
       }
     }
     // CAMPANHAS
-    v.cp = { ativo: page === 'campaigns' && vista === 'modulo', canais: [], conAgente: [] };
+    v.cp = { ativo: page === 'campaigns' && vista === 'modulo' && this.modoDemo !== false, canais: [], conAgente: [] };
     if (v.cp.ativo) { const LG = window.ALTHIUS_LOGOS || {}, CX = this.conexoes(), KL = (window.ALTHIUS_CONECTORES || {}).lista || [];
       const ms = (st.modSt || {}).campaigns || {}, rowsC = MOD.campaigns.linhas.map(l => Object.assign({}, l, ((st.modOv || {}).campaigns || {})[l.id] || {}));
       const est = id => CX[id] ? (CX[id].erro ? 'erro' : 'on') : 'off';
@@ -596,12 +596,12 @@ export class AlthiusLogic extends React.Component {
         status: e === 'on' ? 'Conectado · ' + CX[id].conta : e === 'erro' ? 'Falha na conexão' : 'Não conectado', cor: e === 'on' ? 'var(--graphite)' : e === 'erro' ? 'var(--err)' : 'var(--muted)',
         btnCls: e === 'on' ? 'con-btn-sec' : 'con-btn', acaoLabel: e === 'on' ? 'Gerenciar' : e === 'erro' ? 'Reconectar' : 'Conectar', acao: () => this.abrirOauth(id) }; };
       const CANAIS = [
-        ['LinkedIn Ads', ['liads'], 'ABM com as contas do ICP: anúncio só para quem está na lista.', 'Monta o público a partir das contas qualificadas, lê CPL por cargo e sugere onde pôr ou tirar verba.'],
+        ['LinkedIn Ads', [], 'ABM com as contas do ICP: anúncio só para quem está na lista.', 'Monta o público a partir das contas qualificadas, lê CPL por cargo e sugere onde pôr ou tirar verba.'],
         ['Meta Ads', ['meta'], 'Remarketing e públicos parecidos com os clientes atuais.', 'Sobe a lista de clientes como público, acompanha frequência e avisa quando o anúncio cansa.'],
-        ['Google Ads', ['gads', 'ga4'], 'Busca por intenção: quem procura importação e conta e ordem.', 'Lê termos de busca, corta palavras que só trazem curioso e cruza conversão com o GA4.'],
-        ['Orgânico', ['notion', 'gdrive'], 'Posts e materiais do calendário editorial.', 'Define a pauta pelos sinais das contas. O Lia escreve, o Jax mede alcance e leads.'],
-        ['Evento', ['eventbrite', 'hubspot'], 'Feiras, webinars e encontros com o ICP.', 'Cruza inscritos com contas do CRM e coloca quem foi numa cadência pós-evento.'],
-        ['SEO/GEO', ['gsc', 'ga4'], 'Aparecer no Google e nas respostas de ChatGPT, Gemini e Perplexity.', 'Acompanha buscas e páginas que trazem visita e indica que conteúdo falta para a IA citar a marca.']
+        ['Google Ads', [], 'Busca por intenção: quem procura importação e conta e ordem.', 'Lê termos de busca, corta palavras que só trazem curioso e cruza conversão com o GA4.'],
+        ['Orgânico', ['notion'], 'Posts e materiais do calendário editorial.', 'Define a pauta pelos sinais das contas. O Lia escreve, o Jax mede alcance e leads.'],
+        ['Evento', ['hubspot'], 'Feiras, webinars e encontros com o ICP.', 'Cruza inscritos com contas do CRM e coloca quem foi numa cadência pós-evento.'],
+        ['SEO/GEO', [], 'Aparecer no Google e nas respostas de ChatGPT, Gemini e Perplexity.', 'Acompanha buscas e páginas que trazem visita e indica que conteúdo falta para a IA citar a marca.']
       ];
       const num = s => parseFloat(String(s).replace(/[^0-9,]/g, '').replace(',', '.')) || 0;
       const todos = []; CANAIS.forEach(c => c[1].forEach(id => { if (todos.indexOf(id) < 0) todos.push(id); }));
@@ -651,8 +651,8 @@ export class AlthiusLogic extends React.Component {
           this.avisar('mod', nf(n) + ' créditos adicionados. Saldo: ' + nf(this.saldo() + n) + '.'); }); };
         Object.assign(v.cr, { saldo: nf(saldo), saldoUsd: usd(saldo), pctSaldo: Math.max(0, Math.min(100, saldo / entrou * 100)).toFixed(1) + '%', barraRotulo: nf(saldo) + ' de ' + nf(entrou) + ' créditos restantes',
           entrouTexto: nf(saiu) + ' usados de ' + nf(entrou) + ' que entraram', duracao: porDia ? 'No ritmo atual (' + nf(porDia) + ' por dia), dura cerca de ' + nf(saldo / porDia) + ' dias' : '',
-          leitura, compraTitulo: podeComprar ? 'Comprar em 1 clique' : 'Pedir créditos', compraSub: podeComprar ? 'cai na hora' : 'quem decide: ' + decisor,
-          compraNota: podeComprar ? 'Preço fixo por crédito, sem pacote mais caro ou mais barato. O recibo vai para o e-mail do C-level.' : 'Quem paga decide. O pedido vai para ' + decisor + ' (C-level) e aparece em Aprovações.',
+          leitura, mostraRecarga: this.modoDemo !== false, compraTitulo: this.modoDemo === false ? 'Pedir créditos à Althius' : podeComprar ? 'Comprar em 1 clique' : 'Pedir créditos', compraSub: this.modoDemo === false ? 'a Althius confere e libera' : podeComprar ? 'cai na hora' : 'quem decide: ' + decisor,
+          compraNota: this.modoDemo === false ? 'O pedido vai para a Althius, que libera os créditos no saldo. A cobrança segue o seu contrato; os valores são de referência.' : podeComprar ? 'Preço fixo por crédito, sem pacote mais caro ou mais barato. O recibo vai para o e-mail do C-level.' : 'Quem paga decide. O pedido vai para ' + decisor + ' (C-level) e aparece em Aprovações.',
           modoNota: leitura ? 'Só o C-level e o superadmin mudam estas regras.' : '',
           pacotes: [10000, 25000, 50000, 100000].map(n => ({ creditos: nf(n), preco: brl(n), bloqueado: false, comprar: () => comprar(n) })),
           modos: [['auto', 'Automático'], ['aprovacao', 'Com aprovação']].map(([k, label]) => ({ label, ativo: cfg.modo === k ? 'true' : 'false', escolher: () => setCfg({ modo: k }) })),
@@ -870,6 +870,7 @@ export class AlthiusLogic extends React.Component {
           const salvar = () => { const d = this.dominio((this.state.siteEdit || {}).v); if (!d) { this.setState({ sites: Object.assign({}, this.state.sites, { [contaSel.id]: '' }), siteEdit: null }); return; }
             if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d)) { setSE({ erro: 'Use o endereço do site, por exemplo empresa.com.br.' }); return; }
             this.setState({ sites: Object.assign({}, this.state.sites, { [contaSel.id]: d }), logoFalha: Object.assign({}, this.state.logoFalha, { [d]: 0 }), siteEdit: null });
+            if (this.modoDemo === false && this.salvarSiteDaConta) this.salvarSiteDaConta(contaSel.id, d);
             this.avisar('mod', 'Site salvo. O logo vem do próprio ' + d + ' e aparece aqui, na lista de contas e no Pipeline.'); };
           return { siteEditando: !!se, siteTem: !se && !!site, siteVazio: !se && !site, site, siteHref: 'https://' + site, siteRascunho: se ? (se.v || '') : '', siteTemErro: !!(se && se.erro), siteErro: se ? se.erro || '' : '',
             siteEditar: () => this.setState({ siteEdit: { id: contaSel.id, v: site } }), siteMudar: e => setSE({ v: e.target.value, erro: '' }), siteCancelar: () => this.setState({ siteEdit: null }), siteSalvar: salvar,
@@ -896,7 +897,7 @@ export class AlthiusLogic extends React.Component {
                   if (v0 && !/^https?:\/\/([a-z]{2,3}\.)?linkedin\.com\/in\/[^\s/]+\/?$/i.test(v0)) { this.setState({ liEdit: Object.assign({}, this.state.liEdit, { [p.id]: { v: v0, erro: 'Use o link do perfil, no formato linkedin.com/in/nome.' } }) }); return; }
                   setLi({ url: v0 }); this.setState({ liEdit: Object.assign({}, this.state.liEdit, { [p.id]: null }) }); },
                 liTecla: e => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); setTimeout(() => { const b = document.activeElement; }, 0); } },
-                liStatus: [['nao', 'Sem conexão'], ['pendente', 'Convite enviado'], ['conectado', 'Conectado']].map(([k, label]) => ({ label, ativo: li.status === k ? 'true' : 'false', escolher: () => setLi({ status: k }) })) }; })(), nome: p.nome, cargo: p.cargo, foto: FT[p.foto], linkedin: p.linkedin, contato: (p.emails || [])[0] + ' · ' + (p.fones || [])[0], verCadencia: () => this.setState({ contaTab: 'cadencia', cadPessoa: p.id }) })) };
+                liStatus: [['nao', 'Sem conexão'], ['pendente', 'Convite enviado'], ['conectado', 'Conectado']].map(([k, label]) => ({ label, ativo: li.status === k ? 'true' : 'false', escolher: () => setLi({ status: k }) })) }; })(), nome: p.nome, cargo: p.cargo, foto: FT[p.foto], linkedin: p.linkedin, contato: [(p.emails || [])[0], (p.fones || [])[0]].filter(Boolean).join(' · ') || 'Sem e-mail nem telefone ainda', verCadencia: () => this.setState({ contaTab: 'cadencia', cadPessoa: p.id }) })) };
         }) };
       if (pessoas.length) {
         const pid = pessoas.find(p => p.id === st.cadPessoa) ? st.cadPessoa : pessoas[0].id, pessoa = pessoas.find(p => p.id === pid);
@@ -1077,17 +1078,32 @@ export class AlthiusLogic extends React.Component {
       m.semLocal = this.modoDemo === false ? ((h && h.semLocalizacao) || 0) : (per === '30' ? 5 : per === '60' ? 9 : 14);
       m.bolhas = MAPA_UFS.filter(u => cont[u.uf] > 0).map(u => { const p = pct(u.cx, u.cy), n = cont[u.uf], r = Math.round(20 + Math.sqrt(n / max) * 22);
         return { x: p.x, y: p.y, r: r + 'px', n, sel: uSel === u.uf ? 'true' : 'false', dim: vis(u.uf) ? 'false' : 'true', rotulo: u.nome + ', ' + n + ' contas. Ver contas do estado', selecionar: selUf(u.uf) }; });
-      m.pins = contas.filter(c => MAPA_GEO[c.id] && MAPA_GEO[c.id][2] <= diasMax && (COM[c.id] || []).length).map(c => { const g = MAPA_GEO[c.id], xy = proj(g[0], g[1]), p = pct(xy[0], xy[1]);
-        return { x: p.x, y: p.y, nome: c.nome, cidade: c.cidade, fit: c.fit, nivel: String(c.temperatura), chamas: this.chamas(+c.temperatura), dim: vis(ufDe(c)) ? 'false' : 'true',
+      const real = this.modoDemo === false;
+      const pontoReal = c => { const g = this.geoDaContaNoMapa ? this.geoDaContaNoMapa(c.id) : null; if (g) return { xy: proj(g.lat, g.lng), aprox: !!g.aprox };
+        const u = MAPA_UFS.find(x => x.uf === ufDe(c)); if (!u) return null;
+        let hsh = 0; for (const ch of String(c.id)) hsh = (hsh * 31 + ch.charCodeAt(0)) >>> 0;
+        const ang = (hsh % 360) * Math.PI / 180, raio = 22 + (hsh >>> 9) % 12;
+        return { xy: [u.cx + Math.cos(ang) * raio, u.cy + Math.sin(ang) * raio], aprox: true }; };
+      const semLocalReal = real ? contas.filter(c => !pontoReal(c)) : [];
+      m.pins = (real ? contas.filter(c => pontoReal(c)) : contas.filter(c => MAPA_GEO[c.id] && MAPA_GEO[c.id][2] <= diasMax && (COM[c.id] || []).length)).map(c => { const pr = real ? pontoReal(c) : null, g = real ? [0, 0, 0] : MAPA_GEO[c.id], xy = real ? pr.xy : proj(g[0], g[1]), p = pct(xy[0], xy[1]);
+        return { x: p.x, y: p.y, dica: 'Abrir conta e comitê', aprox: pr && pr.aprox ? 'true' : 'false', semLocal: 'false', nome: c.nome, cidade: c.cidade + (pr && pr.aprox ? ' (local aproximado)' : ''), fit: c.fit, nivel: String(c.temperatura), chamas: this.chamas(+c.temperatura), dim: vis(ufDe(c)) ? 'false' : 'true',
           rotulo: c.nome + ', ' + c.cidade + ', fit ' + c.fit + '. Abrir conta', abrir: () => this.abrirConta(c.id, 'comite') }; });
+      if (real) {
+        m.semLocal = semLocalReal.length; cont.SL = semLocalReal.length;
+        if (semLocalReal.length) { const xy = proj(0.5, -35.5), p = pct(xy[0], xy[1]);
+          m.pins.push({ x: p.x, y: p.y, dica: 'Ver quais contas', aprox: 'false', semLocal: 'true', nome: 'Sem localização', cidade: semLocalReal.length + (semLocalReal.length === 1 ? ' conta sem endereço' : ' contas sem endereço'), fit: '—', nivel: '0', chamas: [], dim: 'false',
+            rotulo: 'Sem localização: ' + semLocalReal.length + (semLocalReal.length === 1 ? ' conta' : ' contas') + '. Ver quais', abrir: () => this.setState({ mapaUf: this.state.mapaUf === 'SL' ? null : 'SL' }) }); }
+      }
+      m.semLocalTexto = real ? (m.semLocal ? m.semLocal + (m.semLocal === 1 ? ' conta sem endereço fica' : ' contas sem endereço ficam') + ' no marcador "Sem localização", no oceano. O enriquecimento completa sozinho quando achar o endereço.' : 'Todas as contas estão no mapa.') : m.semLocal + ' contas sem endereço ainda ficam fora do mapa.';
+      m.legendaPins = real ? ' cada pin é uma conta. Contorno tracejado = local aproximado (só a cidade ou o estado). Os números agrupam por estado; clique no estado para ver as contas dele.' : ' o mapa mostra contas com sinal no período escolhido. Os números agrupam por estado; os pins mostram as contas com comitê mapeado. Clique no estado para ver as contas dele.';
       const regs = ['Brasil', 'Norte', 'Nordeste', 'Centro-Oeste', 'Sudeste', 'Sul'];
       m.regioes = regs.map(r => ({ label: r, n: MAPA_UFS.filter(u => r === 'Brasil' || u.regiao === r).reduce((s, u) => s + cont[u.uf], 0), ativo: reg === r ? 'true' : 'false', escolher: () => this.setState({ mapaReg: r, mapaUf: null }) }));
       m.ranking = MAPA_UFS.filter(u => vis(u.uf)).sort((a, b) => cont[b.uf] - cont[a.uf]).slice(0, 7).map(u => ({ uf: u.uf, n: cont[u.uf], pct: Math.max(3, Math.round(cont[u.uf] / max * 100)) + '%', selecionar: selUf(u.uf) }));
       m.temUf = !!uSel; m.semUf = !uSel; m.limpar = () => this.setState({ mapaUf: null });
-      if (uSel) { const u = MAPA_UFS.find(x => x.uf === uSel), cs = contas.filter(c => ufDe(c) === uSel && (MAPA_GEO[c.id] || [0, 0, 0])[2] <= diasMax);
-        m.uf = { nome: u.nome, sigla: u.uf, n: cont[uSel], resumo: cont[uSel] + (cont[uSel] === 1 ? ' conta' : ' contas') + ' · região ' + u.regiao, semDossie: cs.length === 0, temLista: cs.length > 0, verTexto: 'Ver ' + (cs.length === 1 ? 'a conta' : 'as ' + cs.length + ' contas') + ' de ' + u.uf + ' em Contas e leads',
+      if (uSel) { const u = MAPA_UFS.find(x => x.uf === uSel) || { nome: 'Sem localização', uf: 'SL', regiao: 'sem endereço' }, cs = uSel === 'SL' ? semLocalReal : contas.filter(c => ufDe(c) === uSel && (MAPA_GEO[c.id] || [0, 0, 0])[2] <= diasMax);
+        m.uf = { nome: u.nome, sigla: u.uf, n: cont[uSel], resumo: cont[uSel] + (cont[uSel] === 1 ? ' conta' : ' contas') + ' · região ' + u.regiao, semDossie: cs.length === 0, temLista: cs.length > 0, verTexto: 'Ver ' + (cs.length === 1 ? 'a conta' : 'as ' + cs.length + ' contas') + (uSel === 'SL' ? '' : ' de ' + u.uf) + ' em Contas e leads',
           contas: cs.map(c => ({ nome: c.nome, cidade: c.cidade, fit: c.fit, sinal: c.sinal, fotos: (COM[c.id] || []).slice(0, 3).map(p => FT[p.foto]), abrir: () => this.abrirConta(c.id, 'comite') })),
-          verTodas: () => { this.setState({ modSt: Object.assign({}, this.state.modSt, { accounts: Object.assign({}, (this.state.modSt || {}).accounts, { uf: uSel, aberto: null }) }) }); this.ir(appPath('accounts')); } };
+          verTodas: () => { this.setState({ modSt: Object.assign({}, this.state.modSt, { accounts: Object.assign({}, (this.state.modSt || {}).accounts, { uf: uSel === 'SL' ? null : uSel, aberto: null }) }) }); this.ir(appPath('accounts')); } };
       } else m.uf = { contas: [] };
       v.mapa = m;
     }
@@ -1258,14 +1274,14 @@ export class AlthiusLogic extends React.Component {
 
     // EXECUÇÕES
     const fStatus = ['Todas','Em execução','Aguardando aprovação','Na fila','Agendada','Pausada','Concluída','Concluída parcialmente','Falhou'];
-    v.exViews = [['lista','Lista'],['kanban','Kanban'],['timeline','Timeline']].map(([id, label]) => ({ label, ativo: st.exView === id ? 'true' : 'false', bg: st.exView === id ? 'var(--ink)' : 'var(--paper)', cor: st.exView === id ? 'var(--paper)' : 'var(--ink)', ir: () => this.setState({ exView: id }) }));
+    v.exViews = (this.modoDemo === false ? [] : [['lista','Lista'],['kanban','Kanban'],['timeline','Timeline']]).map(([id, label]) => ({ label, ativo: st.exView === id ? 'true' : 'false', bg: st.exView === id ? 'var(--ink)' : 'var(--paper)', cor: st.exView === id ? 'var(--paper)' : 'var(--ink)', ir: () => this.setState({ exView: id }) }));
     const execBase = vazio ? [] : st.execs;
     v.exFiltros = fStatus.map(s => { const ativo = st.exFiltro === s; return { label: s, n: s === 'Todas' ? execBase.length : execBase.filter(e => e.status === s).length, ativo: ativo ? 'true' : 'false', bg: ativo ? 'var(--ink)' : 'var(--paper)', cor: ativo ? 'var(--paper)' : 'var(--ink)', borda: ativo ? 'var(--ink)' : 'var(--rule)', ir: () => this.setState({ exFiltro: s }) }; });
     const exMap = e => ({ i_check: /Conclu/.test(e.status), i_x: e.status === 'Falhou' || e.status === 'Cancelada', i_run: e.status === 'Em execução', i_clock: !/Conclu|Falhou|Cancelada|Em execução/.test(e.status), tinta: 'color-mix(in srgb, ' + exCor(e.status) + ' 14%, transparent)', id: e.id, titulo: e.titulo, tipo: e.tipo, agenteNome: agNome(e.agente), horario: e.horario, status: e.status, cor: exCor(e.status), pct: e.progresso + '%', validos: e.validos, processados: e.processados, credCons: e.credCons, credEst: e.credEst, href: '#/' + appPath('executions/' + e.id) });
     const exF = execBase.filter(e => st.exFiltro === 'Todas' || e.status === st.exFiltro);
     v.execs = exF.map(exMap);
     v.exVazio = v.execs.length === 0;
-    v.exLista = st.exView === 'lista' && !v.exVazio; v.exKanban = st.exView === 'kanban' && !v.exVazio; v.exTimeline = st.exView === 'timeline' && !v.exVazio;
+    const exVista = this.modoDemo === false ? 'lista' : st.exView; v.exLista = exVista === 'lista' && !v.exVazio; v.exKanban = exVista === 'kanban' && !v.exVazio; v.exTimeline = exVista === 'timeline' && !v.exVazio;
     v.kanban = KANBAN.map(([titulo, sts]) => { const itens = exF.filter(e => sts.indexOf(e.status) >= 0).map(exMap); return { titulo, n: itens.length, itens }; });
 
     const e = page === 'executions' && r.id ? st.execs.find(x => x.id === r.id) : null;
@@ -1303,10 +1319,10 @@ export class AlthiusLogic extends React.Component {
     v.apVazio = apF.length === 0; v.apTem = !v.apVazio;
     if (sel) {
       const dec = st.decisoes[sel.id];
-      v.apSel = Object.assign({}, sel, { agenteNome: agNome(sel.agente), creditos: sel.creditos ? sel.creditos.toLocaleString('pt-BR') : 'Sem consumo', decidida: !!dec, decisao: dec || '', corDecisao: decCor(dec), podeDecidir: can('approvals.decide') && !dec && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')), semAlcada: can('approvals.decide') && !dec && /Orçamento|acima de limite/i.test(sel.tipo) && !can('approvals.spend'),
+      v.apSel = Object.assign({}, sel, { agenteNome: agNome(sel.agente), creditos: sel.creditos ? sel.creditos.toLocaleString('pt-BR') : 'Sem consumo', decidida: !!dec, decisao: dec || '', corDecisao: decCor(dec), podeDecidir: can('approvals.decide') && !dec && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')) && (!/pedido à Althius/i.test(sel.tipo) || papel === 'superadmin'), semAlcada: can('approvals.decide') && !dec && /Orçamento|acima de limite/i.test(sel.tipo) && !can('approvals.spend'),
         histTl: (sel.historico || []).map(l => { const m = String(l).match(/^(\d{1,2}:\d{2})\s+(.*)$/); return m ? { hora: m[1], texto: m[2] } : { hora: '', texto: l }; }),
         fasesAp: (sel.historico || []).map(l => { const t = String(l), i = t.indexOf(' '); return { quando: t.slice(0, i), label: t.slice(i + 1), det: '', done: 'true', st: 'done' }; }).concat([
-          { quando: dec ? 'Agora' : 'Pendente', label: dec ? dec : (can('approvals.decide') && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')) ? 'Sua decisão' : 'Decisão do C-level'), det: dec ? 'Registrada por ' + U.usuario : 'Prazo: ' + (sel.prazo || '—'), done: dec ? 'true' : 'false', st: dec ? 'done' : 'now' }]) });
+          { quando: dec ? 'Agora' : 'Pendente', label: dec ? dec : (/pedido à Althius/i.test(sel.tipo) ? (papel === 'superadmin' ? 'Sua decisão' : 'Decisão da Althius') : can('approvals.decide') && (!/Orçamento|acima de limite/i.test(sel.tipo) || can('approvals.spend')) ? 'Sua decisão' : 'Decisão do C-level'), det: dec ? 'Registrada por ' + U.usuario : 'Prazo: ' + (sel.prazo || '—'), done: dec ? 'true' : 'false', st: dec ? 'done' : 'now' }]) });
       const decidir = d => { this.setState({ decisoes: Object.assign({}, st.decisoes, { [sel.id]: d }), ajusteAberto: false, ajusteTexto: '', ajusteErro: false }); this.D.approvalService.decide(sel.id, d); };
       v.aprovar = () => sel.creditos > 1000 ? this.confirmar('Aprovar reserva de ' + v.apSel.creditos + ' créditos?', 'A execução reserva até ' + v.apSel.creditos + ' créditos do saldo do ciclo antes de começar.', 'Aprovar', () => decidir('Aprovada')) : decidir('Aprovada');
       v.rotuloAjuste = st.ajusteAberto ? 'Enviar ajustes' : 'Solicitar ajustes';

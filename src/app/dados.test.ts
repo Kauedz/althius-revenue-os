@@ -52,6 +52,18 @@ const contexto: ContextoReal = {
 describe('montarDados', () => {
   const D = montarDados(contexto, demo, capsDemo);
 
+  it('Conteúdos e Equipe e acessos saem do modo real: são protótipo fixo, sem banco (a equipe real fica em Configurações)', () => {
+    const comPaginas = { ...demo, PERMS: Object.fromEntries(Object.entries(demo.PERMS).map(([p, ks]) => [p, [...ks, 'contents', 'team', 'strategy']])),
+      NAV: [{ secao: 'Operação', itens: [['agents', 'Agentes', 'AG'], ['contents', 'Conteúdos', 'CO']] }, { secao: 'Plataforma', itens: [['team', 'Equipe e acessos', 'EQ'], ['settings', 'Configurações', 'CF']] }] };
+    const R = montarDados(contexto, comPaginas, capsDemo) as unknown as { PERMS: Record<string, string[]>; NAV: Array<{ secao: string; itens: string[][] }> };
+    for (const [papel, ks] of Object.entries(R.PERMS)) {
+      expect(ks, papel).not.toContain('contents');
+      expect(ks, papel).not.toContain('team');
+      expect(ks, papel).toContain('strategy');
+    }
+    expect(R.NAV.flatMap(s => s.itens.map(i => i[0]))).toEqual(['agents', 'settings']);
+  });
+
   it('workspaces vêm do banco, identificados pelo slug que vai na URL', () => {
     expect(D.WORKSPACES).toEqual([
       { id: 'evolut', nome: 'Evolut Trading', sigla: 'EV', momento: 'Execução', logoUrl: null },

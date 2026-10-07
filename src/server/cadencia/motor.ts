@@ -6,6 +6,8 @@
 // a execução fica "running" e NÃO se reenvia sozinho: vira alerta no log para uma pessoa conferir.
 
 export type Canal = 'email' | 'whatsapp';
+/** Respostas da Caixa (ADR 0069): além de e-mail e WhatsApp, LinkedIn e Instagram, sempre DENTRO da conversa que já existe. */
+export type CanalResposta = Canal | 'linkedin' | 'instagram';
 
 export interface Vencido { enrollment_id: string; step_number: number }
 
@@ -28,7 +30,7 @@ export type ResultadoEnvio =
   | { ok: false; erro: string; definitivo: boolean };
 
 export interface Mensageiro {
-  enviar(p: { contaExterna: string; canal: Canal; destinatario: string; assunto: string | null; texto: string; chaveIdempotencia: string }): Promise<ResultadoEnvio>;
+  enviar(p: { contaExterna: string; canal: CanalResposta; destinatario: string; assunto: string | null; texto: string; chaveIdempotencia: string; chatId?: string | null }): Promise<ResultadoEnvio>;
 }
 
 export interface Resumo { vistos: number; enviados: number; tarefas: number; bloqueados: number; falhas: number; incertos: number; erros: number }

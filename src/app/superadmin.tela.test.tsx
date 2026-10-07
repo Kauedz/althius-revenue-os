@@ -62,6 +62,9 @@ describe.skipIf(!bancoLocalNoAr)('Superadmin (banco local)', () => {
   it('C-level não abre a área do Superadmin', async () => {
     cleanup();
     await entrar('aline@evolut.com.br', '#/admin/workspaces', 'Início');
-    expect(screen.queryByText('Grão Norte Alimentos')).not.toBeInTheDocument();
+    expect(window.location.hash).not.toMatch(/^#\/admin/);
+    expect(screen.queryByRole('button', { name: 'Novo workspace' })).not.toBeInTheDocument();
+    // "Grão Norte Alimentos" também é uma conta da Evolut: o pin dela no mapa do Início (ADR 0062) não é a lista de clientes.
+    expect(screen.queryAllByText('Grão Norte Alimentos').filter(el => !el.closest('.mapa-card'))).toHaveLength(0);
   });
 });

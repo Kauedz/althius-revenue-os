@@ -1067,7 +1067,7 @@ export function renderTemplate($v: Record<string, any>) {
                         {"\n                  "}
                         {__arr($v.mapa?.pins).map((p, $index) => (<React.Fragment key={$index}>
                           {"\n                    "}
-                          <button className={"mapa-pin"} data-nivel={p?.nivel} data-dim={p?.dim} style={__css(`left: ${__s(p?.x)}; top: ${__s(p?.y)};`)} onClick={p?.abrir} aria-label={p?.rotulo}>
+                          <button className={"mapa-pin"} data-nivel={p?.nivel} data-dim={p?.dim} data-aprox={p?.aprox} data-semlocal={p?.semLocal} style={__css(`left: ${__s(p?.x)}; top: ${__s(p?.y)};`)} onClick={p?.abrir} aria-label={p?.rotulo}>
                             {"\n                      "}
                             <svg viewBox="0 0 24 32" aria-hidden="true">
                               <path d="M12 31s10-10.3 10-18.5C22 6.7 17.5 2 12 2S2 6.7 2 12.5C2 20.7 12 31 12 31z"></path>
@@ -1090,7 +1090,7 @@ export function renderTemplate($v: Record<string, any>) {
                                 </React.Fragment>))}
                               </span>
                               <span style={{"color":"var(--signal)"}}>
-                                {"Abrir conta e comitê"}
+                                {__t(p?.dica)}
                               </span>
                             </span>
                             {"\n                    "}
@@ -1243,11 +1243,11 @@ export function renderTemplate($v: Record<string, any>) {
                           <b>
                             {"Escala:"}
                           </b>
-                          {" o mapa mostra contas com sinal no período escolhido. Os números agrupam por estado; os pins mostram as contas com comitê mapeado. Clique no estado para ver as contas dele."}
+                          {__t($v.mapa?.legendaPins)}
                         </span>
                         {"\n                    "}
                         <span>
-                          {__t($v.mapa?.semLocal)}{" contas sem endereço ainda ficam fora do mapa."}
+                          {__t($v.mapa?.semLocalTexto)}
                         </span>
                         {"\n                  "}
                       </div>
@@ -4918,7 +4918,7 @@ export function renderTemplate($v: Record<string, any>) {
                         {"\n                    "}
                         <span style={{"flex":"1 1 auto"}}></span>
                         {"\n                    "}
-                        <span style={{"display":"flex","alignItems":"center","gap":"12px","flex":"1 1 300px"}}>
+                        {$v.cr?.mostraRecarga ? (<span style={{"display":"flex","alignItems":"center","gap":"12px","flex":"1 1 300px"}}>
                           <button className={"switch"} role="switch" aria-checked={$v.cr?.recarga} aria-label="Recarga automática" onClick={$v.cr?.alternarRecarga} disabled={$v.cr?.leitura}></button>
                           <span style={{"display":"flex","flexDirection":"column","gap":"2px"}}>
                             <span style={{"fontSize":"14px","fontWeight":"500"}}>
@@ -4928,7 +4928,7 @@ export function renderTemplate($v: Record<string, any>) {
                               {"Abaixo de 1.000, compra 10.000 créditos."}
                             </span>
                           </span>
-                        </span>
+                        </span>) : null}
                         {"\n                  "}
                       </div>
                       {"\n                "}
@@ -5274,9 +5274,9 @@ export function renderTemplate($v: Record<string, any>) {
                     {"\n              "}
                   </section>
                   {"\n              "}
-                  <h2 style={{"fontFamily":"var(--f-display)","margin":"4px 0 0","fontWeight":"400","fontSize":"18px"}}>
+                  {$v.md?.mostraAutomaticos ? (<h2 style={{"fontFamily":"var(--f-display)","margin":"4px 0 0","fontWeight":"400","fontSize":"18px"}}>
                     {"Relatórios automáticos"}
-                  </h2>
+                  </h2>) : null}
                   {"\n            "}
                 </>) : null}
                 {"\n            "}
@@ -5377,7 +5377,7 @@ export function renderTemplate($v: Record<string, any>) {
                   {"\n              "}
                   <span style={{"flex":"1 1 auto"}}></span>
                   {"\n              "}
-                  {$v.md?.temAcao ? (<>
+                  {$v.md?.temAcao2 ? (<button className={"b-sec"} onClick={$v.md?.acao2} style={{"height":"44px","padding":"0 16px","border":"1px solid var(--ink)","borderRadius":"10px","background":"var(--paper)","color":"var(--ink)","fontFamily":"inherit","fontSize":"14px","cursor":"pointer"}}>{__t($v.md?.acao2Label)}</button>) : null}{$v.md?.temAcao ? (<>
                     {"\n                "}
                     <button className={"b-pri"} onClick={$v.md?.acao} style={{"height":"44px","padding":"0 18px","border":"1px solid var(--ink)","background":"var(--ink)","color":"var(--paper)","fontFamily":"inherit","fontSize":"14px","fontWeight":"500","cursor":"pointer","whiteSpace":"nowrap","borderRadius":"10px"}}>
                       {__t($v.md?.acaoLabel)}
@@ -5616,7 +5616,7 @@ export function renderTemplate($v: Record<string, any>) {
                                   </span>
                                   <span className={"pk-tag"}>
                                     {__t(c?.motion)}
-                                  </span>
+                                  </span><button className={"icon-btn"} style={{"width":"26px","height":"26px","flex":"0 0 auto"}} onClick={c?.editar} aria-label={"Editar negócio de " + (c?.conta || "")} title="Editar negócio"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14.5 5.5l4 4"></path><path d="M4 20l1-4.5L15.8 4.7a1.8 1.8 0 0 1 2.5 0l1 1a1.8 1.8 0 0 1 0 2.5L8.5 19z"></path></svg></button>
                                 </span>
                                 {"\n                            "}
                                 <span className={"pk-dono"}>
@@ -5712,7 +5712,7 @@ export function renderTemplate($v: Record<string, any>) {
                   {"\n            "}
                 </>) : null}
                 {"\n            "}
-                {$v.md?.tabela ? (<>
+                {$v.md?.chat ? (<section aria-label={"Conversas por empresa"} style={{"display":"grid","gridTemplateColumns":$v.md.chat.colunas,"border":"1px solid var(--rule)","borderRadius":"12px","overflow":"hidden","minHeight":"420px","background":"var(--paper)"}}>{$v.md.chat.mostraLista ? (<nav aria-label={"Empresas"} className={"scroll-area"} style={{"borderRight":"1px solid var(--rule)","overflowY":"auto","maxHeight":"640px","minWidth":"0"}}>{$v.md.chat.vazio ? (<p style={{"margin":"0","padding":"18px","fontSize":"14px","color":"var(--graphite)"}}>{__t($v.md.chat.vazio)}</p>) : null}{__arr($v.md.chat.empresas).map((e, $index) => (<button key={e?.id || $index} onClick={e?.abrir} aria-current={e?.atual} style={{"display":"flex","flexDirection":"column","gap":"4px","width":"100%","textAlign":"left","padding":"12px 14px","border":"0","borderBottom":"1px solid var(--rule)","background":e?.bg,"cursor":"pointer","fontFamily":"inherit","color":"var(--ink)"}}><span style={{"display":"flex","justifyContent":"space-between","gap":"8px","alignItems":"baseline"}}><span style={{"fontWeight":"600","fontSize":"14px"}}>{__t(e?.nome)}</span><span style={{"fontSize":"12px","color":"var(--graphite)","flex":"none"}}>{__t(e?.quando)}</span></span><span style={{"fontSize":"13px","color":"var(--graphite)","overflow":"hidden","textOverflow":"ellipsis","whiteSpace":"nowrap"}}>{__t(e?.ultima)}</span><span style={{"display":"flex","gap":"8px","alignItems":"center","fontSize":"12px","color":"var(--graphite)"}}><span style={{"overflow":"hidden","textOverflow":"ellipsis","whiteSpace":"nowrap"}}>{__t(e?.pessoas)}</span>{e?.naoLidas ? (<span aria-label={e?.naoLidasRotulo} style={{"marginLeft":"auto","background":"var(--signal)","color":"var(--paper)","borderRadius":"999px","padding":"0 8px","fontWeight":"600"}}>{__t(e?.naoLidas)}</span>) : null}</span></button>))}</nav>) : null}{$v.md.chat.mostraConversa ? (<div style={{"display":"flex","flexDirection":"column","minWidth":"0"}}>{$v.md.chat.temSelecao ? (<><header style={{"display":"flex","alignItems":"center","gap":"10px","padding":"12px 14px","borderBottom":"1px solid var(--rule)"}}>{$v.md.chat.voltar ? (<button className={"icon-btn"} onClick={$v.md.chat.voltar} aria-label={"Voltar para a lista"} style={{"width":"34px","height":"34px","flex":"none"}}>{"←"}</button>) : null}<span style={{"display":"flex","flexDirection":"column","minWidth":"0"}}><span style={{"fontWeight":"600"}}>{__t($v.md.chat.titulo)}</span><span style={{"fontSize":"12px","color":"var(--graphite)"}}>{__t($v.md.chat.subtitulo)}</span></span></header><div role="log" aria-label={"Mensagens de " + ($v.md.chat.titulo || "")} className={"scroll-area"} style={{"flex":"1 1 auto","overflowY":"auto","maxHeight":"480px","padding":"14px","display":"flex","flexDirection":"column","gap":"12px"}}>{__arr($v.md.chat.mensagens).map((m, $index) => (<div key={m?.id || $index} className={"msg"} data-align={m?.alinhar}><span className={m?.avClasse}>{__t(m?.sigla)}</span><div className={"msg-body"}><span style={{"fontSize":"12px","color":"var(--graphite)"}}>{__t(m?.cabecalho)}</span><div className={m?.bolha} style={{"whiteSpace":"pre-wrap"}}>{__t(m?.texto)}</div><span className={"msg-foot"}>{__t(m?.quando)}{m?.intencao ? (<span style={{"marginLeft":"8px","padding":"0 8px","borderRadius":"999px","border":"1px solid var(--rule)","color":"var(--ink)"}}>{__t(m?.intencao)}</span>) : null}</span></div></div>))}</div><div style={{"borderTop":"1px solid var(--rule)","padding":"12px 14px","display":"flex","flexDirection":"column","gap":"8px"}}><label className={"cfg-campo"}><span>{"Responder para"}</span><select className={"cfg-select"} value={__val($v.md.chat.destino)} onChange={$v.md.chat.mudarDestino}>{__arr($v.md.chat.destinos).map((d, $i) => (<option key={$i} value={__val(d?.valor)}>{__t(d?.rotulo)}</option>))}</select></label>{$v.md.chat.motivo ? (<p role="note" style={{"margin":"0","fontSize":"13px","color":"var(--graphite)"}}>{__t($v.md.chat.motivo)}</p>) : null}{$v.md.chat.temAssunto ? (<input value={__val($v.md.chat.assunto)} onChange={$v.md.chat.mudarAssunto} placeholder="Assunto (opcional)" aria-label="Assunto" style={{"height":"40px","border":"1px solid var(--steel)","borderRadius":"10px","padding":"0 12px","fontFamily":"inherit","fontSize":"14px"}} />) : null}<textarea value={__val($v.md.chat.texto)} onChange={$v.md.chat.mudarTexto} rows={3} placeholder="Escreva a resposta" aria-label="Sua resposta" style={{"border":"1px solid var(--steel)","borderRadius":"10px","padding":"10px 12px","fontFamily":"inherit","fontSize":"14px","resize":"vertical"}}></textarea><div style={{"display":"flex","gap":"8px","flexWrap":"wrap","alignItems":"center"}}><button className={"b-pri"} onClick={$v.md.chat.enviar} disabled={!$v.md.chat.podeEnviar} style={{"height":"40px","padding":"0 16px","borderRadius":"10px","border":"1px solid var(--ink)","background":"var(--ink)","color":"var(--paper)","fontFamily":"inherit","fontSize":"14px","cursor":"pointer","opacity":$v.md.chat.podeEnviar ? "1" : "0.5"}}>{"Enviar resposta"}</button><button className={"b-sec"} onClick={$v.md.chat.sugerir} style={{"height":"40px","padding":"0 14px","borderRadius":"10px","border":"1px solid var(--ink)","background":"var(--paper)","fontFamily":"inherit","fontSize":"14px","cursor":"pointer"}}>{"Sugerir resposta"}</button><button className={"b-sec"} onClick={$v.md.chat.excluir} style={{"height":"40px","padding":"0 14px","borderRadius":"10px","border":"1px solid var(--err)","color":"var(--err)","background":"var(--paper)","fontFamily":"inherit","fontSize":"14px","cursor":"pointer"}}>{"Excluir contato do CRM"}</button></div><p style={{"margin":"0","fontSize":"12px","color":"var(--graphite)"}}>{"Não é um grupo de verdade: a resposta vai só para a pessoa e o canal escolhidos, pela sua conta, e custa 4 créditos."}</p></div></>) : (<p style={{"margin":"0","padding":"18px","fontSize":"14px","color":"var(--graphite)"}}>{"Escolha uma empresa para ver a conversa."}</p>)}</div>) : null}</section>) : null}{$v.md?.tabela ? (<>
                   {"\n              "}
                   <div role="table" aria-label={$v.md?.titulo} style={{"borderTop":"1px solid var(--ink)"}}>
                     {"\n                "}
@@ -5966,7 +5966,7 @@ export function renderTemplate($v: Record<string, any>) {
                     </span>
                   </span>
                   {"\n              "}
-                  <span className={"co-site"}>
+                  {$v.cta?.fitPorque ? (<span className={"fit-porque"} style={{"fontSize":"12px","lineHeight":"1.4","color":"var(--graphite)"}}>{__t($v.cta?.fitPorque)}</span>) : null}<span className={"co-site"}>
                     {"\n                "}
                     {$v.cta?.siteEditando ? (<>
                       {"\n                  "}
@@ -6028,7 +6028,7 @@ export function renderTemplate($v: Record<string, any>) {
                   {"\n            "}
                 </span>
                 {"\n            "}
-                <button className={"b-sec"} onClick={$v.cta?.fechar} aria-label="Fechar" style={{"flex":"none","width":"40px","height":"40px","border":"1px solid var(--rule)","borderRadius":"10px","background":"var(--paper)","color":"var(--ink)","cursor":"pointer","display":"grid","placeItems":"center"}}>
+                {$v.cta?.podeMonitorar ? (<button className={"b-sec mini-btn"} onClick={$v.cta?.alternarMonitorar} title={$v.cta?.monitorarDica} style={{"flex":"none","height":"40px"}}>{__t($v.cta?.monitorarLabel)}</button>) : null}{$v.cta?.podePipeline ? (<button className={"b-sec mini-btn"} onClick={$v.cta?.adicionarPipeline} style={{"flex":"none","height":"40px"}}>{"Adicionar ao Pipeline"}</button>) : null}<button className={"b-sec"} onClick={$v.cta?.fechar} aria-label="Fechar" style={{"flex":"none","width":"40px","height":"40px","border":"1px solid var(--rule)","borderRadius":"10px","background":"var(--paper)","color":"var(--ink)","cursor":"pointer","display":"grid","placeItems":"center"}}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M6 6l12 12M18 6L6 18"></path>
                   </svg>
@@ -7843,7 +7843,7 @@ export function renderTemplate($v: Record<string, any>) {
                   {$v.copInicio ? (<>
                     {"\n            "}
                     <p style={{"margin":"0","fontSize":"15px","color":"var(--text-2)"}}>
-                      {"Descreva o objetivo. O copiloto monta o plano, delega aos agentes e pede sua aprovação antes de qualquer ação irreversível."}
+                      {__t($v.copIntro || "Descreva o objetivo. O copiloto monta o plano, delega aos agentes e pede sua aprovação antes de qualquer ação irreversível.")}
                     </p>
                     {"\n            "}
                     <div style={{"display":"flex","flexDirection":"column","gap":"6px"}}>
@@ -7860,7 +7860,7 @@ export function renderTemplate($v: Record<string, any>) {
                     {"\n          "}
                   </>) : null}
                   {"\n          "}
-                  {$v.copAndamento ? (<>
+                  {__arr($v.copMsgs).map((m, $index) => (<div key={m?.id || $index} className={"msg"} data-align={m?.alinhar}><span className={m?.avClasse}>{__t(m?.sigla)}</span><div className={"msg-body"}><div className={m?.bolha} style={{"whiteSpace":"pre-wrap"}}>{__t(m?.texto)}</div>{m?.encaminhar ? (<button className={"b-sec mini-btn"} onClick={m?.encaminhar} style={{"alignSelf":"flex-start","height":"36px"}}>{__t(m?.encaminharLabel)}</button>) : null}<span className={"msg-foot"}>{__t(m?.rodape)}</span></div></div>))}{$v.copPensando ? (<p role="status" style={{"margin":"0","fontSize":"13px","color":"var(--graphite)"}}>{"O Copiloto está respondendo…"}</p>) : null}{$v.copAndamento ? (<>
                     {"\n            "}
                     <div className={"msg"} data-align="end">
                       {"\n              "}

@@ -4,10 +4,10 @@ import { ESPECIALIDADES } from './especialidades.ts';
 import type { LoteHarness } from './harness.ts';
 
 const PERSONAS: Record<string, { nome: string; funcao: string }> = {
-  comercial: { nome: 'Zoe', funcao: 'prospecção, contas, contatos, cadências e pipeline' },
-  marketing: { nome: 'Jax', funcao: 'campanhas, canais de mídia e demanda' },
-  copy: { nome: 'Lia', funcao: 'textos e mensagens de abordagem' },
-  revops: { nome: 'Neo', funcao: 'dados, processo e saúde da operação de receita' }
+  comercial: { nome: 'Zoe', funcao: 'prospecção (a única que busca empresas e pessoas novas), contas e comitê de compra' },
+  marketing: { nome: 'Jax', funcao: 'estratégia, ICP e mídia paga' },
+  copy: { nome: 'Lia', funcao: 'copy e cadências' },
+  revops: { nome: 'Neo', funcao: 'RevOps: métricas e relatórios' }
 };
 const PAPEL: Record<string, string> = { superadmin: 'Superadmin', clevel: 'C-level', estrategista: 'Estrategista', bdr: 'BDR' };
 const LIMITE_RESPOSTA = 4000;

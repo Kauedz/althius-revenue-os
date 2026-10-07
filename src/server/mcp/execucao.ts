@@ -59,6 +59,10 @@ export const POLITICA_DAS_FERRAMENTAS: Readonly<Record<string, Politica>> = {
   propor_tarefa: { tipo: 'proposta' },
   propor_inscricao_cadencia: { tipo: 'proposta' },
   propor_negocio: { tipo: 'proposta' },
+  propor_contas: { tipo: 'proposta' },
+  propor_enriquecimento: { tipo: 'proposta' },
+  propor_levar_ao_pipeline: { tipo: 'proposta' },
+  propor_plano: { tipo: 'proposta', prazoMs: 45_000 },
   propor_mover_negocio: { tipo: 'proposta' },
   propor_campanha: { tipo: 'proposta' },
   propor_verba_campanha: { tipo: 'proposta' },
@@ -67,7 +71,13 @@ export const POLITICA_DAS_FERRAMENTAS: Readonly<Record<string, Politica>> = {
   sinais_buscar_fontes: { tipo: 'leitura' },
   sinais_detalhar_fonte: { tipo: 'leitura' },
   sinais_testar_fonte: { tipo: 'acao_externa' },
-  sinais_propor_receita: { tipo: 'proposta' }
+  sinais_propor_receita: { tipo: 'proposta' },
+  prospeccao_fontes: { tipo: 'leitura' },
+  ler_icp: { tipo: 'leitura' },
+  propor_icp: { tipo: 'proposta' },
+  prospeccao_buscas: { tipo: 'leitura' },
+  prospeccao_estimar: { tipo: 'proposta' },
+  prospeccao_rodar: { tipo: 'acao_externa' }
 };
 
 /** O que fica registrado de cada chamada. Só números e nomes. */

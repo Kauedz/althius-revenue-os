@@ -17,6 +17,8 @@ const PAPEIS_FRONT: PapelFront[] = ['superadmin', 'estrategista', 'cliente', 'bd
 const LETRA_ESCOPO: Record<Escopo, string> = { all: 's', assigned: 'a', own: 'p', read: 'l', request: 'q', none: 'n' };
 /** Escopos que liberam a ação direto na tela; "Só o seu", "Só ver" e "Pede" são tratados por tela. */
 const LIBERA: Escopo[] = ['all', 'assigned'];
+/** Páginas do protótipo sem banco por trás: no modo real não aparecem no menu nem abrem pela URL (ADR 0064). */
+export const PAGINAS_SEM_BANCO = ['contents', 'team'];
 
 export interface ContextoReal {
   usuario: { id: string; nome: string; email: string; fotoUrl: string | null; superadmin: boolean };
@@ -76,8 +78,10 @@ export function montarDados(ctx: ContextoReal, demo: Demo, capsDemo: CapsFront) 
   }]));
 
   const chavesMatriz = new Set(ctx.matriz.map(m => m.chave));
+  // Páginas do protótipo que não têm banco por trás (só dado fixo): somem do menu e da rota no modo real (ADR 0064).
+  // A equipe real fica em Configurações > Workspace e membros.
   const PERMS = Object.fromEntries(PAPEIS_FRONT.map(p => {
-    const daTela: string[] = (demo.PERMS?.[p] || []).filter((k: string) => !chavesMatriz.has(k));
+    const daTela: string[] = (demo.PERMS?.[p] || []).filter((k: string) => !chavesMatriz.has(k) && !PAGINAS_SEM_BANCO.includes(k));
     const daMatriz = ctx.matriz.filter(m => PAPEL_FRONT[m.papel] === p && LIBERA.includes(m.escopo)).map(m => m.chave);
     return [p, [...daTela, ...daMatriz]];
   }));
@@ -134,7 +138,9 @@ export function montarDados(ctx: ContextoReal, demo: Demo, capsDemo: CapsFront) 
     return w ? { uuid: w.uuid, membroId: w.membroId } : null;
   };
 
-  const proprios = { WORKSPACES, ROLES, PERMS, CAPS, membros, papelNoWorkspace, workspaceNoBanco };
+  const NAV = ((demo.NAV || []) as Array<{ secao: string; itens: string[][] }>).map(sec => ({ ...sec, itens: sec.itens.filter(([id]) => !PAGINAS_SEM_BANCO.includes(id)) })).filter(sec => sec.itens.length);
+
+  const proprios = { WORKSPACES, ROLES, PERMS, CAPS, NAV, membros, papelNoWorkspace, workspaceNoBanco };
   // Campos do protótipo ainda não ligados ao banco (AGENTS, EXECUTIONS...) passam direto.
   return { ...demo, ...proprios } as Demo & typeof proprios;
 }

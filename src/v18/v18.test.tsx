@@ -48,3 +48,14 @@ describe('front v18 em React', () => {
     expect(nav.queryByRole('link', { name: /Aprovações/ })).not.toBeInTheDocument();
   });
 });
+
+describe('catálogo enxuto (ADR 0063)', () => {
+  it('nenhum agente cita permissão em app que saiu do catálogo (Google Ads, LinkedIn Ads, Google Sheets)', () => {
+    const agentes = (window.ALTHIUS_DATA as unknown as { AGENTS: Array<{ integracoes: Array<{ fornecedor: string }> }> }).AGENTS;
+    const citados = agentes.flatMap(a => a.integracoes.map(i => i.fornecedor));
+    expect(citados.length).toBeGreaterThan(0);
+    for (const nome of ['Google Ads', 'LinkedIn Ads', 'Google Sheets']) expect(citados, nome).not.toContain(nome);
+    expect(citados).toContain('Meta Ads');
+    expect(citados).toContain('HubSpot');
+  });
+});

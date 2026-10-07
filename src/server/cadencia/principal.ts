@@ -1,8 +1,10 @@
 // Ponto de entrada do contêiner `cadencia` (docker-compose.yml). Só Node, sem dependências.
 // Repete o ciclo do motor a cada CADENCIA_INTERVALO_SEGUNDOS (60). Nunca dois ciclos ao mesmo tempo.
-import { bancoCadenciaViaApi } from './banco.ts';
+import { bancoCadenciaViaApi, bancoRespostasViaApi } from './banco.ts';
+import { rodarRespostas } from './respostas.ts';
 import { mensageiroViaApi } from './envio.ts';
 import { rodarCiclo } from './motor.ts';
+import { bancoSincroniaViaApi, ponteViaApi, sincronizarContas } from '../conexoes/sincronizar.ts';
 import { configDoAmbiente } from '../unipile/config.ts';
 import type { ObterConfig } from '../unipile/config.ts';
 import { cofreDoAmbiente } from '../cofre/ambiente.ts';
@@ -21,6 +23,10 @@ const obterConfig: ObterConfig = cofre ? configDoCofre(cofre) : configDoAmbiente
 const mensageiroEnvio = mensageiroViaApi(obterConfig);
 
 const banco = bancoCadenciaViaApi(base, chave);
+const bancoRespostas = bancoRespostasViaApi(base, chave);
+// Sincronia das contas com a ponte (ADR 0070): acha a conta recém-conectada e mantém o estado (conectada, reconectar).
+const bancoSincronia = bancoSincroniaViaApi(base, chave);
+const ponte = ponteViaApi(obterConfig);
 const intervalo = Math.max(10, Number(process.env.CADENCIA_INTERVALO_SEGUNDOS ?? 60)) * 1000;
 let rodando = false;
 let avisouSemChave = false;
@@ -35,6 +41,15 @@ async function ciclo() {
     if (mensageiro) avisouSemChave = false;
     const r = await rodarCiclo({ banco, mensageiro });
     if (r.vistos > 0) console.log(JSON.stringify({ nivel: 'info', msg: 'cadencia_ciclo', ...r }));
+    // Respostas escritas na Caixa de entrada (ADR 0068) saem pelo mesmo envio.
+    const rr = await rodarRespostas({ banco: bancoRespostas, mensageiro });
+    if (rr.vistas > 0) console.log(JSON.stringify({ nivel: 'info', msg: 'caixa_respostas', ...rr }));
+    // Sem chave não há com quem sincronizar. Falha da ponte não derruba o ciclo de envio: o próximo tenta de novo.
+    if (mensageiro) {
+      try { await sincronizarContas({ banco: bancoSincronia, ponte }); } catch (e) {
+        console.warn(JSON.stringify({ nivel: 'aviso', msg: 'sincronia_das_contas_falhou', erro: e instanceof Error ? e.message : 'erro' }));
+      }
+    }
   } catch (e) {
     console.error(JSON.stringify({ nivel: 'erro', msg: 'cadencia_ciclo_falhou', erro: e instanceof Error ? e.message : 'erro' }));
   } finally {

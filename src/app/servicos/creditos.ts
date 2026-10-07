@@ -58,8 +58,8 @@ export async function lerCreditos(cliente: SupabaseClient, workspaceId: string):
 
 export async function comprarCreditos(cliente: SupabaseClient, workspaceId: string, membroId: string, quantidade: number) {
   const { data, error } = await cliente.rpc('credit_purchase', { p_workspace_id: workspaceId, p_member_id: membroId, p_amount: quantidade });
-  if (error) throw new Error(error.code === '42501' ? 'Você não tem permissão para comprar créditos.' : 'Não foi possível registrar a compra de créditos.', { cause: error });
-  if (!data?.success) throw new Error(data?.reason || 'A compra de créditos não foi registrada.');
+  if (error) throw new Error(error.code === '42501' ? 'Você não tem permissão para pedir créditos.' : 'Não foi possível registrar o pedido de créditos.', { cause: error });
+  if (!data?.success) throw new Error(data?.reason || 'O pedido de créditos não foi registrado.');
   return data as { success: true; status: string; approval_id?: string; amount?: number };
 }
 

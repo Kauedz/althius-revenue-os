@@ -10,7 +10,7 @@ SELECT no_plan();
 -- Guarda o valor de uma chave real (lido como dono do banco) para provar que ele não vaza.
 CREATE TEMP TABLE segredo ON COMMIT DROP AS SELECT api_token FROM internal.apify_provider_accounts LIMIT 1;
 GRANT SELECT ON segredo TO authenticated;
-CREATE TEMP TABLE margens ON COMMIT DROP AS SELECT count(*)::int AS n FROM internal.pricing_multipliers;
+CREATE TEMP TABLE margens ON COMMIT DROP AS SELECT (SELECT count(*) FROM internal.pricing_multipliers)::int + (SELECT count(*) FROM internal.prospect_sources)::int AS n;
 GRANT SELECT ON margens TO authenticated;
 -- Evento mais recente da auditoria (gravado pelo sistema).
 INSERT INTO public.audit_logs (workspace_id, actor_role, action, entity_type, new_values, created_at)
@@ -37,7 +37,7 @@ SELECT ok(public.admin_providers()::text !~* '(api_token|api_key|dsn|webhook_sec
 SELECT ok(public.admin_providers()::text NOT LIKE '%' || (SELECT api_token FROM segredo) || '%', 'O valor da chave do Apify não aparece');
 
 -- Margens.
-SELECT is(jsonb_array_length(public.admin_margins()), (SELECT n FROM margens), 'Margens traz todas as capacidades precificadas');
+SELECT is(jsonb_array_length(public.admin_margins()), (SELECT n FROM margens), 'Margens traz todas as capacidades precificadas e uma linha por fonte de prospecção (ADR 0069)');
 
 -- Auditoria global: mais recente primeiro, com cliente e ação.
 SELECT is((public.admin_audit(10)->0)->>'acao', 'teste.auditoria', 'Auditoria começa pelo evento mais recente');

@@ -93,6 +93,14 @@ export interface PedidoNegocio {
   motivo: string;
 }
 
+/** ADR 0065: contas novas (nome e site; UF e cidade opcionais). Até 50 por proposta. */
+export interface PedidoContas { contas: Array<{ nome: string; site: string; uf?: string; cidade?: string }>; motivo: string }
+export interface PedidoEnriquecimento { conta_ids: string[]; motivo: string }
+export interface PedidoLevarAoPipeline { quadro_id: string; conta_ids: string[]; motivo: string }
+/** Um passo do plano: o tipo e os campos da proposta direta correspondente. */
+export interface PassoDoPlano { tipo: string; [campo: string]: unknown }
+export interface PedidoPlano { titulo: string; passos: PassoDoPlano[]; motivo: string }
+
 export interface PedidoMoverNegocio {
   negocio_id: string;
   etapa: string;
@@ -135,6 +143,11 @@ export interface FonteProposta {
   descricao?: string;
 }
 export interface PedidoReceitaSinal { sinal: string; fontes: FonteProposta[]; motivo: string }
+/** Prospecção (ADR 0067): estimativa de uma busca de empresas novas. O banco confere fonte, parâmetros e que é a Zoe. */
+export interface PedidoEstimativa { fonte: string; parametros: Record<string, string>; max_empresas: number }
+export interface ResultadoEstimativa { ok: boolean; erro?: string; estimativa_id?: string; creditos?: number; aviso?: string; [campo: string]: unknown }
+/** ICP estruturado (ADR 0067): o Jax propõe; aprovado, o ICP do cliente muda. */
+export interface PedidoIcp { icp: Record<string, unknown>; motivo: string }
 export interface PedidoTesteFonte { sinal: string; conta_id: string; ator: string; entrada: Record<string, unknown>; mapeamento?: Record<string, unknown>; max_itens?: number }
 
 /** Onde fica o serviço de integrações (a ponte com os apps conectados, ADR 0058). Sem isto, as ferramentas de app avisam que não estão ligadas. */
@@ -156,6 +169,14 @@ export interface FerramentasAgente {
   testarFonte(pedido: PedidoTesteFonte): Promise<RespostaPonte>;
   proporReceitaDeSinal(pedido: PedidoReceitaSinal): Promise<ResultadoProposta>;
   listarSinais(filtro?: FiltroSinais): Promise<SinalAgente[]>;
+  /** Prospecção (ADR 0067): só a Zoe estima e roda (o banco confere); estimar não gasta, rodar exige estimativa e pedido de uma pessoa. */
+  fontesDeProspeccao(): Promise<unknown[]>;
+  /** ICP estruturado do cliente e os cargos alvo (todos os agentes leem; só o Jax propõe mudança). */
+  lerIcp(): Promise<unknown>;
+  proporIcp(pedido: PedidoIcp): Promise<ResultadoProposta>;
+  buscasDeProspeccao(): Promise<unknown[]>;
+  estimarProspeccao(pedido: PedidoEstimativa): Promise<ResultadoEstimativa>;
+  rodarProspeccao(estimativaId: string): Promise<ResultadoEstimativa>;
   listarCampanhas(): Promise<CampanhaAgente[]>;
   proporCampanha(pedido: PedidoCampanha): Promise<ResultadoProposta>;
   proporVerba(pedido: PedidoVerba): Promise<ResultadoProposta>;
@@ -164,6 +185,10 @@ export interface FerramentasAgente {
   listarQuadros(): Promise<QuadroAgente[]>;
   listarNegocios(status?: NegocioAgente['status']): Promise<NegocioAgente[]>;
   proporNegocio(pedido: PedidoNegocio): Promise<ResultadoProposta>;
+  proporContas(pedido: PedidoContas): Promise<ResultadoProposta>;
+  proporEnriquecimento(pedido: PedidoEnriquecimento): Promise<ResultadoProposta>;
+  proporLevarAoPipeline(pedido: PedidoLevarAoPipeline): Promise<ResultadoProposta>;
+  proporPlano(pedido: PedidoPlano): Promise<ResultadoProposta>;
   proporMoverNegocio(pedido: PedidoMoverNegocio): Promise<ResultadoProposta>;
   buscarContatos(): Promise<ContatoAgente[]>;
   proporAtualizacao(pedido: PedidoProposta): Promise<ResultadoProposta>;
@@ -327,6 +352,51 @@ export function ferramentasDoAgente(cliente: SupabaseClient, token: string, pont
       return data as ResultadoProposta;
     },
 
+    async proporContas(p) {
+      const { data, error } = await cliente.rpc('agent_propose_accounts', {
+        p_token: token, p_contas: p.contas, p_reason: p.motivo,
+        p_idempotency_key: chaveDe('contas', estavel(p.contas))
+      });
+      if (error) throw erroDoBanco(error, 'Não foi possível registrar a proposta de contas.');
+      return data as ResultadoProposta;
+    },
+
+    async proporEnriquecimento(p) {
+      const ids = [...new Set(p.conta_ids)].sort();
+      const { data, error } = await cliente.rpc('agent_propose_enrichment', {
+        p_token: token, p_account_ids: ids, p_reason: p.motivo, p_idempotency_key: chaveDe('enriquecer', ...ids)
+      });
+      if (error) {
+        if (error.code === '22P02') return { ok: false, erro: 'Algum id de conta é inválido (use os ids de listar_contas).' };
+        throw erroDoBanco(error, 'Não foi possível registrar o pedido de enriquecimento.');
+      }
+      return data as ResultadoProposta;
+    },
+
+    async proporLevarAoPipeline(p) {
+      const ids = [...new Set(p.conta_ids)].sort();
+      const { data, error } = await cliente.rpc('agent_propose_add_to_pipeline', {
+        p_token: token, p_pipeline_id: p.quadro_id, p_account_ids: ids, p_reason: p.motivo, p_idempotency_key: chaveDe('levar', p.quadro_id, ...ids)
+      });
+      if (error) {
+        if (error.code === '22P02') return { ok: false, erro: 'Quadro ou conta inválidos (use os ids de listar_quadros e listar_contas).' };
+        throw erroDoBanco(error, 'Não foi possível registrar a proposta de levar ao Pipeline.');
+      }
+      return data as ResultadoProposta;
+    },
+
+    async proporPlano(p) {
+      const { data, error } = await cliente.rpc('agent_propose_plan', {
+        p_token: token, p_titulo: p.titulo, p_passos: p.passos, p_reason: p.motivo,
+        p_idempotency_key: chaveDe('plano', p.titulo, estavel(p.passos))
+      });
+      if (error) {
+        if (error.code === '22P02' || error.code === '22007') return { ok: false, erro: 'Algum passo tem id ou data inválidos (use os ids das ferramentas de leitura).' };
+        throw erroDoBanco(error, 'Não foi possível registrar o plano.');
+      }
+      return data as ResultadoProposta;
+    },
+
     async proporMoverNegocio(p) {
       const { data, error } = await cliente.rpc('agent_propose_move_deal', {
         p_token: token,
@@ -365,6 +435,45 @@ export function ferramentasDoAgente(cliente: SupabaseClient, token: string, pont
       });
       if (error) throw erroDoBanco(error, 'Não foi possível registrar a proposta de fonte.');
       return data as ResultadoProposta;
+    },
+
+    async lerIcp() {
+      const { data, error } = await cliente.rpc('agent_icp', { p_token: token });
+      if (error) throw erroDoBanco(error, 'Não foi possível ler o ICP.');
+      return data;
+    },
+    async proporIcp(p) {
+      const { data, error } = await cliente.rpc('agent_propose_icp', {
+        p_token: token, p_icp: p.icp ?? {}, p_reason: p.motivo,
+        p_idempotency_key: 'agente:icp:' + createHash('sha256').update(estavel(p.icp ?? {})).digest('hex')
+      });
+      if (error) throw erroDoBanco(error, 'Não foi possível registrar a proposta de ICP.');
+      return data as ResultadoProposta;
+    },
+    async fontesDeProspeccao() {
+      const { data, error } = await cliente.rpc('agent_prospect_sources', { p_token: token });
+      if (error) throw erroDoBanco(error, 'Não foi possível ler as fontes de prospecção.');
+      return (data || []) as unknown[];
+    },
+    async buscasDeProspeccao() {
+      const { data, error } = await cliente.rpc('agent_prospect_searches', { p_token: token });
+      if (error) throw erroDoBanco(error, 'Não foi possível ler as buscas de prospecção.');
+      return (data || []) as unknown[];
+    },
+    async estimarProspeccao(p) {
+      const { data, error } = await cliente.rpc('agent_prospect_estimate', {
+        p_token: token, p_source_code: p.fonte, p_parametros: p.parametros ?? {}, p_max_empresas: p.max_empresas
+      });
+      if (error) throw erroDoBanco(error, 'Não foi possível estimar a busca.');
+      return data as ResultadoEstimativa;
+    },
+    async rodarProspeccao(estimativaId) {
+      const { data, error } = await cliente.rpc('agent_prospect_run', { p_token: token, p_estimativa_id: estimativaId });
+      if (error) {
+        if (error.code === '22P02') return { ok: false, erro: 'Estimativa não encontrada: use o estimativa_id que prospeccao_estimar devolveu.' };
+        throw erroDoBanco(error, 'Não foi possível pedir a busca.');
+      }
+      return data as ResultadoEstimativa;
     },
 
     async listarSinais(filtro) {
