@@ -139,6 +139,38 @@ export async function minhasConexoes(cliente: SupabaseClient, workspaceId: strin
   return conexoes;
 }
 
+/** Conta da pessoa que a ponte diz que caiu: pede nova autorização (attention) ou foi desligada (disconnected). */
+export interface ContaComProblema { provider: string; status: 'attention' | 'disconnected'; canal: string }
+
+const NOME_DO_CANAL: Record<string, string> = { google: 'e-mail (Gmail)', microsoft: 'e-mail (Outlook)', imap: 'e-mail', linkedin: 'LinkedIn', whatsapp: 'WhatsApp', instagram: 'Instagram' };
+
+/** As contas da PRÓPRIA pessoa, neste workspace, que precisam ser reconectadas (ADR 0071). Só leitura. */
+export async function minhasContasComProblema(cliente: SupabaseClient, workspaceId: string): Promise<ContaComProblema[]> {
+  const { data: usuario } = await cliente.auth.getUser();
+  if (!usuario.user) return [];
+  const { data, error } = await cliente
+    .from('messaging_accounts')
+    .select('provider, status, member:workspace_members!inner(user_id)')
+    .eq('workspace_id', workspaceId)
+    .eq('member.user_id', usuario.user.id)
+    .in('status', ['attention', 'disconnected']);
+  if (error) throw new Error('Não foi possível conferir suas conexões.', { cause: error });
+  return (data || []).map(c => ({ provider: c.provider as string, status: c.status as 'attention' | 'disconnected', canal: NOME_DO_CANAL[c.provider as string] ?? String(c.provider) }));
+}
+
+/** O texto do pop-up: diz qual canal caiu, o que fazer e que nada se perdeu. */
+export function textoDoAvisoDeConexao(contas: ContaComProblema[]): { titulo: string; texto: string } {
+  const canais = contas.map(c => c.canal);
+  const lista = canais.length > 1 ? canais.slice(0, -1).join(', ') + ' e ' + canais[canais.length - 1] : canais[0];
+  const plural = canais.length > 1;
+  const caiu = contas.some(c => c.status === 'disconnected');
+  return {
+    titulo: plural ? 'Contas desconectadas' : 'Conta desconectada',
+    texto: (plural ? `Estas conexões precisam ser refeitas: ${lista}. ` : `A conexão do seu ${lista} ${caiu ? 'foi desconectada' : 'pede uma nova autorização'}. `)
+      + 'Enquanto isso, você não recebe nem envia mensagens por ' + (plural ? 'elas' : 'ele') + '. Reconecte na Caixa de entrada: as conversas e o histórico continuam guardados.'
+  };
+}
+
 // ---- Caixa de entrada em conversa (ADR 0068): uma conversa por EMPRESA, como um grupo (não é grupo de verdade).
 
 export interface MensagemDaEmpresa {

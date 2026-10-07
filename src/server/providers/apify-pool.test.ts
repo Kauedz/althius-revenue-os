@@ -199,3 +199,56 @@ describe('coleta de itens pelo rodízio (ticket 01 da coleta de sinais)', () => 
     expect(n).toBe(0);
   });
 });
+
+// ADR 0071: cinco contas gratuitas, cada uma com o seu limite do mês. Esgotou uma, passa para a próxima.
+describe('conta que esgotou o limite do mês (contas gratuitas em rodízio)', () => {
+  const esgotada = () => Response.json({ error: { type: 'platform-feature-disabled', message: 'Monthly usage hard limit exceeded' } }, { status: 403 });
+  const itens = () => Response.json([{ a: 1 }], { status: 200, headers: { 'x-apify-run-id': 'r1' } });
+
+  it('402 ou 403 com cara de limite: a próxima conta assume, a esgotada some por horas e a tela diz o motivo', async () => {
+    const { cofre, usos } = cofreCom([chave(1), chave(2), chave(3)]);
+    let agora = 0;
+    const tentadas: string[] = [];
+    const buscar = (async (_u: string, init: RequestInit) => {
+      const a = String((init.headers as Record<string, string>).Authorization);
+      tentadas.push(a);
+      if (a.endsWith('tok-1')) return esgotada();
+      if (a.endsWith('tok-2')) return Response.json({ error: { type: 'not-enough-usage-to-run-paid-actor' } }, { status: 402 });
+      return ok();
+    }) as unknown as typeof fetch;
+    const pool = criarPoolApify({ cofre, buscar, env: {}, agora: () => agora });
+    expect((await pool.executar('a/b', {})).conta).toBe('Conta 3');
+    expect(usos.filter(([, e]) => e && /Limite do mês esgotado/.test(e)).map(([id]) => id).sort()).toEqual(['k1', 'k2']);
+    expect(usos.some(([, e]) => e && /recusada/.test(e))).toBe(false); // não é "chave recusada"
+    // Uma hora depois: as duas esgotadas continuam de molho; só a boa roda.
+    tentadas.length = 0; agora += 60 * 60_000;
+    await pool.executar('a/b', {});
+    expect(tentadas).toEqual(['Bearer tok-3']);
+    // Seis horas depois, tenta de novo (a conta pode ter renovado).
+    tentadas.length = 0; agora += 6 * 60 * 60_000;
+    await pool.executar('a/b', {});
+    expect(tentadas[0]).toMatch(/tok-[12]$/);
+  });
+
+  it('403 sem cara de limite continua sendo chave recusada', async () => {
+    const { cofre, usos } = cofreCom([chave(1), chave(2)]);
+    const buscar = (async (_u: string, init: RequestInit) => String((init.headers as Record<string, string>).Authorization).endsWith('tok-1') ? Response.json({ error: { message: 'Forbidden' } }, { status: 403 }) : ok()) as unknown as typeof fetch;
+    await criarPoolApify({ cofre, buscar, env: {} }).executar('a/b', {});
+    expect(usos).toContainEqual(['k1', 'Chave recusada pela Apify.']);
+  });
+
+  it('na coleta (endpoint síncrono) vale a mesma regra', async () => {
+    const { cofre, usos } = cofreCom([chave(1), chave(2)]);
+    const buscar = (async (_u: string, init: RequestInit) => String((init.headers as Record<string, string>).Authorization).endsWith('tok-1') ? esgotada() : itens()) as unknown as typeof fetch;
+    const r = await criarPoolApify({ cofre, buscar, env: {} }).coletar('a/b', {}, { maxItens: 5, tetoUsd: 1, esperaCustoMs: 0 });
+    expect(r.conta).toBe('Conta 2');
+    expect(r.itens).toEqual([{ a: 1 }]);
+    expect(usos).toContainEqual(['k1', expect.stringMatching(/Limite do mês esgotado/)]);
+  });
+
+  it('todas as contas esgotadas: erro claro (e nada simulado)', async () => {
+    const { cofre } = cofreCom([chave(1), chave(2)]);
+    const buscar = (async () => esgotada()) as unknown as typeof fetch;
+    await expect(criarPoolApify({ cofre, buscar, env: {} }).executar('a/b', {})).rejects.toThrow('limite do mês esgotado');
+  });
+});

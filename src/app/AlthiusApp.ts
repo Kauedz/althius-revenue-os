@@ -28,7 +28,7 @@ import { decidirAprendizado, lerPlaybooks, listarSugestoes, publicarPlaybook } f
 import { desconectarConta, iniciarConexaoConta, provedorDoCanal } from './servicos/conexoes';
 import { carregarIntegracoes, desconectarIntegracao, iniciarConexaoIntegracao, montarConexoes, resultadoDaConexao } from './servicos/integracoes';
 import { PERFIS } from '../server/integracoes/perfis';
-import { excluirContatoDoCrm, listarCaixaPorEmpresa, marcarLida, minhasConexoes, pedirSugestaoDeResposta, responderNaCaixa, type CaixaTela, type ConexoesTela, type EmpresaDaCaixa } from './servicos/caixa';
+import { excluirContatoDoCrm, listarCaixaPorEmpresa, marcarLida, minhasConexoes, minhasContasComProblema, pedirSugestaoDeResposta, responderNaCaixa, textoDoAvisoDeConexao, type CaixaTela, type ConexoesTela, type EmpresaDaCaixa } from './servicos/caixa';
 import * as admin from './servicos/admin';
 import { decidirConsentimento, lerConsentimento, marcarAvisoVisto, type EstadoAprendizado } from './servicos/aprendizado';
 import { alternarChave, guardarChave, removerChave, ROTULO_PROVEDOR, testarChave, type ProvedorCofre } from './servicos/cofre';
@@ -113,6 +113,8 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       list: () => this.carregarNotificacoes()
     };
     super.componentDidMount?.();
+    // Conta que cai no meio do uso: confere de tempos em tempos e avisa com um pop-up (ADR 0071).
+    this.temporizadorConexoes = setInterval(() => void this.conferirConexoes(), 60_000);
     void this.carregarMinhaConta();
     this.publicarCaixa(null);
     this.publicarTarefas(null);
@@ -146,6 +148,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   componentWillUnmount() {
     this.vivo = false;
+    if (this.temporizadorConexoes) clearInterval(this.temporizadorConexoes);
     if (this.temporizadorConversa) clearTimeout(this.temporizadorConversa);
     if (this.copEspera) clearTimeout(this.copEspera);
     this.cargaEquipe++;
@@ -1180,6 +1183,32 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       ...(apps.status === 'fulfilled' ? { integracoesReais: apps.value } : {})
     });
     this.avisarRetornoDaConexao();
+    void this.conferirConexoes();
+  }
+
+  private temporizadorConexoes: ReturnType<typeof setInterval> | undefined;
+  /** conta+estado que já viraram pop-up nesta sessão (não repete a cada minuto) */
+  private avisadasDeConexao = new Set<string>();
+
+  /**
+   * Confere se alguma conta de mensagem da PRÓPRIA pessoa caiu e, se caiu agora, abre o pop-up (uma vez por conta e estado).
+   * Também atualiza a lista de conectadas sem piscar a tela. Falha ao conferir não incomoda: tenta no próximo minuto.
+   */
+  private async conferirConexoes() {
+    const ws = this.workspaceAtual();
+    if (this.modoDemo !== false || !ws?.membroId || !this.vivo) return;
+    try {
+      const [problemas, conectadas] = await Promise.all([minhasContasComProblema(this.props.supabase, ws.uuid), minhasConexoes(this.props.supabase, ws.uuid)]);
+      if (!this.vivo || this.workspaceAtual()?.uuid !== ws.uuid) return;
+      this.setState({ conexoesReais: conectadas });
+      const chaves = new Set(problemas.map(p => ws.uuid + ':' + p.provider + ':' + p.status));
+      for (const k of [...this.avisadasDeConexao]) if (k.startsWith(ws.uuid + ':') && !chaves.has(k)) this.avisadasDeConexao.delete(k);
+      const novas = problemas.filter(p => !this.avisadasDeConexao.has(ws.uuid + ':' + p.provider + ':' + p.status));
+      if (!novas.length) return;
+      for (const p of novas) this.avisadasDeConexao.add(ws.uuid + ':' + p.provider + ':' + p.status);
+      const { titulo, texto } = textoDoAvisoDeConexao(problemas);
+      this.confirmar(titulo, texto, 'Reconectar agora', () => this.ir('app/' + this.wsId() + '/inbox'));
+    } catch { /* tenta de novo no próximo minuto */ }
   }
 
   /** Conectar a PRÓPRIA conta de mensagem: pede o link ao backend e abre a janela segura do provedor. */
