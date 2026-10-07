@@ -2,7 +2,7 @@
 // Não recebe workspace em nenhuma ferramenta; o token do agente decide tudo no banco.
 import { McpServer, fromJsonSchema, type CallToolResult } from '@modelcontextprotocol/server';
 import { criarExecutor, falhaDe, type OpcoesExecucao } from './execucao.ts';
-import type { FerramentasAgente, PedidoEstimativa, PedidoReceitaSinal, PedidoTesteFonte, PedidoCampanha, PedidoStatusCampanha, PedidoVerba, NegocioAgente, PedidoInscricao, PedidoMoverNegocio, PedidoNegocio, PedidoContas, PedidoEnriquecimento, PedidoLevarAoPipeline, PedidoPlano, PedidoProposta, PedidoTarefa, TarefaAgente } from './ferramentas';
+import type { FerramentasAgente, PedidoEstimativa, PedidoIcp, PedidoReceitaSinal, PedidoTesteFonte, PedidoCampanha, PedidoStatusCampanha, PedidoVerba, NegocioAgente, PedidoInscricao, PedidoMoverNegocio, PedidoNegocio, PedidoContas, PedidoEnriquecimento, PedidoLevarAoPipeline, PedidoPlano, PedidoProposta, PedidoTarefa, TarefaAgente } from './ferramentas';
 
 const nada = fromJsonSchema<Record<string, never>>({ type: 'object', properties: {}, additionalProperties: false });
 
@@ -276,10 +276,31 @@ const pedidoEstimativa = fromJsonSchema<PedidoEstimativa>({
   type: 'object',
   properties: {
     fonte: { type: 'string', description: 'código da fonte, como veio em prospeccao_fontes (ex.: google_maps, receita_cnae)' },
-    parametros: { type: 'object', description: 'os parâmetros que a fonte aceita (nome: valor), como veio em prospeccao_fontes; use o ICP do cliente', additionalProperties: { type: 'string' } },
+    parametros: { type: 'object', description: 'os parâmetros que a fonte aceita (nome: valor), como veio em prospeccao_fontes; monte a partir do ICP do cliente (ler_icp)', additionalProperties: { type: 'string' } },
     max_empresas: { type: 'integer', minimum: 1, maximum: 1000, description: 'quantas empresas, no máximo (cada empresa nova custa os créditos da fonte)' }
   },
   required: ['fonte', 'parametros', 'max_empresas'],
+  additionalProperties: false
+});
+const pedidoIcp = fromJsonSchema<PedidoIcp>({
+  type: 'object',
+  properties: {
+    icp: {
+      type: 'object', additionalProperties: false,
+      description: 'o ICP inteiro (substitui o atual): listas de texto e faixas em números; deixe de fora o que não sabe (nada de valor inventado)',
+      properties: {
+        setores: { type: 'array', items: { type: 'string' } }, cnaes: { type: 'array', items: { type: 'string' }, description: 'CNAEs de 7 dígitos' },
+        portes: { type: 'array', items: { type: 'string', enum: ['MICRO', 'EPP', 'DEMAIS'] } },
+        funcionarios_min: { type: 'number' }, funcionarios_max: { type: 'number' },
+        faturamento_min: { type: 'number', description: 'reais por ano' }, faturamento_max: { type: 'number', description: 'reais por ano' },
+        capital_min: { type: 'number', description: 'capital social em reais' }, capital_max: { type: 'number', description: 'capital social em reais' },
+        ufs: { type: 'array', items: { type: 'string' }, description: 'siglas, como SP' }, cidades: { type: 'array', items: { type: 'string' } },
+        observacoes: { type: 'string' }
+      }
+    },
+    motivo: { type: 'string', description: 'por que mudar: o que as vendas, os dados ou o Playbook mostram' }
+  },
+  required: ['icp', 'motivo'],
   additionalProperties: false
 });
 const pedidoRodar = fromJsonSchema<{ estimativa_id: string }>({
@@ -400,6 +421,9 @@ export function criarServidorAlthius(ferramentas: FerramentasAgente, execucao: O
     } catch (e) { return falhaDe(e); }
   });
 
+  // ICP estruturado (ADR 0067): todos leem; o Jax propõe a mudança (aprovação de uma pessoa).
+  leitura('ler_icp', 'Lê o ICP estruturado do cliente (setores, CNAEs, porte, funcionários, faturamento, capital, estados, cidades) e os cargos alvo. Vazio = o cliente ainda não definiu: não invente. Só leitura.', nada, () => ferramentas.lerIcp());
+
   // Prospecção (ADR 0067): só a Zoe busca empresas novas. Estimar não gasta; rodar só depois que a pessoa pedir.
   leitura('prospeccao_fontes', 'Lista as fontes de empresas novas (Google Maps, Receita Federal...): o que cada uma traz, os parâmetros que aceita, créditos por empresa e o máximo por busca. Só leitura.', nada, () => ferramentas.fontesDeProspeccao());
   leitura('prospeccao_buscas', 'Lista as últimas buscas de prospecção do cliente: estado (estimada, aprovacao, pendente, reservada, concluida, sem_resultado, erro, cancelada), créditos estimados e cobrados, empresas novas, repetidas e candidatas sem decisão. Só leitura.', nada, () => ferramentas.buscasDeProspeccao());
@@ -464,6 +488,9 @@ export function criarServidorAlthius(ferramentas: FerramentasAgente, execucao: O
 
   proposta('sinais_propor_receita', 'PROPÕE a fonte (receita) de um sinal deste cliente: a principal e até 2 de reserva, cada uma com entrada e mapeamento, já testadas com sucesso. NÃO liga nada: vira uma aprovação; depois de aprovada, a coleta passa a usar esta fonte nas contas do cliente.', pedidoReceita,
     a => ferramentas.proporReceitaDeSinal(a), 'Proposta de fonte registrada e aguardando aprovação de uma pessoa. A coleta ainda não usa esta fonte.');
+
+  proposta('propor_icp', 'PROPÕE um novo ICP estruturado para o cliente (só o Jax, que cuida da estratégia). Manda o ICP inteiro e o motivo. NÃO muda nada: vira uma aprovação; aprovado, a Zoe passa a usar nas buscas e o fit das contas é recalculado.', pedidoIcp,
+    a => ferramentas.proporIcp(a), 'Proposta de ICP registrada e aguardando aprovação de uma pessoa. O ICP não mudou ainda.');
 
   return servidor;
 }

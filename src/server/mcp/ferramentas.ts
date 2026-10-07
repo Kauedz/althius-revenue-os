@@ -146,6 +146,8 @@ export interface PedidoReceitaSinal { sinal: string; fontes: FonteProposta[]; mo
 /** Prospecção (ADR 0067): estimativa de uma busca de empresas novas. O banco confere fonte, parâmetros e que é a Zoe. */
 export interface PedidoEstimativa { fonte: string; parametros: Record<string, string>; max_empresas: number }
 export interface ResultadoEstimativa { ok: boolean; erro?: string; estimativa_id?: string; creditos?: number; aviso?: string; [campo: string]: unknown }
+/** ICP estruturado (ADR 0067): o Jax propõe; aprovado, o ICP do cliente muda. */
+export interface PedidoIcp { icp: Record<string, unknown>; motivo: string }
 export interface PedidoTesteFonte { sinal: string; conta_id: string; ator: string; entrada: Record<string, unknown>; mapeamento?: Record<string, unknown>; max_itens?: number }
 
 /** Onde fica o serviço de integrações (a ponte com os apps conectados, ADR 0058). Sem isto, as ferramentas de app avisam que não estão ligadas. */
@@ -169,6 +171,9 @@ export interface FerramentasAgente {
   listarSinais(filtro?: FiltroSinais): Promise<SinalAgente[]>;
   /** Prospecção (ADR 0067): só a Zoe estima e roda (o banco confere); estimar não gasta, rodar exige estimativa e pedido de uma pessoa. */
   fontesDeProspeccao(): Promise<unknown[]>;
+  /** ICP estruturado do cliente e os cargos alvo (todos os agentes leem; só o Jax propõe mudança). */
+  lerIcp(): Promise<unknown>;
+  proporIcp(pedido: PedidoIcp): Promise<ResultadoProposta>;
   buscasDeProspeccao(): Promise<unknown[]>;
   estimarProspeccao(pedido: PedidoEstimativa): Promise<ResultadoEstimativa>;
   rodarProspeccao(estimativaId: string): Promise<ResultadoEstimativa>;
@@ -432,6 +437,19 @@ export function ferramentasDoAgente(cliente: SupabaseClient, token: string, pont
       return data as ResultadoProposta;
     },
 
+    async lerIcp() {
+      const { data, error } = await cliente.rpc('agent_icp', { p_token: token });
+      if (error) throw erroDoBanco(error, 'Não foi possível ler o ICP.');
+      return data;
+    },
+    async proporIcp(p) {
+      const { data, error } = await cliente.rpc('agent_propose_icp', {
+        p_token: token, p_icp: p.icp ?? {}, p_reason: p.motivo,
+        p_idempotency_key: 'agente:icp:' + createHash('sha256').update(estavel(p.icp ?? {})).digest('hex')
+      });
+      if (error) throw erroDoBanco(error, 'Não foi possível registrar a proposta de ICP.');
+      return data as ResultadoProposta;
+    },
     async fontesDeProspeccao() {
       const { data, error } = await cliente.rpc('agent_prospect_sources', { p_token: token });
       if (error) throw erroDoBanco(error, 'Não foi possível ler as fontes de prospecção.');

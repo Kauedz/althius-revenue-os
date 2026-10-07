@@ -41,7 +41,7 @@ import { decidirCandidatas, listarProspeccao, prospeccaoVazia, type LinhaCandida
 import { arquivarNegocio, atualizarNegocio, criarNegocio, criarQuadro, excluirQuadro, levarContasAoQuadro, listarPipeline, moverNegocio, MOTIONS, pipelineVazio, reordenarEtapas, renomearQuadro, type Motion, type PipelineTela, type Resultado } from './servicos/pipeline';
 import { adiarTarefa, criarTarefa, listarTarefas, mudarStatusTarefa, tarefasVazias, type TarefasTela } from './servicos/tarefas';
 import { CANAIS_CAMPANHA, campanhasVazias, criarCampanha, listarCampanhas, mudarStatusCampanha, mudarVerba, type CampanhasTela } from './servicos/campanhas';
-import { estrategiaVazia, listarEstrategia, type EstrategiaTela } from './servicos/estrategia';
+import { estrategiaVazia, listarEstrategia, salvarIcp, type EstrategiaTela } from './servicos/estrategia';
 import { adicionarPasso, cadenciasVazias, CANAL_PASSO, DICA_VARIAVEIS, inscreverContato, listarCadencias, removerUltimoPasso, salvarCadencia, type CadenciasTela } from './servicos/cadencias';
 import { nomeDoAgente } from './agentes-exibicao';
 import { abrirConversa, arquivarConversa, listarConversas, tituloDaPrimeiraMensagem, type ConversaDireta } from './servicos/conversaDireta';
@@ -1402,11 +1402,38 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const mod = (window as any).ALTHIUS_MOD?.strategy;
     if (!mod) return;
     const tela = t ?? estrategiaVazia();
-    mod.sub = 'O Playbook de cada agente (onde está o ICP) e as personas que o enriquecimento procura';
+    const icpLinha = tela.linhas.find(l => l.tipo === 'ICP');
+    mod.sub = icpLinha?.status === 'Definido'
+      ? 'ICP: ' + icpLinha.desc
+      : 'O ICP do cliente, o Playbook de cada agente e as personas que o enriquecimento procura';
     mod.kpis = tela.kpis;
     mod.linhas = tela.linhas;
-    mod.acao = null;
+    this.icpAtual = tela.icp ?? {};
+    // Gestor do cliente edita o ICP direto (ADR 0067); o Jax propõe pela conversa.
+    mod.acao = t && ['superadmin', 'estrategista', 'cliente'].includes(this.papel()) ? { label: 'Editar ICP' } : null;
     mod.acoesLinha = [];
+  }
+
+  private icpAtual: Record<string, unknown> = {};
+
+  private abrirEditarIcp() {
+    const icp = this.icpAtual;
+    const lista = (k: string) => (Array.isArray(icp[k]) ? (icp[k] as unknown[]).join(', ') : '');
+    const num = (k: string) => (typeof icp[k] === 'number' ? String(icp[k]) : '');
+    this.abrirFormulario({ tipo: 'icp', titulo: 'ICP do cliente', salvarLabel: 'Salvar ICP', campos: [
+      { k: 'setores', label: 'Setores (separados por vírgula)', valor: lista('setores'), placeholder: 'Ex.: Clínicas odontológicas, Laboratórios' },
+      { k: 'cnaes', label: 'CNAEs (7 dígitos, separados por vírgula)', valor: lista('cnaes'), placeholder: 'Ex.: 8630504' },
+      { k: 'portes', label: 'Porte na Receita (MICRO, EPP, DEMAIS)', valor: lista('portes'), placeholder: 'Ex.: MICRO, EPP' },
+      { k: 'funcionarios_min', label: 'Funcionários: mínimo', valor: num('funcionarios_min'), placeholder: 'Opcional' },
+      { k: 'funcionarios_max', label: 'Funcionários: máximo', valor: num('funcionarios_max'), placeholder: 'Opcional' },
+      { k: 'faturamento_min', label: 'Faturamento anual mínimo (R$)', valor: num('faturamento_min'), placeholder: 'Opcional' },
+      { k: 'faturamento_max', label: 'Faturamento anual máximo (R$)', valor: num('faturamento_max'), placeholder: 'Opcional' },
+      { k: 'capital_min', label: 'Capital social mínimo (R$)', valor: num('capital_min'), placeholder: 'Opcional (a Receita traz o capital, não o faturamento)' },
+      { k: 'capital_max', label: 'Capital social máximo (R$)', valor: num('capital_max'), placeholder: 'Opcional' },
+      { k: 'ufs', label: 'Estados (siglas, separadas por vírgula)', valor: lista('ufs'), placeholder: 'Ex.: SP, MG' },
+      { k: 'cidades', label: 'Cidades (separadas por vírgula)', valor: lista('cidades'), placeholder: 'Opcional' },
+      { k: 'observacoes', label: 'Observações', valor: typeof icp.observacoes === 'string' ? icp.observacoes : '', longo: true, placeholder: 'O que mais define o cliente ideal' }
+    ] });
   }
 
   async carregarEstrategia() {
@@ -1472,7 +1499,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   private formularioDoModulo(v: Record<string, any>) {
     const f = this.state.formModulo as { tipo: string; titulo: string; salvarLabel: string; erro: string; campos: Array<Record<string, any>> } | undefined;
     const pagina = (this.state.rota || {}).page;
-    if (!f || !v.md || !['campaigns', 'cadences', 'admin/providers', 'accounts', 'pipeline', 'prospecting'].includes(pagina)) return;
+    if (!f || !v.md || !['campaigns', 'cadences', 'admin/providers', 'accounts', 'pipeline', 'prospecting', 'strategy'].includes(pagina)) return;
     v.md.form = {
       titulo: f.titulo,
       campos: f.campos.map(c => ({
@@ -1504,6 +1531,15 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const falhou = (erro: string) => this.setState({ formModulo: Object.assign({}, this.state.formModulo, { erro }) });
     const sb = this.props.supabase;
     if (f.tipo === 'nova_conta' || f.tipo === 'importar_contas' || f.tipo === 'levar_contas') return this.enviarFormularioDeLeads(f, val, falhou);
+    if (f.tipo === 'icp') {
+      const icp = Object.fromEntries(f.campos.map(c => [c.k, (c.valor ?? '').trim()]));
+      const r = await salvarIcp(sb, ws.uuid, ws.membroId, icp);
+      if (!r.ok) return falhou(r.mensagem);
+      if (!this.vivo) return;
+      this.setState({ formModulo: undefined });
+      await this.carregarEstrategia();
+      return this.avisar('mod', 'ICP salvo. A Zoe passa a usar nas próximas buscas.');
+    }
     if (f.tipo === 'site_candidata') {
       if (!normalizarDominio(val('site'))) return falhou('Informe só o site da empresa, como empresa.com.br.');
       const r = await this.decidirProspeccao([f.id!], 'incluir', { [f.id!]: val('site') });
@@ -1915,6 +1951,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   acaoDaPaginaReal(page: string): boolean {
     if (page === 'accounts') { this.abrirNovaConta(); return true; }
     if (page === 'prospecting') { this.ir('app/' + this.wsId() + '/agents/comercial'); return true; }
+    if (page === 'strategy') { this.abrirEditarIcp(); return true; }
     if (page === 'campaigns') {
       this.abrirFormulario({ tipo: 'nova_campanha', titulo: 'Nova campanha', salvarLabel: 'Criar campanha', campos: [
         { k: 'nome', label: 'Nome da campanha', valor: '', placeholder: 'Ex.: Importação sem risco · Q4' },

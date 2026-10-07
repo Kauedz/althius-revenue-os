@@ -1,8 +1,8 @@
 // Estratégia ligada ao banco (ADR 0064): mostra só o que existe. Não há tabela de ICP; o ICP mora no Playbook de cada agente
 // (ADR 0057). Seed: a Evolut tem os 4 Playbooks publicados; o Grão Norte não tem nenhum. Ambos têm as personas alvo padrão.
-import { describe, expect, it } from 'vitest';
-import { bancoLocalNoAr, entrarComoLocal } from '../../test/supabaseLocal';
-import { estrategiaVazia, listarEstrategia, resumoDoPlaybook } from './estrategia';
+import { afterAll, describe, expect, it } from 'vitest';
+import { adminLocal, bancoLocalNoAr, entrarComoLocal } from '../../test/supabaseLocal';
+import { estrategiaVazia, listarEstrategia, resumoDoIcp, resumoDoPlaybook, salvarIcp } from './estrategia';
 
 const EVOLUT = 'a0000000-0000-0000-0000-000000000001';
 const GRAO = 'b0000000-0000-0000-0000-000000000001';
@@ -16,6 +16,39 @@ describe('formatação', () => {
     expect(resumoDoPlaybook('# Missão\nEncontrar contas.\n\n# Regras\n- Não inventar.')).toBe('Missão. Encontrar contas. Regras. Não inventar.');
     expect(resumoDoPlaybook('x'.repeat(400)).length).toBeLessThanOrEqual(241);
     expect(resumoDoPlaybook('x'.repeat(400)).endsWith('…')).toBe(true);
+  });
+});
+
+describe('ICP estruturado (ADR 0067)', () => {
+  it('o resumo do ICP diz só o que foi definido', () => {
+    expect(resumoDoIcp({ setores: ['Clínicas'], cnaes: ['8630504'], portes: ['MICRO', 'EPP'], funcionarios_min: 10, funcionarios_max: 20, ufs: ['SP'] }))
+      .toBe('Setores: Clínicas. CNAE: 8630504. Porte: MICRO, EPP. Funcionários: 10 a 20. Estados: SP.');
+    expect(resumoDoIcp({ faturamento_min: 1000000 })).toBe('Faturamento: a partir de R$ 1.000.000.');
+    expect(resumoDoIcp({})).toBe('');
+  });
+});
+
+describe.skipIf(!bancoLocalNoAr)('ICP na Estratégia (banco local)', () => {
+  const adm = adminLocal();
+  afterAll(async () => { await adm.from('workspace_settings').update({ icp: {} }).eq('workspace_id', EVOLUT); });
+
+  it('sem ICP: a linha diz "Não definido" (nada inventado); a estrategista grava e a linha mostra o resumo', async () => {
+    await adm.from('workspace_settings').update({ icp: {} }).eq('workspace_id', EVOLUT);
+    const camila = await entrarComoLocal('camila@althius.com.br');
+    const antes = await listarEstrategia(camila, EVOLUT);
+    expect(antes.linhas.find(l => l.tipo === 'ICP')).toMatchObject({ nome: 'ICP', status: 'Não definido' });
+    const r = await salvarIcp(camila, EVOLUT, 'd0000000-0000-0000-0000-000000000002', { cnaes: '8630-5/04, 8630503', ufs: 'sp', faturamento_min: '1.000.000' });
+    expect(r).toEqual({ ok: true });
+    const depois = await listarEstrategia(camila, EVOLUT);
+    expect(depois.linhas.find(l => l.tipo === 'ICP')).toMatchObject({ status: 'Definido', desc: 'CNAE: 8630504, 8630503. Faturamento: a partir de R$ 1.000.000. Estados: SP.' });
+    expect(depois.icp).toMatchObject({ cnaes: ['8630504', '8630503'], ufs: ['SP'] });
+  });
+
+  it('erro de validação e BDR viram mensagem clara', async () => {
+    const camila = await entrarComoLocal('camila@althius.com.br');
+    expect(await salvarIcp(camila, EVOLUT, 'd0000000-0000-0000-0000-000000000002', { ufs: 'XX' })).toEqual({ ok: false, mensagem: '"XX" não é sigla de estado (ex.: SP).' });
+    const lucas = await entrarComoLocal('lucas@evolut.com.br');
+    expect(await salvarIcp(lucas, EVOLUT, 'd0000000-0000-0000-0000-000000000004', { ufs: 'SP' })).toEqual({ ok: false, mensagem: 'Só gestores do cliente (C-level ou estrategista) editam o ICP.' });
   });
 });
 

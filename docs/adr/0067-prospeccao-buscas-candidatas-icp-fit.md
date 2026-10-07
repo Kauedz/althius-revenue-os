@@ -20,16 +20,24 @@ O agente só trabalhava com as contas que já estavam na base: não havia como b
 5. **Ferramentas da Zoe** no MCP: `prospeccao_fontes` e `prospeccao_buscas` (leitura), `prospeccao_estimar` (proposta, não repete sozinha; a descrição manda dizer o custo e esperar o "pode rodar"), `prospeccao_rodar` (ação externa).
 6. **Tela Prospecção** (modo real): as candidatas (empresa, site ou "Sem site", cidade, ramo, busca de origem, situação) com filtro por situação, **Incluir/Excluir** por linha (excluir pede confirmação e avisa que o crédito não volta), **"Incluir todas com site"**, os números (buscas, candidatas, incluídas, créditos em buscas) e o estado das buscas recentes no subtítulo. Novas buscas: botão **"Pedir à Zoe"** (abre a conversa com ela). As listas fictícias do protótipo saíram.
 
+## Decisão (fatia 3: ICP estruturado — migration 132)
+1. **`workspace_settings.icp`** (objeto): `setores`, `cnaes` (7 dígitos), `portes` (MICRO, EPP, DEMAIS, como a Receita), `funcionarios_min/max`, `faturamento_min/max` (R$/ano), `capital_min/max` (capital social; é o que a Receita traz), `ufs`, `cidades`, `observacoes`. Os cargos alvo continuam em `personas_alvo`. **Sem valor padrão**: sem ICP, o campo é `{}` e a tela diz "Não definido".
+2. **Gestor do cliente** (C-level, estrategista, superadmin) edita na tela Estratégia ("Editar ICP"; `workspace_icp_set`). BDR não.
+3. **O Jax propõe** (`agent_propose_icp`, só `marketing`): vira aprovação de operação; aprovada, o ICP muda e fica registrado como "agente:marketing".
+4. **Os agentes leem** (`agent_icp`, ferramenta `ler_icp`) e o ICP entra no contexto de toda resposta, junto do Playbook (`harness_playbook` passa a anexar o texto do ICP). A Zoe monta os parâmetros das buscas a partir dele.
+5. A tela mostra o ICP como primeira linha da Estratégia e o resumo no subtítulo.
+
 ## Decisões tomadas sem o Nan (pequenas, técnicas)
 - **Preço provisório: 1 crédito por empresa nova**, máximo de 200 por busca (como pedido). A medir com o SQL do `docker/LEIA-ME.md`.
 - **A entrada do ator é montada no serviço**, não no banco (o banco devolve modelo e parâmetros já validados). Mais simples de testar; o banco continua sendo quem valida.
 - **Filtros de porte e capital** cobram só o que passa no filtro: o fornecedor cobra pelos itens que o ator devolve, mas o cliente paga só pelas empresas que entram. Se o custo real subir demais, a solução é preço maior por empresa, não cobrar pelo descarte.
+- **Faturamento e capital social são campos separados no ICP**: o Nan falou em faturamento, mas as fontes públicas (Receita) trazem capital social, não faturamento. O filtro automático das buscas usa porte e capital; o faturamento fica como orientação para os agentes.
 - **Ferramenta extra `prospeccao_buscas`** (leitura): para a Zoe contar à pessoa o que a busca trouxe.
 - Os nomes exatos dos campos do ator da Receita estão com alternativas tolerantes (`nome_fantasia|razao_social`...). **Confirmar no primeiro uso real** e ajustar o mapeamento (é dado, sem código).
 - O sócio (QSA) da Receita **não é guardado** nas candidatas (dado de pessoa; LGPD). O mapeamento de pessoas continua no enriquecimento (ADR 0062).
 
 ## Consequências
-- Testes: pgTAP `00083_prospeccao_buscas.sql` (113), Vitest do serviço (`src/server/prospeccao/`), das ferramentas (`src/server/mcp/prospeccao.test.ts`), do serviço da tela e da tela (`prospeccao.tela.test.tsx`).
+- Testes: pgTAP `00083_prospeccao_buscas.sql` (113) e `00084_icp_estruturado.sql` (31), Vitest do serviço (`src/server/prospeccao/`), das ferramentas (`src/server/mcp/prospeccao.test.ts`), do serviço da tela e da tela (`prospeccao.tela.test.tsx`).
 - `docker-compose.yml` ganhou o contêiner `prospeccao` (`docker/Dockerfile.prospeccao`, variáveis `PROSP_*`).
 
 ## Limites conhecidos

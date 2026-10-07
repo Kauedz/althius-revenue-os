@@ -73,6 +73,8 @@ export const POLITICA_DAS_FERRAMENTAS: Readonly<Record<string, Politica>> = {
   sinais_testar_fonte: { tipo: 'acao_externa' },
   sinais_propor_receita: { tipo: 'proposta' },
   prospeccao_fontes: { tipo: 'leitura' },
+  ler_icp: { tipo: 'leitura' },
+  propor_icp: { tipo: 'proposta' },
   prospeccao_buscas: { tipo: 'leitura' },
   prospeccao_estimar: { tipo: 'proposta' },
   prospeccao_rodar: { tipo: 'acao_externa' }
