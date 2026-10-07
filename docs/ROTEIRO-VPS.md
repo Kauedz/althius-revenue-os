@@ -12,7 +12,7 @@ Troque sempre `app.seudominio.com.br` pelo seu endereço de verdade.
 
 **A1. O código precisa estar no GitHub, na branch principal (`master`).** Quem está te ajudando faz isso (junta as branches e envia). Só avance quando ele disser "está no GitHub".
 
-**A2. Crie um acesso de leitura ao GitHub para o servidor.** O repositório é privado. No GitHub: Settings → Developer settings → Personal access tokens → Fine-grained tokens → "Generate new token". Escolha só o repositório `althius-revenue-os`, permissão **Contents: Read-only**, validade de 90 dias. **Copie o token e guarde no seu gerenciador de senhas. Nunca mande o token em conversa nem em e-mail.**
+**A2. O repositório do GitHub é público**, então o servidor baixa o código sem senha nem token. (Por isso o código **nunca** pode ter chave, senha ou dado de pessoa real: cada chave fica só no `.env` do servidor e no cofre do sistema. Se um dia o repositório virar privado, será preciso criar um token de leitura no GitHub e usá-lo no passo C1.)
 
 **A3. Aponte o domínio para a VPS.** No painel onde você comprou o domínio (ou no DNS dele), crie um registro:
 - Tipo **A**, nome `app`, valor = o **IP da VPS** (aparece no painel da Hostinger).
@@ -81,7 +81,7 @@ Certo se: o Docker mostra uma versão e o Node mostra `v22.18` ou mais novo (ou 
 
 ## Parte C. Baixar e subir o sistema
 
-**C1. Baixar o código.** Quando o comando pedir "Username", digite o seu usuário do GitHub; quando pedir "Password", **cole o token** (o texto não aparece enquanto você cola, é normal):
+**C1. Baixar o código.**
 
 ```
 git clone https://github.com/Kauedz/althius-revenue-os.git
