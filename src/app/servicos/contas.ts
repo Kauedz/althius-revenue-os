@@ -15,12 +15,24 @@ export interface ContatoComiteTela {
   fones: string[];
 }
 
+interface ParteDoFit { parte?: unknown; pontos?: unknown; max?: unknown; motivo?: unknown }
+
+/** "Por que fit 72: ICP 40/60 (...) · Sinais 18/25 (...) · Dados 14/15 (...)". Sem as partes do banco: vazio (nada inventado). */
+export function porqueDoFit(fit: number, partes: unknown): string {
+  if (!Array.isArray(partes) || !partes.length) return '';
+  const textos = (partes as ParteDoFit[]).filter(p => p && typeof p.parte === 'string')
+    .map(p => `${p.parte} ${Number(p.pontos) || 0}/${Number(p.max) || 0}${typeof p.motivo === 'string' && p.motivo ? ` (${p.motivo})` : ''}`);
+  return textos.length ? `Por que fit ${fit}: ${textos.join(' · ')}` : '';
+}
+
 /** Conta qualificada no formato consumido pelas telas do front v18. */
 export interface ContaTela {
   id: string;
   nome: string;
   segmento: string;
   fit: number;
+  /** Por que esta nota (ADR 0067): as três partes calculadas pelo banco. Vazio quando o banco ainda não calculou. */
+  fitPorque?: string;
   temperatura: number;
   sinal: string;
   dono: string;
@@ -74,7 +86,7 @@ export function textoUltimoContato(
 export async function listarContas(cliente: SupabaseClient, workspaceId: string): Promise<ContaTela[]> {
   const { data, error } = await cliente
     .from('accounts')
-    .select('id, name, domain, logo_url, segment, fit, temperature, last_signal_text, owner_member_id, city, state_uf, status, lat, lng, localizacao_precisao, monitorar_sinais')
+    .select('id, name, domain, logo_url, segment, fit, fit_partes, temperature, last_signal_text, owner_member_id, city, state_uf, status, lat, lng, localizacao_precisao, monitorar_sinais')
     .eq('workspace_id', workspaceId)
     .eq('status', 'ativa')
     .order('fit', { ascending: false });
@@ -163,6 +175,7 @@ export async function listarContas(cliente: SupabaseClient, workspaceId: string)
       nome: a.name,
       segmento: a.segment || '—',
       fit: typeof a.fit === 'number' ? a.fit : 0,
+      fitPorque: porqueDoFit(typeof a.fit === 'number' ? a.fit : 0, a.fit_partes) || undefined,
       temperatura: typeof a.temperature === 'number' ? a.temperature : 1,
       sinal: a.last_signal_text || '—',
       dono: (a.owner_member_id && nomes.get(a.owner_member_id)) || 'Alguém do time',

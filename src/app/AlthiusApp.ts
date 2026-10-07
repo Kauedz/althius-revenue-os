@@ -1935,7 +1935,9 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (v.cta?.aberta) {
       const id = this.state.conta as string;
       v.cta.podePipeline = this.podeNoWorkspace('pipeline.deals');
-      const marcada = (((window as any).ALTHIUS_MOD || {}).accounts?.linhas || []).find((c: ContaTela) => c.id === id)?.monitorar === true;
+      const linhaConta = (((window as any).ALTHIUS_MOD || {}).accounts?.linhas || []).find((c: ContaTela) => c.id === id) as ContaTela | undefined;
+      const marcada = linhaConta?.monitorar === true;
+      v.cta.fitPorque = linhaConta?.fitPorque || '';
       v.cta.podeMonitorar = true;
       v.cta.monitorarLabel = marcada ? 'Parar de monitorar' : 'Monitorar sinais';
       v.cta.monitorarDica = marcada ? 'Os sinais desta conta rodam sozinhos. Clique para parar.' : 'Faz os sinais desta conta rodarem sozinhos (gasta créditos). Contas com negócio ativo ou em cadência já são monitoradas.';

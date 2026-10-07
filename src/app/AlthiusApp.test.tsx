@@ -434,6 +434,14 @@ describe('leads: adicionar, importar e levar ao Pipeline (ADR 0065)', () => {
     expect(await within(await screen.findByRole('dialog', { name: 'Conta Fria' })).findByRole('button', { name: 'Parar de monitorar' })).toBeInTheDocument();
   });
 
+  it('na ficha da conta, o fit vem com o "por que esta nota" calculado pelo banco (ADR 0067)', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue([linha('c-fria', 'Conta Fria', { fit: 40, fitPorque: 'Por que fit 40: ICP 20/60 (setor sim, porte fora, região fora) · Sinais 10/25 (1 sinal nos últimos 30 dias) · Dados 10/15 (falta telefone, pessoas)' })]);
+    abrir(contexto([['alfa', 'estrategista']]), '#/app/alfa/accounts');
+    fireEvent.click(await screen.findByText('Conta Fria'));
+    const ficha = await screen.findByRole('dialog', { name: 'Conta Fria' });
+    expect(within(ficha).getByText(/Por que fit 40: ICP 20\/60 \(setor sim, porte fora, região fora\)/)).toBeInTheDocument();
+  });
+
   it('na ficha da conta, "Adicionar ao Pipeline" leva a conta ao quadro escolhido (motion MLG)', async () => {
     vi.spyOn(contasServico, 'listarContas').mockResolvedValue(base());
     vi.spyOn(pipelineServico, 'listarPipeline').mockResolvedValue(pipe());

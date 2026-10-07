@@ -10,7 +10,8 @@ import {
   criarConta,
   editarConta,
   importarContas,
-  definirMonitoramento
+  definirMonitoramento,
+  porqueDoFit
 } from './contas';
 import { bancoLocalNoAr, entrarComoLocal } from '../../test/supabaseLocal';
 import { isolarContas } from '../../test/isolarContas';
@@ -19,6 +20,18 @@ const EVOLUT = 'a0000000-0000-0000-0000-000000000001';
 const GRAO_NORTE = 'b0000000-0000-0000-0000-000000000001';
 const MEMBRO_ALINE = 'd0000000-0000-0000-0000-000000000003';
 const MEMBRO_LUCAS = 'd0000000-0000-0000-0000-000000000004';
+
+describe('por que esta nota (ADR 0067)', () => {
+  it('monta a frase com as três partes; sem partes, nada', () => {
+    expect(porqueDoFit(72, [
+      { parte: 'ICP', pontos: 40, max: 60, motivo: 'setor sim, porte sem dado, região sim' },
+      { parte: 'Sinais', pontos: 18, max: 25, motivo: '2 sinais nos últimos 30 dias' },
+      { parte: 'Dados', pontos: 14, max: 15, motivo: 'falta telefone' }
+    ])).toBe('Por que fit 72: ICP 40/60 (setor sim, porte sem dado, região sim) · Sinais 18/25 (2 sinais nos últimos 30 dias) · Dados 14/15 (falta telefone)');
+    expect(porqueDoFit(10, [])).toBe('');
+    expect(porqueDoFit(10, null)).toBe('');
+  });
+});
 
 describe('textoUltimoContato', () => {
   const agora = new Date('2026-10-06T12:00:00Z');
@@ -298,13 +311,16 @@ describe.skipIf(!bancoLocalNoAr)('Contas e leads (banco local)', () => {
     expect(serraAzul).toMatchObject({
       nome: 'Serra Azul Têxtil',
       segmento: 'Têxtil',
-      fit: 96,
       temperatura: 3,
       sinal: 'Vaga aberta · Gerente de Importação',
       dono: 'Lucas Teixeira',
       cidade: 'São Paulo, SP',
       decisor: 'Aline Xavier'
     });
+
+    // ADR 0067: o fit é calculado pelo banco (nunca o número fixo do seed) e vem com o "por que".
+    expect(serraAzul!.fit).toBeGreaterThanOrEqual(0);
+    expect(serraAzul!.fitPorque).toMatch(new RegExp(String.raw`^Por que fit ${serraAzul!.fit}: ICP \d+/60 \(.+\) · Sinais \d+/25 \(.+\) · Dados \d+/15 \(.+\)$`));
 
     // Confere se o comitê foi carregado com cargos e contatos
     expect(serraAzul?.comite).toBeDefined();

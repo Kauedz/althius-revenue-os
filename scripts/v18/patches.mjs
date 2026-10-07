@@ -961,5 +961,12 @@ export const PATCHES = [
     arquivo: 'template.generated.tsx',
     trocar: "{$v.cta?.podePipeline ? (<button className={\"b-sec mini-btn\"} onClick={$v.cta?.adicionarPipeline}",
     por: "{$v.cta?.podeMonitorar ? (<button className={\"b-sec mini-btn\"} onClick={$v.cta?.alternarMonitorar} title={$v.cta?.monitorarDica} style={{\"flex\":\"none\",\"height\":\"40px\"}}>{__t($v.cta?.monitorarLabel)}</button>) : null}{$v.cta?.podePipeline ? (<button className={\"b-sec mini-btn\"} onClick={$v.cta?.adicionarPipeline}"
+  },
+  {
+    // ADR 0067: o fit é calculado pelo banco; a ficha mostra o "por que esta nota" (ICP, sinais e dados).
+    regra: 'ficha da conta: por que esta nota (fit calculado)',
+    arquivo: 'template.generated.tsx',
+    trocar: "<span className={\"co-site\"}>",
+    por: "{$v.cta?.fitPorque ? (<span className={\"fit-porque\"} style={{\"fontSize\":\"12px\",\"lineHeight\":\"1.4\",\"color\":\"var(--graphite)\"}}>{__t($v.cta?.fitPorque)}</span>) : null}<span className={\"co-site\"}>"
   }
 ];

@@ -5966,7 +5966,7 @@ export function renderTemplate($v: Record<string, any>) {
                     </span>
                   </span>
                   {"\n              "}
-                  <span className={"co-site"}>
+                  {$v.cta?.fitPorque ? (<span className={"fit-porque"} style={{"fontSize":"12px","lineHeight":"1.4","color":"var(--graphite)"}}>{__t($v.cta?.fitPorque)}</span>) : null}<span className={"co-site"}>
                     {"\n                "}
                     {$v.cta?.siteEditando ? (<>
                       {"\n                  "}
