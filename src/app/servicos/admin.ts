@@ -62,6 +62,14 @@ export async function criarCliente(
   return r?.ok ? { ok: true, slug: r.slug } : { ok: false, mensagem: r?.erro || 'Não foi possível criar o cliente. Tente de novo.' };
 }
 
+/** Orçamento mensal de coleta (Apify) de um cliente, em dólar. Só o superadmin; o cliente nunca vê dólar (ADR 0069). */
+export async function ajustarOrcamentoDeColeta(cliente: SupabaseClient, workspaceId: string, dolares: number): Promise<Resultado<{ orcamento: number }>> {
+  if (!Number.isFinite(dolares) || dolares < 0) return { ok: false, mensagem: 'Informe o orçamento em dólares, só com números (0 trava a coleta do cliente).' };
+  const { data: r, error } = await cliente.rpc('admin_coleta_orcamento_set', { p_workspace_id: workspaceId, p_usd: dolares });
+  if (error) return { ok: false, mensagem: error.code === '42501' ? SO_SUPERADMIN : error.message || 'Não foi possível ajustar o orçamento.' };
+  return { ok: true, orcamento: Number(r?.orcamento_usd) || dolares };
+}
+
 export async function gerarChavesDosAgentes(cliente: SupabaseClient, workspaceId: string): Promise<Resultado<{ chaves: Record<string, string> }>> {
   const { data: r, error } = await cliente.rpc('admin_agent_tokens', { p_workspace_id: workspaceId });
   if (error) return { ok: false, mensagem: error.code === '42501' ? SO_SUPERADMIN : 'Não foi possível gerar as chaves. Tente de novo.' };
@@ -77,14 +85,18 @@ export async function revogarChavesDosAgentes(cliente: SupabaseClient, workspace
 // ---------------------------------------------------------------- Telas só leitura
 
 export async function usoGlobal(cliente: SupabaseClient) {
-  const lista = await ler<{ id: string; nome: string; consumido: number; saldo: number; execucoes_mes: number; ultimo_uso: string | null; tokens_mes?: number; custo_modelo_usd?: number }>(cliente, 'admin_usage');
+  const lista = await ler<{ id: string; nome: string; consumido: number; saldo: number; execucoes_mes: number; ultimo_uso: string | null; tokens_mes?: number; custo_modelo_usd?: number; coleta_usd?: number; coleta_orcamento_usd?: number }>(cliente, 'admin_usage');
+  const dolar = (v: number) => 'US$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); // custo real: só superadmin
   return {
     kpis: [
       ['Créditos consumidos no ciclo', nf(lista.reduce((s, u) => s + Number(u.consumido), 0)), 'todos os clientes'],
-      ['Execuções no mês', nf(lista.reduce((s, u) => s + Number(u.execucoes_mes), 0)), '']
+      ['Execuções no mês', nf(lista.reduce((s, u) => s + Number(u.execucoes_mes), 0)), ''],
+      ['Coleta (Apify) no mês', dolar(lista.reduce((s, u) => s + Number(u.coleta_usd ?? 0), 0)), 'custo real, só aqui; o teto de cada cliente está na tabela']
     ] as Kpi[],
     linhas: lista.map(u => ({ id: u.id, nome: u.nome, consumido: nf(Number(u.consumido)) + ' créditos', saldo: nf(Number(u.saldo)) + ' créditos',
       execucoes: nf(Number(u.execucoes_mes)), ultimo: data(u.ultimo_uso), tokens: nf(Number(u.tokens_mes ?? 0)),
+      coleta: dolar(Number(u.coleta_usd ?? 0)) + ' de ' + dolar(Number(u.coleta_orcamento_usd ?? 50)),
+      coletaPct: Number(u.coleta_orcamento_usd ?? 50) > 0 ? Math.min(100, Math.round(Number(u.coleta_usd ?? 0) / Number(u.coleta_orcamento_usd ?? 50) * 100)) + '%' : '100%',
       custoModelo: Number(u.custo_modelo_usd ?? 0) > 0 ? 'US$ ' + Number(u.custo_modelo_usd).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 4 }) : '—' })) // custo real do modelo: só superadmin
   };
 }
@@ -99,11 +111,13 @@ export async function fornecedores(cliente: SupabaseClient) {
 }
 
 export async function margens(cliente: SupabaseClient) {
-  const lista = await ler<{ capacidade: string; creditos_base: number; margem: number; risco: number; ativo: boolean }>(cliente, 'admin_margins');
+  const lista = await ler<{ capacidade: string; codigo?: string; creditos_base: number; margem: number | null; risco: number | null; ativo: boolean; empresas_medidas?: number }>(cliente, 'admin_margins');
   return {
     kpis: [['Capacidades precificadas', String(lista.length), '']] as Kpi[],
-    linhas: lista.map(m => ({ id: m.capacidade, capacidade: m.capacidade, base: nf(Number(m.creditos_base)) + ' créditos',
-      margem: Number(m.margem).toLocaleString('pt-BR') + '%', risco: Number(m.risco).toLocaleString('pt-BR') + '×', status: m.ativo ? 'Ativo' : 'Inativo' }))
+    linhas: lista.map(m => ({ id: m.capacidade, capacidade: m.capacidade, base: nf(Number(m.creditos_base)) + (Number(m.creditos_base) === 1 ? ' crédito' : ' créditos'),
+      // Fonte de prospecção: o preço é por empresa nova e a margem é a medida nas buscas já feitas (sem medição, diz isso).
+      margem: m.margem == null ? (m.codigo ? 'sem busca medida' : '—') : Number(m.margem).toLocaleString('pt-BR') + '%',
+      risco: m.risco == null ? '—' : Number(m.risco).toLocaleString('pt-BR') + '×', status: m.ativo ? 'Ativo' : 'Inativo' }))
   };
 }
 

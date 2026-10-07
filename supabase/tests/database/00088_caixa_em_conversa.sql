@@ -3,7 +3,7 @@
 -- Caixa de entrada em conversa (spec .scratch/prospeccao-revenue, fatia 7; ADR 0068): responder escolhendo a pessoa e o
 -- canal, pelo CAMINHO DE ENVIO QUE JÁ EXISTE (política Hermes, crédito reservado como no envio da cadência, o mesmo
 -- serviço `cadencia` envia, a mensagem entra na conversa). Só quem conectou a conta responde por ela; LinkedIn e
--- Instagram ainda não enviam por aqui; isolamento entre clientes.
+-- Instagram respondem dentro da conversa (00090); isolamento entre clientes.
 -- Seed: Evolut a0..01 — Lucas BDR d..04/e..04 (contas: e-mail ca5..01, LinkedIn ca5..02, WhatsApp ca5..03);
 --       Bruna BDR d..06 (e-mail ca5..04); Aline C-level d..03/e..03. Conversas: c5..01 (Serra Azul, LinkedIn, Lucas),
 --       c5..02 (Delta Saúde, e-mail, Bruna), c5..03 (Serra Azul, e-mail, Lucas), c5..05 (Campo Belo, WhatsApp, Lucas).
@@ -37,8 +37,7 @@ CREATE TEMP TABLE r1 ON COMMIT DROP AS SELECT public.inbox_reply('a0000000-0000-
 SELECT is((SELECT r->>'ok' FROM r1), 'true', 'Resposta pedida');
 SELECT is((public.inbox_reply('a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000004',
   'c5000000-0000-0000-0000-000000000003', 'Combinado, Jonas. Mando o convite agora.', 'Re: nossa conversa', 'k-resp-1')->>'id'), (SELECT r->>'id' FROM r1), 'Mesma chave: a mesma resposta (não duplica)');
-SELECT ok((public.inbox_reply('a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000004',
-  'c5000000-0000-0000-0000-000000000001', 'Oi', NULL, 'k-li')->>'erro') ~ 'LinkedIn', 'LinkedIn ainda não envia por aqui (diz isso)');
+-- (LinkedIn e Instagram respondem dentro da conversa: veja 00090_caixa_linkedin_instagram.sql)
 SELECT is((public.inbox_reply('a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000004',
   'c5000000-0000-0000-0000-000000000002', 'Oi', NULL, 'k-bruna')->>'erro'), 'Conversa não encontrada.', 'BDR não responde conversa de outra pessoa (nem vê)');
 SELECT throws_ok($$ SELECT public.inbox_reply('a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000004', 'c5000000-0000-0000-0000-000000000003', '  ', NULL, 'k-vazia') $$,

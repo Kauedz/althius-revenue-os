@@ -60,6 +60,8 @@ describe('especialidades dos agentes', () => {
     expect(ESPECIALIDADES.comercial).toMatch(/prospeccao_estimar/);
     expect(ESPECIALIDADES.comercial).toMatch(/custo/);
     expect(ESPECIALIDADES.comercial).toMatch(/pode rodar/);
+    expect(ESPECIALIDADES.comercial).toMatch(/fontes são curadas pela Althius/);
+    expect(ESPECIALIDADES.comercial).toMatch(/limite de coleta do mês/);
     expect(ESPECIALIDADES.comercial).toMatch(/ler_icp/);
     expect(ESPECIALIDADES.marketing).toMatch(/propor_icp/);
     for (const a of ['marketing', 'copy', 'revops']) {

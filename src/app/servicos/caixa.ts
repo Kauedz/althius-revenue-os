@@ -198,11 +198,10 @@ export function agruparPorEmpresa(conversas: ConversaBruta[], mensagens: Mensage
     if (c.last_message_at > g.ultimaIso) g.ultimaIso = c.last_message_at;
     g.conversas.push(c.id);
     const minha = !!membroId && dono === membroId;
-    const suporta = c.channel === 'email' || c.channel === 'whatsapp';
+    // E-mail e WhatsApp enviam mensagem nova; LinkedIn e Instagram respondem DENTRO da conversa que já existe (ADR 0069).
     g.destinos.push({
-      conversaId: c.id, rotulo: `${pessoa} · ${canal}`, podeEnviar: suporta && minha,
-      motivo: !suporta ? `Responder pelo ${canal} ainda não é possível por aqui: responda pelo app e a mensagem aparece nesta conversa.`
-        : !minha ? 'Só quem conectou esta conta responde por ela.' : null
+      conversaId: c.id, rotulo: `${pessoa} · ${canal}`, podeEnviar: minha,
+      motivo: !minha ? 'Só quem conectou esta conta responde por ela.' : null
     });
     porConversa.set(c.id, { pessoa, canal, intencao: INTENCAO[c.intent || 'neutra'] || 'Neutra', minha, empresa: g });
   }

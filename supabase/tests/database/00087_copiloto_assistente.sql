@@ -84,10 +84,10 @@ SELECT is((SELECT allowance_balance + topup_balance - reserved_balance FROM publ
 
 -- Limite diário por pessoa
 INSERT INTO public.copilot_messages (workspace_id, member_id, autor, texto, estado, chave)
-SELECT 'a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000003', 'pessoa', 'p' || g, 'respondida', 'lim-' || g FROM generate_series(1, 60) g;
+SELECT 'a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000003', 'pessoa', 'p' || g, 'respondida', 'lim-' || g FROM generate_series(1, 100) g;
 SELECT pg_temp.como('e0000000-0000-0000-0000-000000000003');
 SET LOCAL ROLE authenticated;
-SELECT ok((public.copilot_ask('a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000003', 'mais uma', 'k-lim')->>'erro') ~ '60', 'Limite de 60 perguntas por dia por pessoa');
+SELECT ok((public.copilot_ask('a0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000003', 'mais uma', 'k-lim')->>'erro') ~ '100', 'Limite de 100 perguntas por dia por pessoa');
 RESET ROLE;
 
 -- O uso do modelo pelo Copiloto é registrado com o rótulo "copiloto" (não é agente)

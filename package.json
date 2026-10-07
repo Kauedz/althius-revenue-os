@@ -15,6 +15,7 @@
     "db:reset": "npx supabase db reset",
     "v18:sync": "node scripts/v18/convert.mjs",
     "guardas": "node scripts/guardas.mjs",
+    "unipile:conferir": "node scripts/unipile/conferir.mjs",
     "v18:verificar": "node scripts/v18/convert.mjs --verificar",
     "verificar": "node scripts/v18/convert.mjs --verificar && tsc --noEmit && npx supabase db reset && npx supabase test db && vitest run && vite build",
     "prepare": "git config core.hooksPath .githooks",

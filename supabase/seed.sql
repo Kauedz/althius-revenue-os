@@ -120,6 +120,9 @@ VALUES
   ('c0000000-0000-0000-0000-000000000001', 'auto', 500, 5000, false)
 ON CONFLICT (workspace_id) DO NOTHING;
 
+-- ICP de demonstração da Evolut (ADR 0067/0069): a nota de fit e as chamas das contas saem dele. Cliente real começa sem ICP.
+UPDATE public.workspace_settings SET icp = '{"setores": ["Têxtil", "Agronegócio", "Metalurgia"]}'::jsonb WHERE workspace_id = 'a0000000-0000-0000-0000-000000000001';
+
 INSERT INTO public.credit_wallets (workspace_id, allowance_balance, topup_balance, reserved_balance, monthly_consumed)
 VALUES
   ('a0000000-0000-0000-0000-000000000001', 7950, 0, 0, 2050),

@@ -26,8 +26,8 @@ VALUES ('ca000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-0000000
 
 SELECT results_eq(
   $$ SELECT name, segment, fit, temperature FROM public.accounts WHERE id = 'ca000000-0000-0000-0000-000000000001' $$,
-  $$ VALUES ('Conta Exemplo'::text, 'Têxtil'::text, 5::integer, 3::integer) $$,
-  'Campos de segmento gravados; fit calculado (site 2 + cidade 3)'
+  $$ VALUES ('Conta Exemplo'::text, 'Têxtil'::text, 5::integer, 1::integer) $$,
+  'Campos de segmento gravados; fit calculado (site 2 + cidade 3) e chama pela nota (fit 5: 1 chama)'
 );
 
 -- RLS: Membro da Evolut lê as contas da Evolut

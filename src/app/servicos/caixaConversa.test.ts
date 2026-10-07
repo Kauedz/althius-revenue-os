@@ -2,7 +2,7 @@
 // de tempo; cada mensagem com o canal e quem enviou. A visibilidade é a do banco (BDR só a própria conexão).
 import { describe, expect, it } from 'vitest';
 import { agruparPorEmpresa, listarCaixaPorEmpresa, responderNaCaixa } from './caixa';
-import { bancoLocalNoAr, entrarComoLocal } from '../../test/supabaseLocal';
+import { adminLocal, bancoLocalNoAr, entrarComoLocal } from '../../test/supabaseLocal';
 
 const EVOLUT = 'a0000000-0000-0000-0000-000000000001';
 const GRAO = 'b0000000-0000-0000-0000-000000000001';
@@ -35,9 +35,9 @@ describe('agrupar por empresa (unitário)', () => {
     ]);
   });
 
-  it('para responder: a pessoa e o canal de cada conversa; só e-mail e WhatsApp da própria conta enviam por aqui', () => {
+  it('para responder: a pessoa e o canal de cada conversa; todo canal (e-mail, WhatsApp, LinkedIn e Instagram) envia, mas só pela conta própria', () => {
     expect(empresas[0].destinos).toEqual([
-      { conversaId: 'c1', rotulo: 'Ana · LinkedIn', podeEnviar: false, motivo: 'Responder pelo LinkedIn ainda não é possível por aqui: responda pelo app e a mensagem aparece nesta conversa.' },
+      { conversaId: 'c1', rotulo: 'Ana · LinkedIn', podeEnviar: true, motivo: null },
       { conversaId: 'c2', rotulo: 'Bruno · E-mail', podeEnviar: true, motivo: null }
     ]);
     expect(empresas[1].destinos[0]).toMatchObject({ podeEnviar: false, motivo: 'Só quem conectou esta conta responde por ela.' });
@@ -67,10 +67,25 @@ describe.skipIf(!bancoLocalNoAr)('Caixa em conversa (banco local)', () => {
     expect(JSON.stringify(await listarCaixaPorEmpresa(eduardo, GRAO))).not.toMatch(/Serra Azul|Jonas/);
   });
 
-  it('responder pelo LinkedIn é recusado com a explicação', async () => {
+  it('responder pelo LinkedIn entra na fila de envio (dentro da conversa que já existe); a reserva é devolvida no fim do teste', async () => {
     const lucas = await entrarComoLocal('lucas@evolut.com.br');
-    const r = await responderNaCaixa(lucas, EVOLUT, 'd0000000-0000-0000-0000-000000000004', 'c5000000-0000-0000-0000-000000000001', 'Oi', '', crypto.randomUUID());
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.mensagem).toMatch(/LinkedIn/);
+    const marca = 'Teste-LinkedIn-' + crypto.randomUUID();
+    const r = await responderNaCaixa(lucas, EVOLUT, 'd0000000-0000-0000-0000-000000000004', 'c5000000-0000-0000-0000-000000000001', marca, '', crypto.randomUUID());
+    const admin = adminLocal();
+    try {
+      expect(r.ok).toBe(true);
+      const { data } = await admin.from('inbox_replies').select('estado, conversation_id').eq('workspace_id', EVOLUT).eq('texto', marca);
+      expect(data).toEqual([{ estado: 'reservada', conversation_id: 'c5000000-0000-0000-0000-000000000001' }]);
+    } finally {
+      const { data } = await admin.from('inbox_replies').select('id, execution_id, estado').eq('workspace_id', EVOLUT).eq('texto', marca);
+      for (const x of data || []) {
+        if (x.estado === 'reservada') await admin.from('inbox_replies').update({ estado: 'enviando' }).eq('id', x.id);
+        await admin.rpc('inbox_reply_finish', { p_id: x.id, p_ok: false, p_external_message_id: null, p_error: 'teste', p_external_chat_id: null });
+        await admin.from('notifications').delete().eq('type', 'resposta_falhou');
+        await admin.from('inbox_replies').delete().eq('id', x.id);
+        await admin.from('credit_transactions').delete().like('idempotency_key', 'resposta:' + x.id + '%');
+        if (x.execution_id) await admin.from('executions').delete().eq('id', x.execution_id);
+      }
+    }
   });
 });

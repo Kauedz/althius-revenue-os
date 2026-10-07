@@ -37,6 +37,7 @@ describe.skipIf(!bancoLocalNoAr)('tela de Estratégia (banco local)', () => {
   it('ICP (ADR 0067): a estrategista edita pela tela e a linha mostra o resumo; BDR não tem o botão', async () => {
     cleanup();
     const adm = adminLocal();
+    const icpOriginal = (await adm.from('workspace_settings').select('icp').eq('workspace_id', 'a0000000-0000-0000-0000-000000000001').single()).data?.icp ?? {};
     await adm.from('workspace_settings').update({ icp: {} }).eq('workspace_id', 'a0000000-0000-0000-0000-000000000001');
     try {
       await entrar('camila@althius.com.br', 'evolut');
@@ -57,7 +58,7 @@ describe.skipIf(!bancoLocalNoAr)('tela de Estratégia (banco local)', () => {
       expect(await screen.findByText(/CNAE: 8630504/, {}, { timeout: 8000 })).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Editar ICP' })).not.toBeInTheDocument();
     } finally {
-      await adm.from('workspace_settings').update({ icp: {} }).eq('workspace_id', 'a0000000-0000-0000-0000-000000000001');
+      await adm.from('workspace_settings').update({ icp: icpOriginal }).eq('workspace_id', 'a0000000-0000-0000-0000-000000000001');
     }
   });
 });

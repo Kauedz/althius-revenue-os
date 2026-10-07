@@ -49,23 +49,23 @@ SET LOCAL "request.jwt.claims" = '{"sub": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
 SET LOCAL ROLE authenticated;
 
 UPDATE public.accounts 
-SET temperature = 2 
+SET city = 'Campinas' 
 WHERE id = 'acc00000-0000-0000-0000-000000000001';
 
 SELECT is(
-  (SELECT temperature FROM public.accounts WHERE id = 'acc00000-0000-0000-0000-000000000001'),
-  2,
+  (SELECT city FROM public.accounts WHERE id = 'acc00000-0000-0000-0000-000000000001'),
+  'Campinas',
   'RLS: BDR deve conseguir editar a conta da qual e responsavel'
 );
 
 -- BDR 1 attempts to update BDR 2''s account (Beta Industries) -> blocked by RLS
 UPDATE public.accounts 
-SET temperature = 3 
+SET city = 'Niterói' 
 WHERE id = 'acc00000-0000-0000-0000-000000000002';
 
 SELECT is(
-  (SELECT temperature FROM public.accounts WHERE id = 'acc00000-0000-0000-0000-000000000002'),
-  1,
+  (SELECT city FROM public.accounts WHERE id = 'acc00000-0000-0000-0000-000000000002'),
+  'Rio de Janeiro',
   'RLS: BDR NAO pode atualizar conta sob responsabilidade de outro membro'
 );
 
@@ -73,12 +73,12 @@ SELECT is(
 SET LOCAL "request.jwt.claims" = '{"sub": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}';
 
 UPDATE public.accounts 
-SET temperature = 3 
+SET city = 'Niterói' 
 WHERE id = 'acc00000-0000-0000-0000-000000000002';
 
 SELECT is(
-  (SELECT temperature FROM public.accounts WHERE id = 'acc00000-0000-0000-0000-000000000002'),
-  3,
+  (SELECT city FROM public.accounts WHERE id = 'acc00000-0000-0000-0000-000000000002'),
+  'Niterói',
   'RLS: C-level pode atualizar qualquer conta no workspace'
 );
 

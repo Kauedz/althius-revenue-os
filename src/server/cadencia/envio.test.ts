@@ -47,6 +47,23 @@ describe('mensageiroViaApi', () => {
     expect(chamadas[0].url).toBe(`${URL}/v2/acc-1/chats/send`);
     expect(chamadas[0].corpo).toEqual({ [CAMPO_USUARIOS_DO_CHAT]: ['5511900000001@s.whatsapp.net'], text: 'Olá' });
   });
+  it('LinkedIn (ADR 0069): responde dentro do chat que já existe, só com o texto', async () => {
+    const { f, chamadas } = fetchFalso(201, { message_id: 'm-li' });
+    const r = await mensageiroViaApi(cfg(), f).enviar({ ...pedido, canal: 'linkedin', chatId: 'chat/li 1', assunto: null });
+    expect(r).toEqual({ ok: true, mensagemId: 'm-li', chatId: null });
+    expect(chamadas[0].url).toBe(`${URL}/v2/acc-1/chats/chat%2Fli%201/messages/send`);
+    expect(chamadas[0].corpo).toEqual({ text: 'Olá' });
+  });
+  it('Instagram: mesmo caminho do LinkedIn (dentro do chat)', async () => {
+    const { f, chamadas } = fetchFalso(200, { id: 'm-ig' });
+    await mensageiroViaApi(cfg(), f).enviar({ ...pedido, canal: 'instagram', chatId: 'ig-77', assunto: null });
+    expect(chamadas[0].url).toBe(`${URL}/v2/acc-1/chats/ig-77/messages/send`);
+  });
+  it('LinkedIn sem chat: recusa definitiva e nenhuma chamada (nunca começa conversa nova nem InMail)', async () => {
+    const { f, chamadas } = fetchFalso(200);
+    expect(await mensageiroViaApi(cfg(), f).enviar({ ...pedido, canal: 'linkedin', chatId: null, assunto: null })).toMatchObject({ ok: false, definitivo: true });
+    expect(chamadas).toHaveLength(0);
+  });
   it('trocar a chave vale no próximo envio, sem recriar o mensageiro', async () => {
     const { f, chamadas } = fetchFalso(200, { id: 'x' });
     let chave = 'antiga';

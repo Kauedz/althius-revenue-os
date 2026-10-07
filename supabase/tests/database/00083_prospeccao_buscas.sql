@@ -32,6 +32,8 @@ SELECT ok(NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schem
   'Nenhuma coluna em dólar nas tabelas que o cliente lê');
 
 -- ---- Cenário
+-- O teste não depende do preço comercial (que o superadmin muda): fixa em 1 crédito por empresa.
+UPDATE internal.prospect_sources SET creditos_por_empresa = 1;
 INSERT INTO public.credit_wallets (workspace_id, allowance_balance, topup_balance, reserved_balance, allowance_expires_at)
   VALUES ('a0000000-0000-0000-0000-000000000001', 1000, 0, 0, now() + interval '20 days'),
          ('b0000000-0000-0000-0000-000000000001', 1000, 0, 0, now() + interval '20 days')

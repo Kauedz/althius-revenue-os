@@ -26,8 +26,16 @@ describe('respostas da Caixa de entrada', () => {
     const mensageiro: Mensageiro = { enviar: async p => { envios.push(p); return { ok: true, mensagemId: 'm-1', chatId: 'chat-1' }; } };
     const r = await rodarRespostas({ banco: b, mensageiro, log: () => {} });
     expect(r).toEqual({ vistas: 1, enviadas: 1, falhas: 0, incertas: 0 });
-    expect(envios[0]).toEqual({ contaExterna: 'conta-lucas', canal: 'email', destinatario: 'jonas@serraazul.test', assunto: 'Re: conversa', texto: 'Combinado.', chaveIdempotencia: 'resposta:r-1' });
+    expect(envios[0]).toEqual({ contaExterna: 'conta-lucas', canal: 'email', destinatario: 'jonas@serraazul.test', assunto: 'Re: conversa', texto: 'Combinado.', chaveIdempotencia: 'resposta:r-1', chatId: null });
     expect(concluidas).toEqual([{ id: 'r-1', ok: true, msg: 'm-1', erro: null }]);
+  });
+
+  it('LinkedIn e Instagram (ADR 0069): o id do chat que já existe segue para o mensageiro', async () => {
+    const { b } = banco([resposta(1, { channel: 'linkedin', recipient: 'chat-li-9', chat_id: 'chat-li-9' }), resposta(2, { channel: 'instagram', recipient: 'ig-3', chat_id: 'ig-3' })]);
+    const envios: any[] = [];
+    const mensageiro: Mensageiro = { enviar: async p => { envios.push(p); return { ok: true, mensagemId: 'm', chatId: null }; } };
+    expect(await rodarRespostas({ banco: b, mensageiro, log: () => {} })).toMatchObject({ enviadas: 2 });
+    expect(envios.map(e => [e.canal, e.chatId])).toEqual([['linkedin', 'chat-li-9'], ['instagram', 'ig-3']]);
   });
 
   it('o provedor recusou (definitivo): conclui como falha (devolve o crédito)', async () => {

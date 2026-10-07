@@ -84,7 +84,7 @@ SELECT is((public.signal_collect_finish((SELECT run_id FROM alvo), jsonb_build_a
 ), 12, 0.0123))->>'eventos_novos', '2', 'Dois acontecimentos novos (a repetição não conta)');
 SELECT is((SELECT count(*)::int FROM public.signal_events WHERE account_id = (SELECT account_id FROM alvo)), 2, 'Dois eventos gravados');
 SELECT is((SELECT payload->>'texto' FROM public.signal_events WHERE account_id = (SELECT account_id FROM alvo) AND event_key = 'vaga|e1|analista|2026'), 'Abriu vaga de Analista', 'O texto do evento vai no payload que a tela lê');
-SELECT is((SELECT temperature FROM public.accounts WHERE id = (SELECT account_id FROM alvo)), 2, 'A conta esquentou um nível, não um por evento');
+SELECT is((SELECT (fit_partes->1->>'pontos')::int FROM public.accounts WHERE id = (SELECT account_id FROM alvo)), 18, 'A nota de fit conta os 2 sinais novos (18 pontos), não um por tentativa');
 SELECT is((SELECT estado FROM internal.signal_runs WHERE id = (SELECT run_id FROM alvo)), 'ok', 'Execução concluída');
 SELECT is((SELECT custo_usd FROM internal.signal_runs WHERE id = (SELECT run_id FROM alvo)), 0.0123::numeric, 'O custo real fica só na execução interna');
 SELECT is((SELECT monthly_consumed FROM public.credit_wallets WHERE workspace_id = 'a0000000-0000-0000-0000-000000000001'), 5, 'Cobrou os 5 créditos do sinal');

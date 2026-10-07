@@ -53,6 +53,12 @@ export function mensageiroViaApi(obterConfig: ObterConfig, buscar: typeof fetch 
           custom_headers: [{ name: 'X-Althius-Envio', value: p.chaveIdempotencia }]
         });
       }
+      // LinkedIn e Instagram (ADR 0069): responde dentro do chat que já existe, sem criar conversa nova (sem convite nem InMail).
+      // Conferido na documentação v2 da Unipile: POST /v2/{conta}/chats/{chat}/messages/send com { text }. Ainda não testado em conta real.
+      if (p.canal === 'linkedin' || p.canal === 'instagram') {
+        if (!p.chatId) return Promise.resolve({ ok: false, erro: 'conversa sem chat no canal', definitivo: true });
+        return chamar(`${conta(p)}/chats/${encodeURIComponent(p.chatId)}/messages/send`, { text: p.texto });
+      }
       return chamar(`${conta(p)}/chats/send`, { [CAMPO_USUARIOS_DO_CHAT]: [whatsappId(p.destinatario)], text: p.texto });
     }
   };

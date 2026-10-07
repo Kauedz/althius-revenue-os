@@ -1,6 +1,6 @@
 // Estratégia ligada ao banco (ADR 0064): mostra só o que existe. Não há tabela de ICP; o ICP mora no Playbook de cada agente
 // (ADR 0057). Seed: a Evolut tem os 4 Playbooks publicados; o Grão Norte não tem nenhum. Ambos têm as personas alvo padrão.
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { adminLocal, bancoLocalNoAr, entrarComoLocal } from '../../test/supabaseLocal';
 import { estrategiaVazia, listarEstrategia, resumoDoIcp, resumoDoPlaybook, salvarIcp } from './estrategia';
 
@@ -30,7 +30,10 @@ describe('ICP estruturado (ADR 0067)', () => {
 
 describe.skipIf(!bancoLocalNoAr)('ICP na Estratégia (banco local)', () => {
   const adm = adminLocal();
-  afterAll(async () => { await adm.from('workspace_settings').update({ icp: {} }).eq('workspace_id', EVOLUT); });
+  // O ICP de demonstração do seed volta como estava (as chamas das contas dependem dele).
+  let icpOriginal: unknown = {};
+  beforeAll(async () => { icpOriginal = (await adm.from('workspace_settings').select('icp').eq('workspace_id', EVOLUT).single()).data?.icp ?? {}; });
+  afterAll(async () => { await adm.from('workspace_settings').update({ icp: icpOriginal }).eq('workspace_id', EVOLUT); });
 
   it('sem ICP: a linha diz "Não definido" (nada inventado); a estrategista grava e a linha mostra o resumo', async () => {
     await adm.from('workspace_settings').update({ icp: {} }).eq('workspace_id', EVOLUT);

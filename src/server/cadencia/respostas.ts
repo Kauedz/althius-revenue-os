@@ -2,13 +2,15 @@
 // a política e reservou os créditos (inbox_reply); aqui se pega (inbox_reply_claim), envia pelo mesmo mensageiro e
 // conclui (inbox_reply_finish). Mesma garantia do motor: no máximo um envio por resposta; se o resultado for incerto,
 // não se reenvia nem se conclui: fica "enviando" para uma pessoa conferir. O log nunca leva destinatário nem texto.
-import type { Canal, Mensageiro } from './motor.ts';
+import type { CanalResposta, Mensageiro } from './motor.ts';
 
 export interface RespostaParaEnviar {
   id: string;
   execution_id: string;
-  channel: Canal;
+  channel: CanalResposta;
   recipient: string;
+  /** id do chat que já existe na Unipile (LinkedIn e Instagram respondem dentro dele) */
+  chat_id?: string | null;
   subject: string | null;
   body: string;
   unipile_account_id: string;
@@ -33,7 +35,7 @@ export async function rodarRespostas(d: { banco: BancoRespostas; mensageiro: Men
     let envio;
     try {
       envio = await d.mensageiro.enviar({
-        contaExterna: x.unipile_account_id, canal: x.channel, destinatario: x.recipient, assunto: x.subject, texto: x.body, chaveIdempotencia: x.idempotency_key
+        contaExterna: x.unipile_account_id, canal: x.channel, destinatario: x.recipient, assunto: x.subject, texto: x.body, chaveIdempotencia: x.idempotency_key, chatId: x.chat_id ?? null
       });
     } catch (e) {
       envio = { ok: false as const, erro: e instanceof Error ? e.message : 'erro', definitivo: false };

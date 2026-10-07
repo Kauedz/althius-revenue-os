@@ -58,13 +58,14 @@ describe.skipIf(!bancoLocalNoAr)('Caixa de entrada em conversa (banco local)', (
     expect(within(log).getAllByText('Adiar').length).toBeGreaterThan(0); // intenção como etiqueta
   });
 
-  it('responder: escolhe a pessoa e o canal; LinkedIn explica que ainda não envia; e-mail vai para a fila de envio', async () => {
+  it('responder: escolhe a pessoa e o canal; LinkedIn também responde (dentro da conversa); e-mail vai para a fila de envio', async () => {
     const lista = await entrarNaCaixa('lucas@evolut.com.br');
     fireEvent.click(within(lista).getByText('Serra Azul Têxtil'));
     const destino = await screen.findByLabelText('Responder para', {}, { timeout: 8000 });
     fireEvent.change(destino, { target: { value: CONVERSA_ALINE } });
-    expect(await screen.findByText(/Responder pelo LinkedIn ainda não é possível por aqui/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Enviar resposta' })).toBeDisabled();
+    await screen.findByText(/Responder para/);
+    expect(screen.queryByText(/ainda não é possível por aqui/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Enviar resposta' })).toBeInTheDocument();
     fireEvent.change(destino, { target: { value: 'c5000000-0000-0000-0000-000000000003' } });
     fireEvent.change(screen.getByLabelText('Sua resposta'), { target: { value: 'Combinado, Jonas. ' + MARCA } });
     fireEvent.click(screen.getByRole('button', { name: 'Enviar resposta' }));

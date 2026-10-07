@@ -311,7 +311,7 @@ describe.skipIf(!bancoLocalNoAr)('Contas e leads (banco local)', () => {
     expect(serraAzul).toMatchObject({
       nome: 'Serra Azul Têxtil',
       segmento: 'Têxtil',
-      temperatura: 3,
+      temperatura: 2, // fit 68 (ICP 60 + dados 8): 2 chamas; chega a 3 com 70 (ADR 0069)
       sinal: 'Vaga aberta · Gerente de Importação',
       dono: 'Lucas Teixeira',
       cidade: 'São Paulo, SP',

@@ -43,6 +43,7 @@ import { arquivarNegocio, atualizarNegocio, criarNegocio, criarQuadro, excluirQu
 import { adiarTarefa, criarTarefa, listarTarefas, mudarStatusTarefa, tarefasVazias, type TarefasTela } from './servicos/tarefas';
 import { CANAIS_CAMPANHA, campanhasVazias, criarCampanha, listarCampanhas, mudarStatusCampanha, mudarVerba, type CampanhasTela } from './servicos/campanhas';
 import { estrategiaVazia, listarEstrategia, salvarIcp, type EstrategiaTela } from './servicos/estrategia';
+import { kpisDaColeta, lerPainelDeColeta, salvarTetoDeSinais, type PainelColeta } from './servicos/coleta';
 import { adicionarPasso, cadenciasVazias, CANAL_PASSO, DICA_VARIAVEIS, inscreverContato, listarCadencias, removerUltimoPasso, salvarCadencia, type CadenciasTela } from './servicos/cadencias';
 import { nomeDoAgente } from './agentes-exibicao';
 import { abrirConversa, arquivarConversa, listarConversas, tituloDaPrimeiraMensagem, type ConversaDireta } from './servicos/conversaDireta';
@@ -763,6 +764,10 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const mod = (window as any).ALTHIUS_MOD;
     if (!mod?.signals) return;
     mod.signals.kpis = sinais.kpis.map(k => [k.label, k.valor, k.delta]);
+    // Coleta do mês e teto de sinais (ADR 0069): só porcentagem e créditos, nunca dólar.
+    const coleta = this.state?.coletaPainel as PainelColeta | undefined;
+    if (coleta) mod.signals.kpis = mod.signals.kpis.concat(kpisDaColeta(coleta));
+    mod.signals.acao = coleta?.podeEditarTeto ? { label: 'Ajustar teto de sinais' } : null;
     mod.signals.linhas = sinais.eventos;
     mod.signals.acoesLinha = [];
     // A coleta (Apify) ainda não está ligada: nada busca sinais sozinho. A tela diz isso em vez de parecer que coleta.
@@ -1075,6 +1080,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (rota.page === 'prospecting' && !(this.state.pronto && !prev.pronto)) void this.recarregarProspeccao();
     if (rota.page === 'campaigns') void this.carregarCampanhas();
     if (rota.page === 'strategy') void this.carregarEstrategia();
+    if (rota.page === 'signals') void this.carregarPainelDeColeta();
     if (rota.page === 'cadences') void this.carregarCadencias();
     if (String(rota.page || '').startsWith('admin/')) void this.carregarAdmin(rota.page);
     if (rota.ws !== antes.ws || (this.state.pronto && !prev.pronto)) { void this.carregarConexoes(); void this.carregarCanais(); void this.carregarAprendizado(); }
@@ -1421,6 +1427,31 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
 
   private icpAtual: Record<string, unknown> = {};
 
+  private cargaColeta = 0;
+
+  /** Coleta do mês e teto de sinais (ADR 0069). Em falha, o painel some: nada de número inventado. */
+  async carregarPainelDeColeta() {
+    const ws = this.workspaceAtual();
+    const carga = ++this.cargaColeta;
+    if (this.modoDemo !== false || !ws?.membroId) return;
+    try {
+      const p = await lerPainelDeColeta(this.props.supabase, ws.uuid, ws.membroId);
+      if (!this.vivo || carga !== this.cargaColeta) return;
+      this.state = { ...this.state, coletaPainel: p };
+      this.publicarSinais(this.state.sinaisReais || sinaisSemDados());
+      this.setState({ coletaVersao: carga, coletaPainel: p });
+    } catch (falha) {
+      if (this.vivo && carga === this.cargaColeta) this.avisarFalha('Não foi possível carregar a coleta do mês', falha);
+    }
+  }
+
+  private abrirAjusteDoTeto() {
+    const p = this.state.coletaPainel as PainelColeta | undefined;
+    this.abrirFormulario({ tipo: 'teto_sinais', titulo: 'Teto mensal de sinais', salvarLabel: 'Salvar teto', campos: [
+      { k: 'teto', label: 'Créditos de sinais por mês (0 desliga os sinais automáticos)', valor: p ? String(p.sinaisTeto) : '2000', placeholder: 'Ex.: 2000' }
+    ] });
+  }
+
   private abrirEditarIcp() {
     const icp = this.icpAtual;
     const lista = (k: string) => (Array.isArray(icp[k]) ? (icp[k] as unknown[]).join(', ') : '');
@@ -1504,7 +1535,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   private formularioDoModulo(v: Record<string, any>) {
     const f = this.state.formModulo as { tipo: string; titulo: string; salvarLabel: string; erro: string; campos: Array<Record<string, any>> } | undefined;
     const pagina = (this.state.rota || {}).page;
-    if (!f || !v.md || !['campaigns', 'cadences', 'admin/providers', 'accounts', 'pipeline', 'prospecting', 'strategy'].includes(pagina)) return;
+    if (!f || !v.md || !['campaigns', 'cadences', 'admin/providers', 'accounts', 'pipeline', 'prospecting', 'strategy', 'signals', 'admin/usage'].includes(pagina)) return;
     v.md.form = {
       titulo: f.titulo,
       campos: f.campos.map(c => ({
@@ -1531,6 +1562,15 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const f = this.state.formModulo as { tipo: string; id?: string; extra?: Record<string, any>; campos: Array<{ k: string; valor: string }> } | undefined;
     const ws = this.workspaceAtual();
     if (f?.tipo === 'cofre_nova') return this.enviarChaveNova(f.campos);
+    if (f?.tipo === 'orcamento_coleta') {
+      const usd = AlthiusApp.numeroBR(String(f.campos.find(c => c.k === 'orcamento')?.valor ?? ''));
+      const r = await admin.ajustarOrcamentoDeColeta(this.props.supabase, f.id!, usd);
+      if (!r.ok) return this.setState({ formModulo: Object.assign({}, this.state.formModulo, { erro: r.mensagem }) });
+      if (!this.vivo) return;
+      this.setState({ formModulo: undefined });
+      await this.carregarAdmin('admin/usage');
+      return this.avisar('mod', 'Orçamento de coleta salvo.');
+    }
     if (!f || !ws?.membroId) return;
     const val = (k: string) => (f.campos.find(c => c.k === k)?.valor ?? '').trim();
     const falhou = (erro: string) => this.setState({ formModulo: Object.assign({}, this.state.formModulo, { erro }) });
@@ -1544,6 +1584,15 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       this.setState({ formModulo: undefined });
       await this.carregarEstrategia();
       return this.avisar('mod', 'ICP salvo. A Zoe passa a usar nas próximas buscas.');
+    }
+    if (f.tipo === 'teto_sinais') {
+      const teto = AlthiusApp.numeroBR(val('teto'));
+      const r = await salvarTetoDeSinais(sb, ws.uuid, ws.membroId, teto);
+      if (!r.ok) return falhou(r.mensagem);
+      if (!this.vivo) return;
+      this.setState({ formModulo: undefined });
+      await this.carregarPainelDeColeta();
+      return this.avisar('mod', teto === 0 ? 'Sinais automáticos desligados neste cliente.' : 'Teto de sinais salvo.');
     }
     if (f.tipo === 'site_candidata') {
       if (!normalizarDominio(val('site'))) return falhou('Informe só o site da empresa, como empresa.com.br.');
@@ -1661,6 +1710,12 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     }
     if (page === 'admin/providers') {
       void this.acaoNaChave(acao, linha as any);
+      return true;
+    }
+    if (page === 'admin/usage') {
+      this.abrirFormulario({ tipo: 'orcamento_coleta', id: linha.id, titulo: 'Orçamento de coleta do mês', salvarLabel: 'Salvar orçamento', campos: [
+        { k: 'orcamento', label: 'Dólares por mês que a Althius aceita gastar com a coleta (Apify) deste cliente', valor: '50', placeholder: 'Ex.: 50 (0 trava a coleta)' }
+      ] });
       return true;
     }
     if (page === 'inbox') {
@@ -1826,7 +1881,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     'admin/workspaces': { titulo: 'Workspaces', sub: 'Clientes da Althius', busca: true, filtro: 'status',
       colunas: [['nome', 'Cliente', '2fr'], ['slug', 'Endereço', '1fr'], ['clevel', 'C-level', '1.4fr'], ['membros', 'Membros', '90px'], ['saldo', 'Saldo', '1.2fr'], ['status', 'Status', '1fr']] },
     'admin/usage': { titulo: 'Uso global', sub: 'Consumo de créditos por cliente no ciclo', busca: true,
-      colunas: [['nome', 'Cliente', '2fr'], ['consumido', 'Consumido no ciclo', '1.4fr'], ['saldo', 'Saldo', '1.2fr'], ['execucoes', 'Execuções no mês', '1fr'], ['tokens', 'Tokens do modelo no mês', '1.2fr'], ['custoModelo', 'Custo real do modelo', '1.2fr'], ['ultimo', 'Último uso', '1fr']] },
+      colunas: [['nome', 'Cliente', '2fr'], ['consumido', 'Consumido no ciclo', '1.4fr'], ['saldo', 'Saldo', '1.2fr'], ['execucoes', 'Execuções no mês', '1fr'], ['tokens', 'Tokens do modelo no mês', '1.2fr'], ['coleta', 'Coleta no mês / orçamento', '1.6fr'], ['coletaPct', 'Usado', '80px'], ['custoModelo', 'Custo real do modelo', '1.2fr'], ['ultimo', 'Último uso', '1fr']] },
     'admin/providers': { titulo: 'Fornecedores', sub: 'Chaves de coleta, mensagens e modelo de IA. Só os 4 últimos caracteres aparecem.', filtro: 'tipo',
       colunas: [['nome', 'Fornecedor', '1.6fr'], ['tipo', 'Tipo', '1.4fr'], ['status', 'Status', '1fr'], ['uso', 'Custo real no mês', '1.2fr'], ['detalhe', 'Detalhe', '2fr']] },
     'admin/margins': { titulo: 'Margens', sub: 'Preço em créditos de cada capacidade', busca: true,
@@ -1866,6 +1921,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
         ['Gerar chaves dos agentes', ''],
         ['Revogar chaves dos agentes', '', null, true, 'As chaves dos agentes de {x} param de funcionar na hora. O Hermes Agent desse cliente fica sem acesso até gerar novas.']
       ];
+      if (pagina === 'admin/usage') mod.acoesLinha = [['Ajustar orçamento de coleta', '']];
       if (pagina === 'admin/providers') mod.acoesLinha = [
         ['Testar chave', ''],
         ['Ativar ou desativar', ''],
@@ -2036,6 +2092,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     if (page === 'accounts') { this.abrirNovaConta(); return true; }
     if (page === 'prospecting') { this.ir('app/' + this.wsId() + '/agents/comercial'); return true; }
     if (page === 'strategy') { this.abrirEditarIcp(); return true; }
+    if (page === 'signals') { this.abrirAjusteDoTeto(); return true; }
     if (page === 'campaigns') {
       this.abrirFormulario({ tipo: 'nova_campanha', titulo: 'Nova campanha', salvarLabel: 'Criar campanha', campos: [
         { k: 'nome', label: 'Nome da campanha', valor: '', placeholder: 'Ex.: Importação sem risco · Q4' },
