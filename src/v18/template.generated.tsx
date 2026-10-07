@@ -5377,7 +5377,7 @@ export function renderTemplate($v: Record<string, any>) {
                   {"\n              "}
                   <span style={{"flex":"1 1 auto"}}></span>
                   {"\n              "}
-                  {$v.md?.temAcao ? (<>
+                  {$v.md?.temAcao2 ? (<button className={"b-sec"} onClick={$v.md?.acao2} style={{"height":"44px","padding":"0 16px","border":"1px solid var(--ink)","borderRadius":"10px","background":"var(--paper)","color":"var(--ink)","fontFamily":"inherit","fontSize":"14px","cursor":"pointer"}}>{__t($v.md?.acao2Label)}</button>) : null}{$v.md?.temAcao ? (<>
                     {"\n                "}
                     <button className={"b-pri"} onClick={$v.md?.acao} style={{"height":"44px","padding":"0 18px","border":"1px solid var(--ink)","background":"var(--ink)","color":"var(--paper)","fontFamily":"inherit","fontSize":"14px","fontWeight":"500","cursor":"pointer","whiteSpace":"nowrap","borderRadius":"10px"}}>
                       {__t($v.md?.acaoLabel)}
@@ -5616,7 +5616,7 @@ export function renderTemplate($v: Record<string, any>) {
                                   </span>
                                   <span className={"pk-tag"}>
                                     {__t(c?.motion)}
-                                  </span>
+                                  </span><button className={"icon-btn"} style={{"width":"26px","height":"26px","flex":"0 0 auto"}} onClick={c?.editar} aria-label={"Editar negócio de " + (c?.conta || "")} title="Editar negócio"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M14.5 5.5l4 4"></path><path d="M4 20l1-4.5L15.8 4.7a1.8 1.8 0 0 1 2.5 0l1 1a1.8 1.8 0 0 1 0 2.5L8.5 19z"></path></svg></button>
                                 </span>
                                 {"\n                            "}
                                 <span className={"pk-dono"}>
@@ -6028,7 +6028,7 @@ export function renderTemplate($v: Record<string, any>) {
                   {"\n            "}
                 </span>
                 {"\n            "}
-                <button className={"b-sec"} onClick={$v.cta?.fechar} aria-label="Fechar" style={{"flex":"none","width":"40px","height":"40px","border":"1px solid var(--rule)","borderRadius":"10px","background":"var(--paper)","color":"var(--ink)","cursor":"pointer","display":"grid","placeItems":"center"}}>
+                {$v.cta?.podePipeline ? (<button className={"b-sec mini-btn"} onClick={$v.cta?.adicionarPipeline} style={{"flex":"none","height":"40px"}}>{"Adicionar ao Pipeline"}</button>) : null}<button className={"b-sec"} onClick={$v.cta?.fechar} aria-label="Fechar" style={{"flex":"none","width":"40px","height":"40px","border":"1px solid var(--rule)","borderRadius":"10px","background":"var(--paper)","color":"var(--ink)","cursor":"pointer","display":"grid","placeItems":"center"}}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M6 6l12 12M18 6L6 18"></path>
                   </svg>

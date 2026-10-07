@@ -917,5 +917,43 @@ export const PATCHES = [
     arquivo: 'logic.generated.js',
     trocar: "if (page === 'pipeline' || page === 'credits') { md.tabela = false; md.kanban = false; md.vazio = false; }",
     por: "md.mostraAutomaticos = !(page === 'analytics' && this.modoDemo === false); if (page === 'pipeline' || page === 'credits' || !md.mostraAutomaticos) { md.tabela = false; md.kanban = false; md.vazio = false; md.filtros = []; }"
+  },
+  {
+    // ADR 0065: no modo real, o card do Pipeline abre a ficha da conta (como em Contas e leads); o lápis edita o negócio.
+    regra: 'pipeline: rótulo do card diz o que o Enter faz',
+    arquivo: 'logic.generated.js',
+    trocar: "rotulo: d.conta + ', ' + brl(d.valor) + ', ' + rot(d.etapa) + ', ' + s[0] + '. Enter para editar.',",
+    por: "rotulo: d.conta + ', ' + brl(d.valor) + ', ' + rot(d.etapa) + ', ' + s[0] + (this.modoDemo === false ? '. Enter para abrir a conta.' : '. Enter para editar.'),"
+  },
+  {
+    regra: 'pipeline: clicar no card abre a ficha da conta; o lápis edita o negócio',
+    arquivo: 'logic.generated.js',
+    trocar: "abrir: () => { if (!meu) { bloq(); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); },",
+    por: "editar: e => { if (e && e.stopPropagation) e.stopPropagation(); if (!meu) { bloq(); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); }, abrir: () => { if (this.modoDemo === false && d.cid) { this.abrirConta(d.cid, 'comite'); return; } if (!meu) { bloq(); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); },"
+  },
+  {
+    regra: 'pipeline: Enter no card abre a ficha da conta no modo real',
+    arquivo: 'logic.generated.js',
+    trocar: "tecla: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); } } }; }) }; }) };",
+    por: "tecla: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (this.modoDemo === false && d.cid) { this.abrirConta(d.cid, 'comite'); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); } } }; }) }; }) };"
+  },
+  {
+    regra: 'pipeline: lápis no card para editar o negócio',
+    arquivo: 'template.generated.tsx',
+    trocar: "<span className={\"pk-tag\"}>\n                                    {__t(c?.motion)}\n                                  </span>",
+    por: "<span className={\"pk-tag\"}>\n                                    {__t(c?.motion)}\n                                  </span><button className={\"icon-btn\"} style={{\"width\":\"26px\",\"height\":\"26px\",\"flex\":\"0 0 auto\"}} onClick={c?.editar} aria-label={\"Editar negócio de \" + (c?.conta || \"\")} title=\"Editar negócio\"><svg width=\"13\" height=\"13\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" strokeWidth=\"1.6\" strokeLinecap=\"round\" strokeLinejoin=\"round\" aria-hidden=\"true\"><path d=\"M14.5 5.5l4 4\"></path><path d=\"M4 20l1-4.5L15.8 4.7a1.8 1.8 0 0 1 2.5 0l1 1a1.8 1.8 0 0 1 0 2.5L8.5 19z\"></path></svg></button>"
+  },
+  {
+    // ADR 0065: segundo botão no topo das páginas de módulo (ex.: "Importar lista" em Contas, "Adicionar contas da base" no Pipeline).
+    regra: 'módulos: botão secundário no topo (acao2)',
+    arquivo: 'template.generated.tsx',
+    trocar: "<span style={{\"flex\":\"1 1 auto\"}}></span>\n                  {\"\\n              \"}\n                  {$v.md?.temAcao ? (<>",
+    por: "<span style={{\"flex\":\"1 1 auto\"}}></span>\n                  {\"\\n              \"}\n                  {$v.md?.temAcao2 ? (<button className={\"b-sec\"} onClick={$v.md?.acao2} style={{\"height\":\"44px\",\"padding\":\"0 16px\",\"border\":\"1px solid var(--ink)\",\"borderRadius\":\"10px\",\"background\":\"var(--paper)\",\"color\":\"var(--ink)\",\"fontFamily\":\"inherit\",\"fontSize\":\"14px\",\"cursor\":\"pointer\"}}>{__t($v.md?.acao2Label)}</button>) : null}{$v.md?.temAcao ? (<>"
+  },
+  {
+    regra: 'ficha da conta: botão "Adicionar ao Pipeline" (ADR 0065)',
+    arquivo: 'template.generated.tsx',
+    trocar: "<button className={\"b-sec\"} onClick={$v.cta?.fechar} aria-label=\"Fechar\"",
+    por: "{$v.cta?.podePipeline ? (<button className={\"b-sec mini-btn\"} onClick={$v.cta?.adicionarPipeline} style={{\"flex\":\"none\",\"height\":\"40px\"}}>{\"Adicionar ao Pipeline\"}</button>) : null}<button className={\"b-sec\"} onClick={$v.cta?.fechar} aria-label=\"Fechar\""
   }
 ];

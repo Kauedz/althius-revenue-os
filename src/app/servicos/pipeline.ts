@@ -127,3 +127,16 @@ export const moverNegocio = (c: SupabaseClient, ws: string, membro: string, nego
 
 export const arquivarNegocio = (c: SupabaseClient, ws: string, membro: string, negocioId: string) =>
   chamar(c, 'opportunity_archive', { p_workspace_id: ws, p_member_id: membro, p_opportunity_id: negocioId }, 'Não foi possível remover o negócio. Tente de novo.');
+
+export type ResultadoLevarContas = { ok: true; criados: number; jaEstavam: number; ignoradas: number } | { ok: false; mensagem: string };
+
+/**
+ * Leva contas da base para um quadro (ADR 0065): entram na primeira etapa, com valor 0; quem já está no quadro não duplica.
+ * A motion é a do quadro. Mesmas regras de criar negócio pela tela (o BDR só cria para si).
+ */
+export async function levarContasAoQuadro(c: SupabaseClient, ws: string, membro: string, quadroId: string, contaIds: string[]): Promise<ResultadoLevarContas> {
+  const { data, error } = await c.rpc('opportunity_add_accounts', { p_workspace_id: ws, p_member_id: membro, p_pipeline_id: quadroId, p_account_ids: contaIds });
+  if (error) return falhaDoBanco(error, 'Não foi possível levar as contas ao Pipeline. Tente de novo.');
+  const r = (data || {}) as { criados?: number; ja_estavam?: number; ignoradas?: number };
+  return { ok: true, criados: Number(r.criados) || 0, jaEstavam: Number(r.ja_estavam) || 0, ignoradas: Number(r.ignoradas) || 0 };
+}

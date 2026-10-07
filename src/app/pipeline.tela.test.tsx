@@ -93,7 +93,8 @@ describe.skipIf(!bancoLocalNoAr)('Pipeline e Tarefas (banco local)', () => {
     const { data: quadro } = await adm.from('pipelines').select('id').eq('workspace_id', WS).eq('motion', 'slg').single();
     const { data: negocio } = await adm.from('opportunities').insert({ workspace_id: WS, pipeline_id: quadro!.id, account_id: 'c0000000-0000-0000-0000-000000000001', title: 'Serra Azul Têxtil', amount: 30000, owner_member_id: 'd0000000-0000-0000-0000-000000000004' }).select('id').single();
     await entrar('lucas@evolut.com.br', 'pipeline', 'Serra Azul Têxtil');
-    fireEvent.click(screen.getAllByText('Serra Azul Têxtil')[0]);
+    // ADR 0065: o card abre a ficha da conta; o lápis edita o negócio.
+    fireEvent.click(screen.getByRole('button', { name: 'Editar negócio de Serra Azul Têxtil' }));
     const modal = await screen.findByRole('dialog', {}, { timeout: 8000 });
     fireEvent.click(within(modal).getByRole('button', { name: 'Proposta' }));
     fireEvent.click(within(modal).getByRole('button', { name: 'Salvar' }));

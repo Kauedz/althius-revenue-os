@@ -10,6 +10,7 @@ import * as execucoes from './servicos/execucoes';
 import * as contasServico from './servicos/contas';
 import * as relatoriosServico from './servicos/relatorios';
 import * as agentesServico from './servicos/agentes';
+import * as pipelineServico from './servicos/pipeline';
 
 const demo = { data: window.ALTHIUS_DATA!, caps: window.ALTHIUS_CAPS };
 const ESCOPOS: Record<string, [string, string, string, string]> = {
@@ -343,6 +344,100 @@ describe('enriquecimento de contas na tela (ADR 0062)', () => {
     fireEvent.change(await screen.findByLabelText('Site da empresa'), { target: { value: 'https://www.contadosite.com.br/' } });
     fireEvent.click(screen.getByRole('button', { name: 'Puxar logo' }));
     await waitFor(() => expect(editar).toHaveBeenCalledWith(expect.anything(), 'm-alfa', { id: 'c-site', dominio: 'contadosite.com.br' }));
+  });
+});
+
+describe('Pipeline e a ficha da conta (ADR 0065)', () => {
+  const conta = (): contasServico.ContaTela => ({
+    id: 'c-pipe', nome: 'Conta do Card', segmento: 'Têxtil', fit: 90, temperatura: 3, sinal: '—', dono: 'Pessoa Teste', cidade: 'São Paulo, SP', decisor: 'A mapear', ultimoContato: 'Sem contato ainda', comite: []
+  });
+  const pipeline = (): pipelineServico.PipelineTela => ({ quadros: {
+    slg: [{ id: 'q-slg', nome: 'SLG (Geral)', ordem: null, deals: [{ id: 'n1', cid: 'c-pipe', conta: 'Conta do Card', dono: 'Pessoa Teste', donoId: 'm-alfa', cidade: 'São Paulo, SP', fecha: '', valor: 0, etapa: 'entrada', status: 'ok', prob: 10 }] }],
+    mlg: [{ id: 'q-mlg', nome: 'MLG (Geral)', ordem: null, deals: [] }], plg: [{ id: 'q-plg', nome: 'PLG (Geral)', ordem: null, deals: [] }] } });
+
+  it('clicar no card do negócio abre a ficha da conta, como em Contas e leads', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue([conta()]);
+    vi.spyOn(pipelineServico, 'listarPipeline').mockResolvedValue(pipeline());
+    abrir(contexto([['alfa', 'estrategista']]), '#/app/alfa/pipeline');
+    const card = await screen.findByRole('button', { name: /^Conta do Card, R\$/ });
+    fireEvent.click(card);
+    const ficha = await screen.findByRole('dialog', { name: 'Conta do Card' });
+    expect(ficha.classList.contains('conta-drawer')).toBe(true);
+    expect(within(ficha).getByText('Comitê de compra')).toBeInTheDocument();
+  });
+
+  it('o lápis do card abre a edição do negócio (e não a ficha)', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue([conta()]);
+    vi.spyOn(pipelineServico, 'listarPipeline').mockResolvedValue(pipeline());
+    abrir(contexto([['alfa', 'estrategista']]), '#/app/alfa/pipeline');
+    fireEvent.click(await screen.findByRole('button', { name: 'Editar negócio de Conta do Card' }));
+    expect(await screen.findByRole('button', { name: 'Salvar' })).toBeInTheDocument();
+    expect(document.querySelector('.conta-drawer')).toBeNull();
+  });
+});
+
+describe('leads: adicionar, importar e levar ao Pipeline (ADR 0065)', () => {
+  const linha = (id: string, nome: string, extra: Partial<contasServico.ContaTela> = {}): contasServico.ContaTela => ({
+    id, nome, segmento: '—', fit: 50, temperatura: 1, sinal: '—', dono: 'Pessoa Teste', cidade: '—', decisor: 'A mapear', ultimoContato: 'Sem contato ainda', comite: [], ...extra
+  });
+  const base = () => [linha('c-quente', 'Conta Quente', { temperatura: 3, fit: 92 }), linha('c-fria', 'Conta Fria', { temperatura: 1, fit: 40 })];
+  const pipe = (): pipelineServico.PipelineTela => ({ quadros: { slg: [{ id: 'q-slg', nome: 'SLG (Geral)', ordem: null, deals: [] }], mlg: [{ id: 'q-mlg', nome: 'MLG (Geral)', ordem: null, deals: [] }], plg: [{ id: 'q-plg', nome: 'PLG (Geral)', ordem: null, deals: [] }] } });
+
+  it('"Adicionar conta" cria uma conta pelo formulário', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue(base());
+    const criar = vi.spyOn(contasServico, 'criarConta').mockResolvedValue({ id: 'c-nova', nome: 'Acme Ltda', dominio: 'acme.com.br' });
+    abrir(contexto([['alfa', 'estrategista']]), '#/app/alfa/accounts');
+    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar conta' }));
+    const form = await screen.findByRole('region', { name: 'Nova conta' });
+    fireEvent.change(within(form).getByLabelText('Nome da empresa'), { target: { value: 'Acme Ltda' } });
+    fireEvent.change(within(form).getByLabelText('Site'), { target: { value: 'https://www.acme.com.br/' } });
+    fireEvent.change(within(form).getByLabelText('Estado (UF)'), { target: { value: 'sp' } });
+    fireEvent.click(within(form).getByRole('button', { name: 'Criar conta' }));
+    await waitFor(() => expect(criar).toHaveBeenCalledWith(expect.anything(), 'id-alfa', 'm-alfa', { nome: 'Acme Ltda', dominio: 'https://www.acme.com.br/', uf: 'SP', cidade: undefined }));
+  });
+
+  it('"Importar lista" lê o CSV colado e importa; linha com problema não entra e o formulário avisa', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue(base());
+    const importar = vi.spyOn(contasServico, 'importarContas').mockResolvedValue({ total: 2, criadas: 2, duplicadas: 0 });
+    abrir(contexto([['alfa', 'estrategista']]), '#/app/alfa/accounts');
+    fireEvent.click(await screen.findByRole('button', { name: 'Importar lista' }));
+    const form = await screen.findByRole('region', { name: 'Importar lista de contas' });
+    fireEvent.change(within(form).getByLabelText(/Cole a lista/), { target: { value: ['nome;site;uf', 'Acme;acme.com.br;SP', 'Beta;beta.com.br;', 'Ruim;não é site;'].join('\n') } });
+    fireEvent.click(within(form).getByRole('button', { name: 'Importar' }));
+    expect(await within(form).findByRole('alert')).toHaveTextContent('linha 4: site inválido');
+    expect(importar).not.toHaveBeenCalled();
+    fireEvent.change(within(form).getByLabelText(/Cole a lista/), { target: { value: ['nome;site;uf', 'Acme;acme.com.br;SP', 'Beta;beta.com.br;'].join('\n') } });
+    fireEvent.click(within(form).getByRole('button', { name: 'Importar' }));
+    await waitFor(() => expect(importar).toHaveBeenCalledWith(expect.anything(), 'id-alfa', 'm-alfa', [{ name: 'Acme', domain: 'acme.com.br', state_uf: 'SP' }, { name: 'Beta', domain: 'beta.com.br' }]));
+  });
+
+  it('no Pipeline, "Adicionar contas da base" leva só as quentes ao quadro da motion aberta', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue(base());
+    vi.spyOn(pipelineServico, 'listarPipeline').mockResolvedValue(pipe());
+    const levar = vi.spyOn(pipelineServico, 'levarContasAoQuadro').mockResolvedValue({ ok: true, criados: 1, jaEstavam: 0, ignoradas: 0 });
+    abrir(contexto([['alfa', 'estrategista']]), '#/app/alfa/pipeline');
+    fireEvent.click(await screen.findByRole('button', { name: 'Adicionar contas da base' }));
+    const form = await screen.findByRole('region', { name: 'Adicionar contas ao Pipeline' });
+    fireEvent.change(within(form).getByLabelText('Quais contas'), { target: { value: 'quentes' } });
+    fireEvent.click(within(form).getByRole('button', { name: 'Adicionar ao quadro' }));
+    await waitFor(() => expect(levar).toHaveBeenCalledWith(expect.anything(), 'id-alfa', 'm-alfa', 'q-slg', ['c-quente']));
+  });
+
+  it('na ficha da conta, "Adicionar ao Pipeline" leva a conta ao quadro escolhido (motion MLG)', async () => {
+    vi.spyOn(contasServico, 'listarContas').mockResolvedValue(base());
+    vi.spyOn(pipelineServico, 'listarPipeline').mockResolvedValue(pipe());
+    const levar = vi.spyOn(pipelineServico, 'levarContasAoQuadro').mockResolvedValue({ ok: true, criados: 1, jaEstavam: 0, ignoradas: 0 });
+    abrir(contexto([['alfa', 'estrategista']]), '#/app/alfa/accounts');
+    fireEvent.click(await screen.findByText('Conta Fria'));
+    const ficha = await screen.findByRole('dialog', { name: 'Conta Fria' });
+    fireEvent.click(within(ficha).getByRole('button', { name: 'Adicionar ao Pipeline' }));
+    await screen.findByRole('region', { name: 'Levar Conta Fria ao Pipeline' });
+    // Ao trocar de página a tela redesenha o conteúdo depois do carregamento (320 ms): pega o formulário já assentado.
+    await act(async () => { await new Promise(r => setTimeout(r, 400)); });
+    const form = screen.getByRole('region', { name: 'Levar Conta Fria ao Pipeline' });
+    fireEvent.change(within(form).getByLabelText('Quadro'), { target: { value: 'q-mlg' } });
+    fireEvent.click(within(form).getByRole('button', { name: 'Adicionar ao quadro' }));
+    await waitFor(() => expect(levar).toHaveBeenCalledWith(expect.anything(), 'id-alfa', 'm-alfa', 'q-mlg', ['c-fria']));
   });
 });
 

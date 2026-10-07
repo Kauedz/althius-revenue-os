@@ -559,14 +559,14 @@ export class AlthiusLogic extends React.Component {
               drop: e => { e.preventDefault(); const d = this._drag; if (!d) return; if (d.tipo === 'card') moverCard(d.id, k, null); else moverEtapa(d.id, k); },
               itens: it.map(d => { const s = d.etapa === 'ganho' ? ['Ganho', C.ok] : SIT[d.status]; const f = this.fotoUsuario(d.dono); const meu = can('pipeline.deals') || d.dono === U.usuario, bloq = () => this.avisar('mod', 'Só ' + d.dono + ' ou um gestor mexe neste negócio.');
                 return { ...this.logoDe(d.cid, d.conta, 'co'), conta: d.conta, motion: mot.toUpperCase(), dono: d.dono, sigla: sigla(d.dono), foto: f, temFoto: !!f, prob: d.prob + '%', cor: s[1], status: s[0], cidade: d.cidade, fecha: fData(d.fecha), valor: brl(d.valor),
-                  rotulo: d.conta + ', ' + brl(d.valor) + ', ' + rot(d.etapa) + ', ' + s[0] + '. Enter para editar.',
+                  rotulo: d.conta + ', ' + brl(d.valor) + ', ' + rot(d.etapa) + ', ' + s[0] + (this.modoDemo === false ? '. Enter para abrir a conta.' : '. Enter para editar.'),
                   antes: alvo && alvo.tipo === 'card' && alvo.antes === d.id ? 'true' : 'false', arrastando: dg && dg.tipo === 'card' && dg.id === d.id ? 'true' : 'false',
                   dragStart: e => { if (!meu) { e.preventDefault(); bloq(); return; } try { e.dataTransfer.setData('text/plain', d.id); e.dataTransfer.effectAllowed = 'move'; } catch (x) {} this._drag = { tipo: 'card', id: d.id }; setTimeout(() => this.setState({ pipeDrag: { tipo: 'card', id: d.id } }), 0); },
                   dragEnd: fimDrag,
                   over: e => { if (!this._drag || this._drag.tipo !== 'card') return; e.preventDefault(); e.stopPropagation(); setAlvo({ tipo: 'card', col: k, antes: d.id }); },
                   drop: e => { if (!this._drag || this._drag.tipo !== 'card') return; e.preventDefault(); e.stopPropagation(); if (this._drag.id !== d.id) moverCard(this._drag.id, k, d.id); else fimDrag(); },
-                  abrir: () => { if (!meu) { bloq(); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); },
-                  tecla: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); } } }; }) }; }) };
+                  editar: e => { if (e && e.stopPropagation) e.stopPropagation(); if (!meu) { bloq(); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); }, abrir: () => { if (this.modoDemo === false && d.cid) { this.abrirConta(d.cid, 'comite'); return; } if (!meu) { bloq(); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); },
+                  tecla: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (this.modoDemo === false && d.cid) { this.abrirConta(d.cid, 'comite'); return; } this.setState({ pipeCard: Object.assign({ id: d.id }, d, { valor: String(d.valor) }) }); } } }; }) }; }) };
         v.md.acao = () => abrirNovo(ordem[0]);
       }
       if (st.pipeCard && v.pp.ativo) { const c = st.pipeCard, setC = o => this.setState({ pipeCard: Object.assign({}, this.state.pipeCard, o) }), contas = MOD.accounts ? MOD.accounts.linhas : [];

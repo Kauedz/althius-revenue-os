@@ -13,6 +13,7 @@ import {
   criarConta,
   editarConta,
   importarContas,
+  contasDeCsv,
   type ContaTela,
   type NovaContaInput,
   type EditarContaInput,
@@ -36,7 +37,7 @@ import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla 
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 import { avisoDeColeta, listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
 import { listarProspeccao, prospeccaoSemDados, type ProspeccaoTela } from './servicos/prospeccao';
-import { arquivarNegocio, atualizarNegocio, criarNegocio, criarQuadro, excluirQuadro, listarPipeline, moverNegocio, MOTIONS, pipelineVazio, reordenarEtapas, renomearQuadro, type Motion, type PipelineTela, type Resultado } from './servicos/pipeline';
+import { arquivarNegocio, atualizarNegocio, criarNegocio, criarQuadro, excluirQuadro, levarContasAoQuadro, listarPipeline, moverNegocio, MOTIONS, pipelineVazio, reordenarEtapas, renomearQuadro, type Motion, type PipelineTela, type Resultado } from './servicos/pipeline';
 import { adiarTarefa, criarTarefa, listarTarefas, mudarStatusTarefa, tarefasVazias, type TarefasTela } from './servicos/tarefas';
 import { CANAIS_CAMPANHA, campanhasVazias, criarCampanha, listarCampanhas, mudarStatusCampanha, mudarVerba, type CampanhasTela } from './servicos/campanhas';
 import { estrategiaVazia, listarEstrategia, type EstrategiaTela } from './servicos/estrategia';
@@ -123,6 +124,11 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   private vivo = true;
 
   componentDidUpdate(prevProps: Readonly<AlthiusAppProps>, prevState: Readonly<Record<string, any>>) {
+    if (this.levarPendente !== undefined && this.state.pipeReal && this.state.pipeReal !== prevState.pipeReal) {
+      const pendente = this.levarPendente;
+      this.levarPendente = undefined;
+      this.abrirLevarContas(pendente ?? undefined);
+    }
     super.componentDidUpdate?.(prevProps, prevState);
     this.carregarPaginaSobDemanda(prevState);
     if (prevState.rota?.ws !== this.state.rota?.ws) {
@@ -272,6 +278,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.valoresEquipe(v);
     this.formularioNovoCliente(v);
     this.formularioDoModulo(v);
+    this.acoesDeLeads(v);
     return v;
   }
 
@@ -1404,7 +1411,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   private formularioDoModulo(v: Record<string, any>) {
     const f = this.state.formModulo as { tipo: string; titulo: string; salvarLabel: string; erro: string; campos: Array<Record<string, any>> } | undefined;
     const pagina = (this.state.rota || {}).page;
-    if (!f || !v.md || (pagina !== 'campaigns' && pagina !== 'cadences' && pagina !== 'admin/providers')) return;
+    if (!f || !v.md || !['campaigns', 'cadences', 'admin/providers', 'accounts', 'pipeline'].includes(pagina)) return;
     v.md.form = {
       titulo: f.titulo,
       campos: f.campos.map(c => ({
@@ -1435,6 +1442,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     const val = (k: string) => (f.campos.find(c => c.k === k)?.valor ?? '').trim();
     const falhou = (erro: string) => this.setState({ formModulo: Object.assign({}, this.state.formModulo, { erro }) });
     const sb = this.props.supabase;
+    if (f.tipo === 'nova_conta' || f.tipo === 'importar_contas' || f.tipo === 'levar_contas') return this.enviarFormularioDeLeads(f, val, falhou);
     const verba = AlthiusApp.numeroBR(val('verba'));
     if (Number.isNaN(verba)) return falhou('Informe a verba só com números.');
 
@@ -1678,7 +1686,139 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     }
   }
 
+  // ---- Leads: adicionar, importar e levar ao Pipeline (ADR 0065)
+
+  private podeNoWorkspace(chave: string) {
+    return (this.props.dados.PERMS[this.papel()] || []).includes(chave);
+  }
+
+  private abrirNovaConta() {
+    this.abrirFormulario({ tipo: 'nova_conta', titulo: 'Nova conta', salvarLabel: 'Criar conta', campos: [
+      { k: 'nome', label: 'Nome da empresa', valor: '', placeholder: 'Ex.: Serra Azul Têxtil' },
+      { k: 'site', label: 'Site', valor: '', placeholder: 'empresa.com.br' },
+      { k: 'uf', label: 'Estado (UF)', valor: '', placeholder: 'SP (opcional)' },
+      { k: 'cidade', label: 'Cidade', valor: '', placeholder: 'Opcional' }
+    ] });
+  }
+
+  private abrirImportarContas() {
+    this.abrirFormulario({ tipo: 'importar_contas', titulo: 'Importar lista de contas', salvarLabel: 'Importar', campos: [
+      { k: 'csv', label: 'Cole a lista (CSV com cabeçalho: nome;site;uf;cidade)', valor: '', longo: true, placeholder: 'nome;site;uf\nSerra Azul Têxtil;serraazul.com.br;SP' }
+    ] });
+  }
+
+  /** Quadros de todas as motions, para escolher onde a conta entra (o padrão é o quadro aberto na motion aberta). */
+  private opcoesDeQuadro() {
+    const p = this.pipe() as { motion: Motion; quadros: Record<string, Array<{ id: string; nome: string }>>; ativo: Record<string, string> };
+    const opcoes = MOTIONS.flatMap(m => (p.quadros[m] || []).filter(q => !String(q.id).startsWith('carregando-'))
+      .map(q => ({ valor: q.id, label: m.toUpperCase() + ' · ' + q.nome })));
+    const ativo = p.ativo[p.motion];
+    return { opcoes, padrao: opcoes.some(o => o.valor === ativo) ? ativo : opcoes[0]?.valor || '' };
+  }
+
+  /** Pedido de "levar ao Pipeline" esperando os quadros chegarem do banco (null = em massa). */
+  private levarPendente: { id: string; nome: string } | null | undefined;
+
+  private abrirLevarContas(conta?: { id: string; nome: string }) {
+    // Os quadros vêm do banco: sem eles carregados, o formulário abre assim que chegarem (componentDidUpdate).
+    if (!this.state.pipeReal) {
+      this.levarPendente = conta ?? null;
+      if (this.state.rota?.page !== 'pipeline') void this.carregarPipeline();
+      return;
+    }
+    const { opcoes, padrao } = this.opcoesDeQuadro();
+    if (!opcoes.length) return this.confirmar('Pipeline indisponível', 'Não consegui carregar os quadros do Pipeline. Tente de novo em instantes.', 'Entendi', () => {});
+    const campos: Array<Record<string, any>> = [{ k: 'quadro', label: 'Quadro', valor: padrao, opcoes }];
+    if (!conta) campos.push({ k: 'quais', label: 'Quais contas', valor: 'todas', opcoes: [
+      { valor: 'todas', label: 'Todas as contas da base' },
+      { valor: 'quentes', label: 'Só as quentes (temperatura alta)' },
+      { valor: 'fit80', label: 'Só as com fit 80 ou mais' },
+      { valor: 'sem_negocio', label: 'Só as que ainda não estão em nenhum quadro' }
+    ] });
+    this.abrirFormulario({ tipo: 'levar_contas', titulo: conta ? 'Levar ' + conta.nome + ' ao Pipeline' : 'Adicionar contas ao Pipeline',
+      salvarLabel: 'Adicionar ao quadro', extra: conta ? { ids: [conta.id] } : {}, campos });
+  }
+
+  /** As contas da base que entram, pelo critério escolhido. O banco não duplica quem já está no quadro. */
+  private contasPeloCriterio(criterio: string): string[] {
+    const linhas = (((window as any).ALTHIUS_MOD || {}).accounts?.linhas || []) as ContaTela[];
+    const p = this.pipe() as { quadros: Record<string, Array<{ deals: Array<{ cid: string }> }>> };
+    const noPipeline = new Set(MOTIONS.flatMap(m => (p.quadros[m] || []).flatMap(q => q.deals.map(d => d.cid))));
+    const filtro: Record<string, (c: ContaTela) => boolean> = {
+      todas: () => true, quentes: c => c.temperatura === 3, fit80: c => c.fit >= 80, sem_negocio: c => !noPipeline.has(c.id)
+    };
+    return linhas.filter(filtro[criterio] || filtro.todas).map(c => c.id);
+  }
+
+  private async enviarFormularioDeLeads(f: { tipo: string; extra?: Record<string, any> }, val: (k: string) => string, falhou: (erro: string) => void) {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return falhou('Você não participa deste workspace como membro.');
+    if (f.tipo === 'nova_conta') {
+      if (!val('nome') || !val('site')) return falhou('Informe o nome e o site da empresa.');
+      try {
+        await this.criarNovaConta({ nome: val('nome'), dominio: val('site'), uf: val('uf') ? val('uf').toUpperCase() : undefined, cidade: val('cidade') || undefined });
+      } catch (falha) {
+        return falhou(falha instanceof Error ? falha.message : 'Não foi possível criar a conta.');
+      }
+      if (!this.vivo) return;
+      this.setState({ formModulo: undefined });
+      return this.avisar('mod', 'Conta criada. O enriquecimento completa CNPJ, endereço e pessoas sozinho.');
+    }
+    if (f.tipo === 'importar_contas') {
+      const lidas = contasDeCsv(val('csv'));
+      if (lidas.problemas.length) return falhou('Corrija antes de importar: ' + lidas.problemas.slice(0, 5).join('; ') + (lidas.problemas.length > 5 ? '…' : '.'));
+      try {
+        const r = await this.importarListaContas(lidas.contas);
+        if (!this.vivo) return;
+        this.setState({ formModulo: undefined });
+        return this.avisar('mod', r.criadas + (r.criadas === 1 ? ' conta importada' : ' contas importadas') + (r.duplicadas ? '; ' + r.duplicadas + ' já existiam' : '') + '.');
+      } catch (falha) {
+        return falhou(falha instanceof Error ? falha.message : 'Não foi possível importar as contas.');
+      }
+    }
+    // levar_contas
+    const quadro = val('quadro');
+    if (!quadro) return falhou('Escolha o quadro.');
+    const ids: string[] = Array.isArray(f.extra?.ids) ? f.extra!.ids : this.contasPeloCriterio(val('quais'));
+    if (!ids.length) return falhou('Nenhuma conta da base se encaixa nesse critério.');
+    const r = await levarContasAoQuadro(this.props.supabase, ws.uuid, ws.membroId, quadro, ids);
+    if (!r.ok) return falhou(r.mensagem);
+    if (!this.vivo) return;
+    this.setState({ formModulo: undefined });
+    await this.carregarPipeline();
+    const partes = [r.criados + (r.criados === 1 ? ' conta entrou no quadro' : ' contas entraram no quadro')];
+    if (r.jaEstavam) partes.push(r.jaEstavam + ' já estavam');
+    return this.avisar('mod', partes.join('; ') + '.');
+  }
+
+  /** Botões: "Adicionar conta" + "Importar lista" (Contas e leads), "Adicionar contas da base" (Pipeline), "Adicionar ao Pipeline" (ficha). */
+  private acoesDeLeads(v: Record<string, any>) {
+    if (this.modoDemo !== false) return;
+    const pagina = (this.state.rota || {}).page;
+    if (v.md && pagina === 'accounts') {
+      v.md.acaoLabel = 'Adicionar conta';
+      v.md.temAcao2 = this.podeNoWorkspace('accounts.import');
+      v.md.acao2Label = 'Importar lista';
+      v.md.acao2 = () => this.abrirImportarContas();
+    }
+    if (v.md && pagina === 'pipeline') {
+      v.md.temAcao2 = this.podeNoWorkspace('pipeline.deals');
+      v.md.acao2Label = 'Adicionar contas da base';
+      v.md.acao2 = () => this.abrirLevarContas();
+    }
+    if (v.cta?.aberta) {
+      const id = this.state.conta as string;
+      v.cta.podePipeline = this.podeNoWorkspace('pipeline.deals');
+      v.cta.adicionarPipeline = () => {
+        this.setState({ conta: null });
+        if (pagina !== 'pipeline') this.ir('app/' + this.wsId() + '/pipeline');
+        this.abrirLevarContas({ id, nome: v.cta.nome });
+      };
+    }
+  }
+
   acaoDaPaginaReal(page: string): boolean {
+    if (page === 'accounts') { this.abrirNovaConta(); return true; }
     if (page === 'campaigns') {
       this.abrirFormulario({ tipo: 'nova_campanha', titulo: 'Nova campanha', salvarLabel: 'Criar campanha', campos: [
         { k: 'nome', label: 'Nome da campanha', valor: '', placeholder: 'Ex.: Importação sem risco · Q4' },
