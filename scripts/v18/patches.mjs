@@ -1002,5 +1002,19 @@ export const PATCHES = [
       }
       return texto;
     }
+  },
+  {
+    // ADR 0068: no modo real o Copiloto é um assistente (não um agente). O texto de abertura vem da camada real.
+    regra: 'copiloto: texto de abertura vem da camada real',
+    arquivo: 'template.generated.tsx',
+    trocar: "{\"Descreva o objetivo. O copiloto monta o plano, delega aos agentes e pede sua aprovação antes de qualquer ação irreversível.\"}",
+    por: "{__t($v.copIntro || \"Descreva o objetivo. O copiloto monta o plano, delega aos agentes e pede sua aprovação antes de qualquer ação irreversível.\")}"
+  },
+  {
+    // ADR 0068: a conversa privada com o Copiloto (perguntas, respostas, encaminhamento ao agente certo).
+    regra: 'copiloto: conversa com mensagens e encaminhamento',
+    arquivo: 'template.generated.tsx',
+    trocar: "{$v.copAndamento ? (<>",
+    por: "{__arr($v.copMsgs).map((m, $index) => (<div key={m?.id || $index} className={\"msg\"} data-align={m?.alinhar}><span className={m?.avClasse}>{__t(m?.sigla)}</span><div className={\"msg-body\"}><div className={m?.bolha} style={{\"whiteSpace\":\"pre-wrap\"}}>{__t(m?.texto)}</div>{m?.encaminhar ? (<button className={\"b-sec mini-btn\"} onClick={m?.encaminhar} style={{\"alignSelf\":\"flex-start\",\"height\":\"36px\"}}>{__t(m?.encaminharLabel)}</button>) : null}<span className={\"msg-foot\"}>{__t(m?.rodape)}</span></div></div>))}{$v.copPensando ? (<p role=\"status\" style={{\"margin\":\"0\",\"fontSize\":\"13px\",\"color\":\"var(--graphite)\"}}>{\"O Copiloto está respondendo…\"}</p>) : null}{$v.copAndamento ? (<>"
   }
 ];

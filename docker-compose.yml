@@ -287,6 +287,23 @@ services:
       ENRIQ_TELEFONE_MAX_USD_POR_PESSOA: ${ENRIQ_TELEFONE_MAX_USD_POR_PESSOA:-0.01}
     networks: [interna]
 
+  # Copiloto (ADR 0068): assistente pessoal de cada pessoa (não é agente). Responde com os números do banco e encaminha
+  # trabalho ao agente certo. Usa o modelo de IA com as chaves do cofre (como o gateway). Não gasta crédito.
+  copiloto:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.copiloto
+    restart: unless-stopped
+    depends_on:
+      rest:
+        condition: service_started
+    environment:
+      BANCO_URL: http://rest:3000
+      SERVICE_ROLE_KEY: ${SERVICE_ROLE_KEY}
+      COFRE_CHAVE_MESTRA: ${COFRE_CHAVE_MESTRA:-}
+      COPILOTO_INTERVALO_SEGUNDOS: ${COPILOTO_INTERVALO_SEGUNDOS:-3}
+    networks: [interna]
+
   # Prospecção (ADR 0067): a Zoe estima, uma pessoa pede e o banco reserva o crédito máximo. A cada 2 minutos este
   # contêiner pega as buscas pedidas, roda a fonte na Apify (Google Maps, Receita Federal...; chaves do cofre) com o teto
   # do pedido e entrega as empresas como candidatas. Cobra-se só por empresa nova; falha devolve o crédito.

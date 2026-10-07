@@ -1,6 +1,7 @@
-// Seam: serviço do Copiloto com o Supabase local. Repetir a mesma chave não duplica a execução.
+// Seam: serviço do Copiloto (ADR 0068) com o Supabase local. A pergunta entra na conversa PRIVADA da pessoa; repetir
+// a mesma chave não duplica; nada vira execução nem gasta crédito.
 import { afterAll, describe, expect, it } from 'vitest';
-import { pedirAoCopiloto } from './copiloto';
+import { lerConversaCopiloto, perguntarAoCopiloto } from './copiloto';
 import { adminLocal, bancoLocalNoAr, entrarComoLocal } from '../../test/supabaseLocal';
 
 const WS = 'a0000000-0000-0000-0000-000000000001';
@@ -9,24 +10,39 @@ const MARCA = 'teste-servico-copiloto ' + Date.now().toString(36);
 
 describe.skipIf(!bancoLocalNoAr)('serviço do Copiloto (banco local)', () => {
   afterAll(async () => {
-    await adminLocal().from('executions').delete().like('title', 'Copiloto: ' + MARCA + '%');
+    await adminLocal().from('copilot_messages').delete().eq('workspace_id', WS).like('texto', '%' + MARCA + '%');
+    await adminLocal().from('copilot_messages').delete().eq('workspace_id', WS).like('texto', 'Não consegui responder agora: teste%');
   });
 
-  it('a mesma chave devolve a mesma execução e só uma é criada', async () => {
+  it('a mesma chave devolve a mesma pergunta e só uma é criada; nenhuma execução', async () => {
     const cliente = await entrarComoLocal('lucas@evolut.com.br');
     const chave = crypto.randomUUID();
-    const [a, b] = await Promise.all([
-      pedirAoCopiloto(cliente, WS, LUCAS, MARCA, chave),
-      pedirAoCopiloto(cliente, WS, LUCAS, MARCA, chave)
-    ]);
-    expect(a).toMatchObject({ ok: true, paraAprovacao: false });
+    const execAntes = (await adminLocal().from('executions').select('id', { count: 'exact', head: true }).eq('workspace_id', WS)).count;
+    const [a, b] = await Promise.all([perguntarAoCopiloto(cliente, WS, LUCAS, MARCA, chave), perguntarAoCopiloto(cliente, WS, LUCAS, MARCA, chave)]);
+    expect(a.ok).toBe(true);
     expect(b).toEqual(a);
-    const { data } = await adminLocal().from('executions').select('id').like('title', 'Copiloto: ' + MARCA + '%');
-    expect(data).toHaveLength(1);
+    const conversa = await lerConversaCopiloto(cliente, WS, LUCAS);
+    expect(conversa.filter(m => m.texto === MARCA)).toEqual([expect.objectContaining({ autor: 'pessoa', estado: 'pendente' })]);
+    expect((await adminLocal().from('executions').select('id', { count: 'exact', head: true }).eq('workspace_id', WS)).count).toBe(execAntes);
   });
 
-  it('pedido vazio vira erro claro, sem fila', async () => {
+  it('a resposta e o encaminhamento aparecem na conversa; a falha diz a verdade', async () => {
     const cliente = await entrarComoLocal('lucas@evolut.com.br');
-    expect(await pedirAoCopiloto(cliente, WS, LUCAS, '  ', crypto.randomUUID())).toEqual({ ok: false, mensagem: 'Escreva o pedido.' });
+    await perguntarAoCopiloto(cliente, WS, LUCAS, MARCA + ' segunda', crypto.randomUUID());
+    const admin = adminLocal();
+    const fila = (await admin.rpc('copilot_next', { p_limit: 10 })).data as Array<{ id: string; pergunta: string }>;
+    const [p1, p2] = [fila.find(p => p.pergunta === MARCA)!, fila.find(p => p.pergunta === MARCA + ' segunda')!];
+    await admin.rpc('copilot_answer', { p_id: p1.id, p_texto: 'Resposta ' + MARCA, p_encaminhar: 'comercial' });
+    await admin.rpc('copilot_fail', { p_id: p2.id, p_motivo: 'teste sem modelo' });
+    const conversa = await lerConversaCopiloto(cliente, WS, LUCAS);
+    expect(conversa.find(m => m.texto === 'Resposta ' + MARCA)).toMatchObject({ autor: 'copiloto', encaminhar: 'comercial', estado: 'respondida' });
+    expect(conversa.find(m => m.texto === 'Não consegui responder agora: teste sem modelo.')).toMatchObject({ autor: 'copiloto', estado: 'erro' });
+  });
+
+  it('privada: outra pessoa do cliente não lê a conversa; pergunta vazia vira erro claro', async () => {
+    const aline = await entrarComoLocal('aline@evolut.com.br');
+    expect((await lerConversaCopiloto(aline, WS, 'd0000000-0000-0000-0000-000000000003')).filter(m => m.texto.includes(MARCA))).toEqual([]);
+    const lucas = await entrarComoLocal('lucas@evolut.com.br');
+    expect(await perguntarAoCopiloto(lucas, WS, LUCAS, '  ', crypto.randomUUID())).toEqual({ ok: false, mensagem: 'Escreva a pergunta (até 2.000 caracteres).' });
   });
 });

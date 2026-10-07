@@ -143,6 +143,12 @@ O contêiner `enriquecimento` completa sozinho cada conta nova: site, logo, CNPJ
 - **Contas que já existiam** não entram sozinhas na fila; um gestor pede o enriquecimento pela função `account_enrichment_request`.
 - **Pessoa pediu para sair (LGPD):** `contact_suppress` apaga o contato e guarda os dados dele numa lista de supressão, para o enriquecimento nunca recriá-lo.
 
+## Copiloto (ADR 0068)
+O contêiner `copiloto` responde às perguntas que cada pessoa faz no painel do Copiloto. Ele lê do banco os números do cliente (contas, negócios, aprovações, créditos para quem pode ver), chama o modelo de IA com as mesmas chaves do cofre do gateway e grava a resposta. Quando o pedido é trabalho, a resposta indica o agente e mostra o botão para abrir a conversa com ele. **Não gasta crédito** (limite de 60 perguntas por pessoa por dia). Sem cofre ou sem modelo cadastrado em Fornecedores, a pessoa vê "Não consegui responder agora: ..." com o motivo.
+- **Ver o que está acontecendo:** `docker compose logs -f copiloto` (só números).
+- **Variável (opcional):** `COPILOTO_INTERVALO_SEGUNDOS` (padrão 3): de quanto em quanto tempo olha as perguntas.
+- O uso do modelo aparece no Uso global do superadmin com o rótulo `copiloto`.
+
 ## Prospecção (ADR 0067)
 O contêiner `prospeccao` roda as buscas de empresas novas que a Zoe estimou e uma pessoa pediu (ou que o C-level aprovou, quando passam do teto). O banco reserva o crédito máximo antes; o contêiner roda a fonte na Apify (chaves do cofre, tela de Fornecedores) com o teto do pedido e entrega as empresas, que aparecem como **candidatas** na página Prospecção. Cobra-se só por empresa nova (repetida não cobra); o resto da reserva volta. Falha devolve tudo e tenta de novo depois de 30 minutos (até 3 vezes). Sem chave da Apify, a busca falha com aviso claro e o crédito volta.
 - **Fontes:** ficam na tabela `internal.prospect_sources` (Google Maps e Receita Federal por CNAE, para começar). Fonte nova é um registro novo (ator, entrada com `{{variáveis}}` e mapeamento dos campos), sem código. Fonte de pessoas (B2C) não roda (LGPD).

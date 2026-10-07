@@ -121,5 +121,5 @@ export function criarGateway(d: DepsGateway) {
     return erro(404, 'nao_encontrado', 'Rota não encontrada.');
   }
 
-  return { tratar };
+  return { tratar, conversar };
 }

@@ -7843,7 +7843,7 @@ export function renderTemplate($v: Record<string, any>) {
                   {$v.copInicio ? (<>
                     {"\n            "}
                     <p style={{"margin":"0","fontSize":"15px","color":"var(--text-2)"}}>
-                      {"Descreva o objetivo. O copiloto monta o plano, delega aos agentes e pede sua aprovação antes de qualquer ação irreversível."}
+                      {__t($v.copIntro || "Descreva o objetivo. O copiloto monta o plano, delega aos agentes e pede sua aprovação antes de qualquer ação irreversível.")}
                     </p>
                     {"\n            "}
                     <div style={{"display":"flex","flexDirection":"column","gap":"6px"}}>
@@ -7860,7 +7860,7 @@ export function renderTemplate($v: Record<string, any>) {
                     {"\n          "}
                   </>) : null}
                   {"\n          "}
-                  {$v.copAndamento ? (<>
+                  {__arr($v.copMsgs).map((m, $index) => (<div key={m?.id || $index} className={"msg"} data-align={m?.alinhar}><span className={m?.avClasse}>{__t(m?.sigla)}</span><div className={"msg-body"}><div className={m?.bolha} style={{"whiteSpace":"pre-wrap"}}>{__t(m?.texto)}</div>{m?.encaminhar ? (<button className={"b-sec mini-btn"} onClick={m?.encaminhar} style={{"alignSelf":"flex-start","height":"36px"}}>{__t(m?.encaminharLabel)}</button>) : null}<span className={"msg-foot"}>{__t(m?.rodape)}</span></div></div>))}{$v.copPensando ? (<p role="status" style={{"margin":"0","fontSize":"13px","color":"var(--graphite)"}}>{"O Copiloto está respondendo…"}</p>) : null}{$v.copAndamento ? (<>
                     {"\n            "}
                     <div className={"msg"} data-align="end">
                       {"\n              "}

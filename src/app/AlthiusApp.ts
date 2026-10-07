@@ -33,7 +33,8 @@ import * as admin from './servicos/admin';
 import { decidirConsentimento, lerConsentimento, marcarAvisoVisto, type EstadoAprendizado } from './servicos/aprendizado';
 import { alternarChave, guardarChave, removerChave, ROTULO_PROVEDOR, testarChave, type ProvedorCofre } from './servicos/cofre';
 import { arquivarCanal, criarCanal, editarMensagem, enviarNoCanal, lerMensagens, listarCanais, mudarCanal, reagir, type CanalTela } from './servicos/canais';
-import { pedirAoCopiloto } from './servicos/copiloto';
+import { lerConversaCopiloto, perguntarAoCopiloto, type MensagemCopiloto } from './servicos/copiloto';
+import { nomeDoAgente as nomeDeExibicao } from './agentes-exibicao';
 import { listarNotificacoes, marcarNotificacoesComoLidas, type NotificacaoTupla } from './servicos/notificacoes';
 import { listarRelatorios, relatorioSemDados, type RelatoriosTela } from './servicos/relatorios';
 import { avisoDeColeta, listarSinais, sinaisSemDados, type SinaisTela } from './servicos/sinais';
@@ -131,6 +132,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       this.abrirLevarContas(pendente ?? undefined);
     }
     super.componentDidUpdate?.(prevProps, prevState);
+    if (this.modoDemo === false && this.state.cop && (!prevState.cop || prevState.rota?.ws !== this.state.rota?.ws)) void this.carregarCopiloto();
     this.carregarPaginaSobDemanda(prevState);
     if (prevState.rota?.ws !== this.state.rota?.ws) {
       this.cargaWorkspace++;
@@ -144,6 +146,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
   componentWillUnmount() {
     this.vivo = false;
     if (this.temporizadorConversa) clearTimeout(this.temporizadorConversa);
+    if (this.copEspera) clearTimeout(this.copEspera);
     this.cargaEquipe++;
     this.cargaWorkspace++;
     this.publicarContas([]);
@@ -280,6 +283,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     this.formularioNovoCliente(v);
     this.formularioDoModulo(v);
     this.acoesDeLeads(v);
+    this.copilotoNaTela(v);
     return v;
   }
 
@@ -2145,6 +2149,7 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
       if (!this.vivo || carga !== this.cargaConversa) return;
       this.gravarConversa(agente, { lista, atual, carregou: true, msgs: Object.assign({}, antes.msgs, atual ? { [atual]: msgs } : {}) });
       if (this.temporizadorConversa) clearTimeout(this.temporizadorConversa);
+    if (this.copEspera) clearTimeout(this.copEspera);
       if (lista.some(c => c.slug === atual && c.aguardando)) this.temporizadorConversa = setTimeout(() => { void this.carregarConversaDireta(agente); }, 3000);
     } catch (falha) {
       if (this.vivo && carga === this.cargaConversa) this.avisarFalha('Não foi possível carregar as conversas', falha);
@@ -2277,41 +2282,84 @@ export class AlthiusApp extends AlthiusLogic<AlthiusAppProps> {
     await this.carregarMensagens(canal.id);
   }
 
-  // ---- Copiloto (Claude): o pedido vai para a fila de Execuções; nada é encenado
+  // ---- Copiloto (ADR 0068): assistente pessoal, não agente. Conversa privada; respostas do serviço `copiloto`.
 
-  /** No modo real o histórico de pedidos fica em Execuções (com a situação verdadeira); sem conversas de exemplo. */
+  /** No modo real não há histórico de exemplo: a conversa é a do banco. */
   copHist() {
     return this.modoDemo === false ? [] : (AlthiusLogic.prototype as any).copHist.call(this);
   }
 
-  /** Pedido em andamento: repetir o mesmo texto reaproveita a chave, então nova tentativa não duplica nem cobra de novo. */
+  /** Pergunta em andamento: repetir o mesmo texto reaproveita a chave (nova tentativa não duplica). */
   private copPedido: { texto: string; chave: string } | null = null;
   private copEnviando = false;
+  private copEspera: ReturnType<typeof setTimeout> | null = null;
+  private copEsperas = 0;
+
+  async carregarCopiloto() {
+    const ws = this.workspaceAtual();
+    if (!ws?.membroId) return;
+    let msgs: MensagemCopiloto[];
+    try {
+      msgs = await lerConversaCopiloto(this.props.supabase, ws.uuid, ws.membroId);
+    } catch (falha) {
+      if (this.vivo) this.avisarFalha('Não foi possível carregar a conversa com o Copiloto', falha);
+      return;
+    }
+    if (!this.vivo || this.workspaceAtual()?.uuid !== ws.uuid) return;
+    this.setState({ copMsgs: msgs });
+    // Enquanto houver pergunta sem resposta, olha de novo (a cada 2 s, por até 3 minutos).
+    if (this.copEspera) clearTimeout(this.copEspera);
+    this.copEspera = null;
+    const esperando = msgs.some(m => m.autor === 'pessoa' && (m.estado === 'pendente' || m.estado === 'processando'));
+    if (esperando && this.copEsperas < 90) {
+      this.copEsperas++;
+      this.copEspera = setTimeout(() => void this.carregarCopiloto(), 2000);
+    } else if (!esperando) this.copEsperas = 0;
+  }
 
   async pedirAoCopilotoReal(texto: string) {
     if (this.copEnviando) return;
     const ws = this.workspaceAtual();
-    if (!ws?.membroId) return this.confirmar('Pedido não enviado', 'Você não participa deste workspace como membro.', 'Entendi', () => {});
+    if (!ws?.membroId) return this.confirmar('Pergunta não enviada', 'Você não participa deste workspace como membro.', 'Entendi', () => {});
     if (this.copPedido?.texto !== texto) this.copPedido = { texto, chave: crypto.randomUUID() };
     this.copEnviando = true;
     let r;
     try {
-      r = await pedirAoCopiloto(this.props.supabase, ws.uuid, ws.membroId, texto, this.copPedido.chave);
+      r = await perguntarAoCopiloto(this.props.supabase, ws.uuid, ws.membroId, texto, this.copPedido.chave);
     } finally {
       this.copEnviando = false;
     }
     if (!this.vivo) return;
-    if (!r.ok) return this.confirmar('Pedido não enviado', r.mensagem, 'Entendi', () => {});
+    if (!r.ok) return this.confirmar('Pergunta não enviada', r.mensagem, 'Entendi', () => {});
     this.copPedido = null;
     if (this.state.copTexto === texto) this.setState({ copTexto: '' });
+    this.copEsperas = 0;
+    await this.carregarCopiloto();
+  }
+
+  /** A conversa no painel do Copiloto (modo real): mensagens, "respondendo" e o botão para abrir a conversa com o agente. */
+  private copilotoNaTela(v: Record<string, any>) {
+    if (this.modoDemo !== false) return;
+    const msgs = (this.state.copMsgs || []) as MensagemCopiloto[];
     const slug = (this.state.rota || {}).ws;
-    if (r.paraAprovacao) {
-      return this.confirmar('Pedido enviado para Aprovações',
-        (r.motivo || 'O pedido precisa de aprovação antes de rodar.') + ' Quem decide o gasto foi avisado.',
-        'Ver aprovações', () => { this.setState({ cop: false }); this.ir('app/' + slug + '/approvals'); });
-    }
-    this.confirmar('Pedido registrado na fila',
-      'O Hermes conferiu papel e créditos e registrou o pedido em Execuções. Ele ainda aguarda processamento: nada foi feito até agora.',
-      'Ver execuções', () => { this.setState({ cop: false }); this.ir('app/' + slug + '/executions'); });
+    const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    v.copIntro = 'O Copiloto não é um dos agentes da equipe: tira dúvidas sobre a plataforma, explica os seus números e diz qual agente faz cada trabalho. Não executa nada e não gasta créditos.';
+    v.copInicio = true;
+    v.copAndamento = false;
+    v.exemplos = msgs.length ? [] : ['Quantas contas temos com fit acima de 70?', 'O que está esperando aprovação?', 'Como peço uma busca de empresas novas?', 'Onde vejo o ICP?']
+      .map(t => ({ texto: t, usar: () => void this.pedirAoCopilotoReal(t) }));
+    v.copPensando = msgs.some(m => m.autor === 'pessoa' && (m.estado === 'pendente' || m.estado === 'processando'));
+    v.copMsgs = msgs.map(m => {
+      const pessoa = m.autor === 'pessoa';
+      const agente = !pessoa && m.encaminhar ? m.encaminhar : null;
+      return {
+        id: m.id, texto: m.texto, alinhar: pessoa ? 'end' : 'start',
+        avClasse: pessoa ? 'msg-av msg-av-pessoa' : 'msg-av', sigla: pessoa ? v.usuario?.sigla : 'CO',
+        bolha: pessoa ? 'bubble bubble-ink' : 'bubble',
+        rodape: (pessoa ? 'Você' : 'Copiloto') + ' · ' + hora(m.quando),
+        encaminharLabel: agente ? 'Abrir conversa com ' + nomeDeExibicao(agente) : '',
+        encaminhar: agente ? () => { this.setState({ cop: false, agDetTab: 'conversa' }); this.ir('app/' + slug + '/agents/' + agente); } : null
+      };
+    });
   }
 }
