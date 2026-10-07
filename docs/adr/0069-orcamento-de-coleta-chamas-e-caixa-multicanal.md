@@ -30,6 +30,8 @@ O cliente paga uma assinatura mensal fixa (valor combinado em contrato) e recebe
 
 8. Removido `src/server/providers/unipile.ts`: era um cliente antigo, sem uso, que **simulava sucesso** quando faltava a chave. O envio real é o de `src/server/cadencia/envio.ts`, que nunca simula.
 
+9. **Unipile v1 e v2.** O Nan tem uma conta v1 (endereço próprio, como api68.unipile.com:19840, caminhos /api/v1), e o projeto nasceu na v2. O código fala com as duas: a versão vem de UNIPILE_API_VERSION ou do formato do endereço. Na v1: e-mail em JSON, chats em multipart (responder dentro do chat existente no LinkedIn e no Instagram), link de conexão com aviso por endereço próprio (a Unipile não deixa pôr cabeçalho nele, então o endereço leva uma chave HMAC só daquele pedido, que vale apenas para aviso de conexão), e webhooks autenticados por cabeçalho secreto Unipile-Auth. A leitura dos avisos da v1 segue a documentação e **ainda não foi vista com tráfego real**.
+
 ## Consequências
 - Migrations 138 a 141 e testes pgTAP 00090 a 00093; ajustes nos testes que dependiam de a chama ser escolhida na gravação (00012, 00013, 00024, 00069).
 - `npm run unipile:conferir` (somente leitura por padrão) confere a Unipile com a chave real: lista contas e chats; só envia com `--enviar` e uma conversa indicada.

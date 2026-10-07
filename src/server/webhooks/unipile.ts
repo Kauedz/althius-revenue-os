@@ -1,4 +1,6 @@
-// Receptor de webhook da Unipile v2: a parte pura (sem rede, sem banco), fácil de testar.
+// Receptor de webhook da Unipile: a parte pura (sem rede, sem banco), fácil de testar. Fala as duas versões (ADR 0069):
+// o envelope v2 ({ id, type, account_id, payload }, assinado) e os avisos da v1 (cada fonte com o seu formato, autenticados
+// por um cabeçalho secreto Unipile-Auth que o cliente põe ao criar o webhook; ver o bloco v1 mais abaixo).
 //
 // CONFERIDO no protótipo do dono (rodando com e-mail em conta real): assinatura `unipile-signature: t=<s>,v0=<hex>`
 // (HMAC-SHA256 de "<t>.<corpo>" com o segredo que a própria Unipile gera ao criar o endpoint de webhook), envelope
@@ -12,6 +14,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export const CABECALHO_ASSINATURA = 'unipile-signature';
+/** v1: cabeçalho que o cliente configura no webhook (Headers) com o mesmo valor do segredo. */
+export const CABECALHO_AUTH_V1 = 'unipile-auth';
 const JANELA_MS = 5 * 60 * 1000;
 
 export type Canal = 'whatsapp' | 'linkedin' | 'instagram' | 'email';
@@ -84,8 +88,10 @@ export function interpretar(evento: unknown): EventoUnipile {
   const e = objeto(evento);
   if (!e) return { tipo: 'ignorar', motivo: 'payload_invalido' };
   const tipo = texto(e.type);
+  // Sem type não é o envelope v2: tenta os formatos da v1.
+  if (!tipo) return interpretarV1(e);
   const conta = texto(e.account_id);
-  if (!tipo || !conta) return { tipo: 'ignorar', motivo: 'payload_incompleto' };
+  if (!conta) return { tipo: 'ignorar', motivo: 'payload_incompleto' };
   const payload = objeto(e.payload) ?? {};
 
   if (tipo === 'account.add' || tipo === 'account.reconnect') {
@@ -143,6 +149,109 @@ export function interpretar(evento: unknown): EventoUnipile {
   }
 
   return { tipo: 'ignorar', motivo: 'evento_desconhecido' };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Unipile v1 (ADR 0069). Formatos conforme a documentação (sem teste em conta real): mensagens { event: 'message_received',
+// account_id, account_type, chat_id, message_id, message, sender{attendee_*}, attendees[], account_info.user_id }; contas
+// { AccountStatus: { account_id, account_type, message } }; e-mail { event: 'mail_received', email_id, account_id,
+// from_attendee{identifier}, subject, body_plain, thread_id }; relações { event: 'new_relation', account_id, user_* }; e o
+// aviso do link de conexão { status: 'CREATION_SUCCESS' | 'RECONNECTED', account_id, name }, em que name é o id do nosso
+// pedido. Os nomes dos campos ficam só aqui: se a Unipile mandar diferente, muda só esta função.
+// ---------------------------------------------------------------------------------------------------------------------
+
+const CANAL_V1: Record<string, Canal> = { whatsapp: 'whatsapp', linkedin: 'linkedin', instagram: 'instagram' };
+
+// O estado de conta da v1 vira um dos 3 que o banco guarda. Passageiros (CONNECTING...) não mudam nada.
+const STATUS_V1: Record<string, StatusConexao | null> = {
+  OK: 'connected', SYNC_SUCCESS: 'connected', CREATION_SUCCESS: 'connected', RECONNECTED: 'connected',
+  CREDENTIALS: 'attention', ERROR: 'attention', STOPPED: 'attention', PERMISSIONS: 'attention', DELETED: 'disconnected', CONNECTING: null
+};
+
+export function interpretarV1(e: Record<string, unknown>): EventoUnipile {
+  const evento = texto(e.event).toLowerCase();
+
+  // Aviso do link de conexão (notify_url): o name é o id do pedido que mandamos ao gerar o link.
+  const statusLink = texto(e.status).toUpperCase();
+  if ((statusLink === 'CREATION_SUCCESS' || statusLink === 'RECONNECTED') && texto(e.account_id)) {
+    const pedidoId = texto(e.name);
+    return UUID.test(pedidoId) ? { tipo: 'conexao', pedidoId, conta: texto(e.account_id) } : { tipo: 'ignorar', motivo: 'conexao_sem_pedido' };
+  }
+
+  // Estado da conta: aninhado em AccountStatus (como na documentação) ou direto no corpo.
+  const st = objeto(e.AccountStatus) ?? (!evento && texto(e.account_id) && texto(e.message) && texto(e.account_type) ? e : null);
+  if (st) {
+    const conta = texto(st.account_id);
+    if (!conta) return { tipo: 'ignorar', motivo: 'payload_incompleto' };
+    const s = STATUS_V1[texto(st.message).toUpperCase()];
+    return s ? { tipo: 'status', conta, status: s } : { tipo: 'ignorar', motivo: 'status_sem_efeito' };
+  }
+
+  const conta = texto(e.account_id);
+  if (!evento || !conta) return { tipo: 'ignorar', motivo: 'payload_incompleto' };
+
+  if (evento === 'new_relation') {
+    const identificadores = lista(e.user_public_identifier, e.user_profile_url, e.user_provider_id);
+    return identificadores.length ? { tipo: 'relacao', conta, identificadores } : { tipo: 'ignorar', motivo: 'payload_incompleto' };
+  }
+
+  if (evento === 'mail_received') {
+    const de = objeto(e.from_attendee);
+    const emailId = texto(e.email_id);
+    const remetente = texto(de?.identifier);
+    if (!emailId || !remetente) return { tipo: 'ignorar', motivo: 'payload_incompleto' };
+    const assunto = texto(e.subject);
+    const corpo = texto(e.body_plain) || semTags(texto(e.body));
+    const junto = [assunto, corpo].filter(Boolean).join('\n\n').slice(0, LIMITE_TEXTO) || SEM_TEXTO;
+    return { tipo: 'mensagem', conta, canal: 'email', remetentes: [remetente], chat: texto(e.thread_id) || emailId, mensagemId: `${conta}:${emailId}`, texto: junto };
+  }
+
+  if (evento === 'message_received') {
+    const canal = CANAL_V1[texto(e.account_type).toLowerCase()];
+    if (!canal) return { tipo: 'ignorar', motivo: 'canal_nao_suportado' };
+    if (verdadeiro(e.is_event) || verdadeiro(e.deleted)) return { tipo: 'ignorar', motivo: 'evento_sem_texto' };
+    // Anúncios do LinkedIn (mensagem patrocinada, oferta) vêm como conversa somente leitura: ninguém responde e não são do CRM.
+    if (['sponsored', 'linkedin_offer'].includes(texto(e.content_type).toLowerCase())) return { tipo: 'ignorar', motivo: 'anuncio_do_canal' };
+    const remetente = objeto(e.sender);
+    // Mensagem enviada pela própria conta (do celular, por exemplo) não é resposta de contato.
+    const dono = texto(objeto(e.account_info)?.user_id);
+    if (dono && dono === texto(remetente?.attendee_provider_id)) return { tipo: 'ignorar', motivo: 'mensagem_propria' };
+    const participantes = Array.isArray(e.attendees) ? e.attendees.length : 0;
+    if (verdadeiro(e.is_group) || participantes > 2) return { tipo: 'ignorar', motivo: 'grupo' };
+    // No LinkedIn o CRM guarda o identificador público (ou o endereço do perfil); nos demais, o id do provedor.
+    const remetentes = canal === 'linkedin'
+      ? lista(remetente?.attendee_public_identifier, remetente?.attendee_profile_url, remetente?.attendee_provider_id, remetente?.attendee_id)
+      : lista(remetente?.attendee_provider_id, remetente?.attendee_id);
+    const mensagemId = texto(e.message_id);
+    const chat = texto(e.chat_id);
+    if (!remetentes.length || !mensagemId || !chat) return { tipo: 'ignorar', motivo: 'payload_incompleto' };
+    const corpo = texto(e.message).slice(0, LIMITE_TEXTO) || SEM_TEXTO;
+    return { tipo: 'mensagem', conta, canal, remetentes, chat, mensagemId: `${conta}:${mensagemId}`, texto: corpo };
+  }
+
+  return { tipo: 'ignorar', motivo: 'evento_desconhecido' };
+}
+
+const iguais = (a: string, b: string) => { const x = Buffer.from(a); const y = Buffer.from(b); return x.length === y.length && timingSafeEqual(x, y); };
+
+/** A chave que vai no endereço do aviso do link de conexão (a Unipile não deixa pôr cabeçalho nele): HMAC do id do pedido. */
+export const chaveDoAviso = (segredo: string, pedidoId: string): string => createHmac('sha256', segredo).update(`conexao:${pedidoId}`).digest('hex');
+
+/**
+ * Autenticação dos avisos da v1: o cabeçalho Unipile-Auth igual ao segredo (webhooks do painel), ou a chave k do endereço
+ * (aviso do link de conexão, que vale só para o pedido citado em name). Sem segredo configurado, recusa tudo.
+ * Devolve 'cabecalho', 'chave' (só vale para evento de conexão) ou null.
+ */
+export function autorizadoV1(corpoBruto: string, cabecalho: string | string[] | undefined, k: string | null, segredo: string): 'cabecalho' | 'chave' | null {
+  if (!segredo) return null;
+  if (typeof cabecalho === 'string' && cabecalho && iguais(cabecalho, segredo)) return 'cabecalho';
+  if (k) {
+    try {
+      const nome = texto(objeto(JSON.parse(corpoBruto))?.name);
+      if (nome && iguais(k, chaveDoAviso(segredo, nome))) return 'chave';
+    } catch { /* corpo que não é JSON não autentica */ }
+  }
+  return null;
 }
 
 /** Executa o evento no banco. Devolve só um resumo sem dado pessoal, próprio para log. */

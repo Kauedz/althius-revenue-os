@@ -2,7 +2,7 @@
 import { createServer, type Server } from 'node:http';
 import { iniciarConexao, type DepsConexoes } from './conexoes.ts';
 import { guardarSegredo, testarSegredo, type DepsCofre } from '../cofre/rotas.ts';
-import { assinaturaValida, CABECALHO_ASSINATURA, interpretar, processar, type Banco, type EventoUnipile } from './unipile.ts';
+import { assinaturaValida, autorizadoV1, CABECALHO_ASSINATURA, CABECALHO_AUTH_V1, interpretar, processar, type Banco, type EventoUnipile } from './unipile.ts';
 
 /** As rotas das integrações do catálogo (ADR 0056); o servidor só despacha, as funções ficam em `integracoes/rotas.ts`. */
 export interface RotasIntegracoes {
@@ -107,7 +107,7 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
     req.on('end', () => {
       if (estourou) return;
       const bruto = Buffer.concat(partes).toString('utf8');
-      const seguir = () => {
+      const seguir = (soConexao = false) => {
         let payload: unknown;
         try { payload = JSON.parse(bruto); } catch { return responder(400, { erro: 'json_invalido' }); }
         if (ehCofre) {
@@ -140,13 +140,21 @@ export function criarServidor(o: OpcoesServidor): { servidor: Server; ocioso: ()
         }
         // 200 já: a Unipile não espera o banco (e não reenvia por lentidão nossa).
         responder(200, { ok: true });
-        const trabalho = tratar(interpretar(payload)).finally(() => pendentes.delete(trabalho));
+        // Autenticado só pela chave do endereço (aviso do link de conexão da v1): só vale como aviso de conexão.
+        const evento = interpretar(payload);
+        const trabalho = tratar(soConexao && evento.tipo !== 'conexao' ? { tipo: 'ignorar', motivo: 'chave_so_vale_para_conexao' } as EventoUnipile : evento).finally(() => pendentes.delete(trabalho));
         pendentes.add(trabalho);
       };
       if (!ehWebhook) return seguir();
       // O segredo do webhook pode vir do cofre: relido a cada aviso (trocar na tela vale na hora).
       Promise.resolve(typeof o.segredo === 'function' ? o.segredo() : o.segredo).then(
-        segredo => { if (!assinaturaValida(bruto, req.headers[CABECALHO_ASSINATURA], segredo)) return responder(401, { erro: 'nao_autorizado' }); seguir(); },
+        segredo => {
+          // v2: assinatura do corpo. v1: cabeçalho Unipile-Auth (webhooks do painel) ou chave k no endereço (link de conexão).
+          if (assinaturaValida(bruto, req.headers[CABECALHO_ASSINATURA], segredo)) return seguir();
+          const via = autorizadoV1(bruto, req.headers[CABECALHO_AUTH_V1], new URL(req.url ?? '', 'http://interno').searchParams.get('k'), segredo);
+          if (!via) return responder(401, { erro: 'nao_autorizado' });
+          seguir(via === 'chave');
+        },
         () => responder(401, { erro: 'nao_autorizado' })
       );
     });

@@ -157,6 +157,7 @@ services:
       ANON_KEY: ${ANON_KEY}
       UNIPILE_API_KEY: ${UNIPILE_API_KEY:-}
       UNIPILE_API_URL: ${UNIPILE_API_URL:-}
+      UNIPILE_API_VERSION: ${UNIPILE_API_VERSION:-}
       # Cofre de chaves (tela do superadmin, ADR 0049): o que está lá vale mais que o .env.
       COFRE_CHAVE_MESTRA: ${COFRE_CHAVE_MESTRA:-}
     healthcheck:
@@ -182,6 +183,7 @@ services:
       # Sem a chave, só passos que viram tarefa rodam; o envio automático fica parado (nunca finge enviar).
       UNIPILE_API_KEY: ${UNIPILE_API_KEY:-}
       UNIPILE_API_URL: ${UNIPILE_API_URL:-}
+      UNIPILE_API_VERSION: ${UNIPILE_API_VERSION:-}
       COFRE_CHAVE_MESTRA: ${COFRE_CHAVE_MESTRA:-}
       CADENCIA_INTERVALO_SEGUNDOS: ${CADENCIA_INTERVALO_SEGUNDOS:-60}
     networks: [interna]

@@ -55,6 +55,7 @@ const linhas = [
   'UNIPILE_API_KEY=',
   '# Só preencha se a Unipile der outro endereço de API (padrão: https://api.unipile.com).',
   'UNIPILE_API_URL=',
+  'UNIPILE_API_VERSION=',
   '',
   '# true = carrega os dados de demonstração (usuários com senha pública "althius-demo").',
   '# Em produção TEM que ser false.',
