@@ -968,5 +968,39 @@ export const PATCHES = [
     arquivo: 'template.generated.tsx',
     trocar: "<span className={\"co-site\"}>",
     por: "{$v.cta?.fitPorque ? (<span className={\"fit-porque\"} style={{\"fontSize\":\"12px\",\"lineHeight\":\"1.4\",\"color\":\"var(--graphite)\"}}>{__t($v.cta?.fitPorque)}</span>) : null}<span className={\"co-site\"}>"
+  },
+  {
+    // ADR 0067 (fatia 5): os papéis dos 4 agentes decididos pelo Nan. Zoe é a única que prospecta; Jax cuida da
+    // estratégia, do ICP e da mídia; Lia de copy e cadências; Neo de RevOps. Sem integração que não existe (Apollo) e
+    // com o Meta Ads "Em breve" (ADR 0063).
+    regra: 'agentes: papéis de Zoe, Jax, Lia e Neo',
+    arquivo: 'data.js',
+    aplicar: texto => {
+      const trocas = [
+        ["funcao: 'Comercial · ICP, contas e comitê', latim: 'Vai atrás das contas certas'",
+         "funcao: 'Prospecção · empresas, pessoas e comitê', latim: 'Vai atrás das contas certas'"],
+        ["objetivo: 'Encontra e prioriza contas dentro do ICP, mapeia o comitê de compra e acompanha sinais de compra.', escopo: 'Lê o CRM, pesquisa dados públicos e da Receita Federal, monta listas e comitês. Não escreve no CRM sem aprovação.'",
+         "objetivo: 'A única que prospecta: busca empresas novas pelo ICP (Google Maps, Receita Federal), traz candidatas para você incluir ou excluir, mapeia o comitê de compra e acompanha os sinais das contas.', escopo: 'Diz o custo antes de rodar e só roda quando uma pessoa pede. Propõe contas, enriquecimento, Pipeline e planos; nada muda sem aprovação.'"],
+        ["I('Enriquecimento de contatos','Apollo','Leitura')", "I('Busca de empresas','Google Maps','Leitura')"],
+        ["funcao: 'Marketing · mídia, SEO/GEO e eventos', latim: 'Anuncia a marca ao mercado'",
+         "funcao: 'Estratégia · ICP e mídia paga', latim: 'Anuncia a marca ao mercado'"],
+        ["objetivo: 'Planeja e lê campanhas pagas, orgânico, SEO/GEO e eventos, e aponta onde realocar orçamento.', escopo: 'Lê dados de mídia e do site. Mudanças de orçamento e publicação exigem aprovação.'",
+         "objetivo: 'Escreve e remodela o ICP pelo que já vende, pelos dados e pelo Playbook, e cuida das campanhas e da verba de mídia paga.', escopo: 'Propõe mudanças no ICP, nas campanhas e na verba; tudo vira aprovação (verba, só o C-level). Lookalike no Meta Ads quando o conector existir.'"],
+        ["integracoes: [I('Mídia paga','Meta Ads','Leitura')]", "integracoes: [I('Mídia paga','Meta Ads','Em breve')]"],
+        ["funcao: 'Copy · mensagens e conteúdo', latim: 'Escreve no tom da marca'",
+         "funcao: 'Copy · mensagens e cadências', latim: 'Escreve no tom da marca'"],
+        ["objetivo: 'Escreve e-mails, mensagens, roteiros de ligação, anúncios e conteúdos no tom da marca.'",
+         "objetivo: 'Escreve e-mails, mensagens e roteiros de ligação no tom da marca e monta os passos das cadências.'"],
+        ["funcao: 'RevOps · CRM, pipeline e relatórios', latim: 'Mantém os números de pé'",
+         "funcao: 'RevOps · métricas e relatórios', latim: 'Mantém os números de pé'"],
+        ["objetivo: 'Mantém o CRM limpo, acompanha o pipeline, avisa sobre negócios parados e monta os relatórios do ciclo.', escopo: 'Lê e escreve no CRM somente com aprovação. Publica relatórios internos.'",
+         "objetivo: 'Lê as métricas, o pipeline e os negócios parados, explica os números e monta os relatórios quando você pede.', escopo: 'Lê o CRM e os números. Mudanças no CRM e tarefas só com aprovação.'"]
+      ];
+      for (const [de, para] of trocas) {
+        if (texto.split(de).length !== 2) throw new Error('Regra "agentes: papéis": não achei exatamente uma vez: ' + de.slice(0, 60));
+        texto = texto.replace(de, () => para);
+      }
+      return texto;
+    }
   }
 ];

@@ -36,18 +36,26 @@ O agente só trabalhava com as contas que já estavam na base: não havia como b
 3. Recalcula sozinho quando a conta muda, quando chega ou sai sinal, quando entra ou sai pessoa e quando o ICP do cliente muda (só as contas daquele cliente). **O fit não se escreve à mão**: qualquer valor gravado é substituído pelo calculado.
 4. Os números fixos do seed deixam de valer: o fit da demonstração agora é o calculado (sem ICP na Evolut, as notas ficam baixas, e isso é verdade).
 
+## Decisão (fatia 5: papéis dos agentes — migration 134)
+1. **Zoe** (comercial): "Prospecção · empresas, pessoas e comitê", a única que prospecta (conferido no banco: só ela estima e roda). **Jax** (marketing): "Estratégia · ICP e mídia paga" (só ele propõe ICP). **Lia** (copy): "Copy · mensagens e cadências". **Neo** (revops): "RevOps · métricas e relatórios".
+2. A tela de Agentes (texto do protótipo, por regra nova no `patches.mjs`), o prompt de cada agente (`prompts.ts`, `especialidades.ts`) e os Playbooks de demonstração (seed) passam a dizer isso. Os outros três encaminham à Zoe pedidos de buscar empresas novas.
+3. Duas habilidades novas, em todo cliente e nos novos: **"Prospecção: estimar, pedir e trazer candidatas"** (só a Zoe) e **"ICP: ler, conversar e propor"** (só o Jax).
+4. **Sem prometer o que não existe**: saiu o "Apollo" da Zoe (não é fonte nossa; entrou "Google Maps"), o Meta Ads do Jax aparece "Em breve" (ADR 0063), e saíram dos Playbooks de demonstração "importação por NCM", "higiene de CRM toda noite", "recalcular previsão" e "publicar relatório no canal".
+
 ## Decisões tomadas sem o Nan (pequenas, técnicas)
 - **Preço provisório: 1 crédito por empresa nova**, máximo de 200 por busca (como pedido). A medir com o SQL do `docker/LEIA-ME.md`.
 - **A entrada do ator é montada no serviço**, não no banco (o banco devolve modelo e parâmetros já validados). Mais simples de testar; o banco continua sendo quem valida.
 - **Filtros de porte e capital** cobram só o que passa no filtro: o fornecedor cobra pelos itens que o ator devolve, mas o cliente paga só pelas empresas que entram. Se o custo real subir demais, a solução é preço maior por empresa, não cobrar pelo descarte.
 - **Pesos do fit (60/25/15) e pontos por sinal e por dado** foram escolhidos por mim, simples e explicáveis. Ajustar é uma migration pequena.
 - **Faturamento e capital social são campos separados no ICP**: o Nan falou em faturamento, mas as fontes públicas (Receita) trazem capital social, não faturamento. O filtro automático das buscas usa porte e capital; o faturamento fica como orientação para os agentes.
+- **As ferramentas do MCP não são filtradas por agente**: o servidor MCP só conhece o token, e quem decide é o banco (a Zoe estima e roda; o Jax propõe ICP). Os outros agentes veem as ferramentas e recebem a recusa clara se tentarem.
+- A habilidade "Fontes de sinais" (ADR 0060) continua nos 4 agentes: monitorar contas não é prospectar.
 - **Ferramenta extra `prospeccao_buscas`** (leitura): para a Zoe contar à pessoa o que a busca trouxe.
 - Os nomes exatos dos campos do ator da Receita estão com alternativas tolerantes (`nome_fantasia|razao_social`...). **Confirmar no primeiro uso real** e ajustar o mapeamento (é dado, sem código).
 - O sócio (QSA) da Receita **não é guardado** nas candidatas (dado de pessoa; LGPD). O mapeamento de pessoas continua no enriquecimento (ADR 0062).
 
 ## Consequências
-- Testes: pgTAP `00083_prospeccao_buscas.sql` (113) `00084_icp_estruturado.sql` (31) e `00085_fit_calculado.sql` (17); o `00024` passou a conferir que o fit escrito à mão é substituído, Vitest do serviço (`src/server/prospeccao/`), das ferramentas (`src/server/mcp/prospeccao.test.ts`), do serviço da tela e da tela (`prospeccao.tela.test.tsx`).
+- Testes: pgTAP `00083_prospeccao_buscas.sql` (113) `00084_icp_estruturado.sql` (31) `00085_fit_calculado.sql` (17) e `00086_papeis_dos_agentes.sql` (11); o `00024` passou a conferir que o fit escrito à mão é substituído, Vitest do serviço (`src/server/prospeccao/`), das ferramentas (`src/server/mcp/prospeccao.test.ts`), do serviço da tela e da tela (`prospeccao.tela.test.tsx`).
 - `docker-compose.yml` ganhou o contêiner `prospeccao` (`docker/Dockerfile.prospeccao`, variáveis `PROSP_*`).
 
 ## Limites conhecidos
