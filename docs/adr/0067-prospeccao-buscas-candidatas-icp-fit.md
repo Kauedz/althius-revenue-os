@@ -1,4 +1,4 @@
-# ADR 0067 — Prospecção: buscas e candidatas (e, a seguir, ICP, fit e papéis dos agentes)
+# ADR 0067 — Prospecção: buscas e candidatas, ICP, fit, papéis dos agentes e sinal que gera ação
 
 Status: aceita
 Data: 2026-10-07
@@ -42,10 +42,18 @@ O agente só trabalhava com as contas que já estavam na base: não havia como b
 3. Duas habilidades novas, em todo cliente e nos novos: **"Prospecção: estimar, pedir e trazer candidatas"** (só a Zoe) e **"ICP: ler, conversar e propor"** (só o Jax).
 4. **Sem prometer o que não existe**: saiu o "Apollo" da Zoe (não é fonte nossa; entrou "Google Maps"), o Meta Ads do Jax aparece "Em breve" (ADR 0063), e saíram dos Playbooks de demonstração "importação por NCM", "higiene de CRM toda noite", "recalcular previsão" e "publicar relatório no canal".
 
+## Decisão (fatia 8: sinal que gera ação — migration 137)
+1. Quando chega um **sinal forte** (`temperature_bump = 2`) numa conta de **fit 70 ou mais** (já contando esse sinal), a **Zoe propõe o próximo passo** com as propostas que já existem (ADR 0065), sem modelo de IA e sem crédito:
+   - conta **sem negócio ativo** → "levar ao Pipeline" (primeiro quadro do cliente);
+   - conta **com negócio ativo** → "criar tarefa" para o responsável da conta (prazo 1 dia, o sinal na nota).
+2. **Nada roda sem aprovação** (os gatilhos de aplicação são os de sempre). **Sem duplicar**: cada sinal tem chave própria (`sinal:<id>`) e, enquanto houver proposta de sinal pendente para a conta, outro sinal não cria outra. **Zoe pausada não propõe.**
+3. A proposta aparece em Aprovações como da Zoe, com o motivo ("Sinal forte X em <conta>, que tem fit N").
+
 ## Decisões tomadas sem o Nan (pequenas, técnicas)
 - **Preço provisório: 1 crédito por empresa nova**, máximo de 200 por busca (como pedido). A medir com o SQL do `docker/LEIA-ME.md`.
 - **A entrada do ator é montada no serviço**, não no banco (o banco devolve modelo e parâmetros já validados). Mais simples de testar; o banco continua sendo quem valida.
 - **Filtros de porte e capital** cobram só o que passa no filtro: o fornecedor cobra pelos itens que o ator devolve, mas o cliente paga só pelas empresas que entram. Se o custo real subir demais, a solução é preço maior por empresa, não cobrar pelo descarte.
+- **"Sinal forte" = aquecimento 2 e "fit alto" = 70 ou mais**, e a escolha do passo (Pipeline se não tem negócio, tarefa se tem) são regras simples minhas; o plano de vários passos (`propor_plano`) fica para quando a Zoe decidir pelo modelo.
 - **Pesos do fit (60/25/15) e pontos por sinal e por dado** foram escolhidos por mim, simples e explicáveis. Ajustar é uma migration pequena.
 - **Faturamento e capital social são campos separados no ICP**: o Nan falou em faturamento, mas as fontes públicas (Receita) trazem capital social, não faturamento. O filtro automático das buscas usa porte e capital; o faturamento fica como orientação para os agentes.
 - **As ferramentas do MCP não são filtradas por agente**: o servidor MCP só conhece o token, e quem decide é o banco (a Zoe estima e roda; o Jax propõe ICP). Os outros agentes veem as ferramentas e recebem a recusa clara se tentarem.
@@ -55,7 +63,7 @@ O agente só trabalhava com as contas que já estavam na base: não havia como b
 - O sócio (QSA) da Receita **não é guardado** nas candidatas (dado de pessoa; LGPD). O mapeamento de pessoas continua no enriquecimento (ADR 0062).
 
 ## Consequências
-- Testes: pgTAP `00083_prospeccao_buscas.sql` (113) `00084_icp_estruturado.sql` (31) `00085_fit_calculado.sql` (17) e `00086_papeis_dos_agentes.sql` (11); o `00024` passou a conferir que o fit escrito à mão é substituído, Vitest do serviço (`src/server/prospeccao/`), das ferramentas (`src/server/mcp/prospeccao.test.ts`), do serviço da tela e da tela (`prospeccao.tela.test.tsx`).
+- Testes: pgTAP `00083_prospeccao_buscas.sql` (113) `00084_icp_estruturado.sql` (31) `00085_fit_calculado.sql` (17) `00086_papeis_dos_agentes.sql` (11) e `00089_sinal_que_gera_acao.sql` (17); o `00024` passou a conferir que o fit escrito à mão é substituído, Vitest do serviço (`src/server/prospeccao/`), das ferramentas (`src/server/mcp/prospeccao.test.ts`), do serviço da tela e da tela (`prospeccao.tela.test.tsx`).
 - `docker-compose.yml` ganhou o contêiner `prospeccao` (`docker/Dockerfile.prospeccao`, variáveis `PROSP_*`).
 
 ## Limites conhecidos
